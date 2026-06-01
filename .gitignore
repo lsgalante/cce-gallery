@@ -5,3 +5,4 @@ screenshots/
 logs/
 tmp/
 *.log
+target/

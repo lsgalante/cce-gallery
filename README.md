@@ -1,8 +1,8 @@
 # Clear Test Suite
 
 This repository contains integration and verification tests for the `clear` desktop environment programs, specifically:
-- `clear-river` (Wayland compositor with background blur support)
-- `clearwm` (window manager / layout agent)
+- `clear-computing-environment-server` (Wayland compositor with background blur support)
+- `ccec` (window manager / layout agent)
 - `clear-ui` (WebGPU-based desktop widget system)
 
 The tests run in a **headless Wayland session** using the `headless` backend of `wlroots` to ensure portability and automated execution.
@@ -16,7 +16,7 @@ The tests run in a **headless Wayland session** using the `headless` backend of 
 - Python 3.x
 - `Pillow` (for screenshot color analysis)
 - `grim` (for Wayland screenshot capture)
-- `clear-river` and `clearwm` built/installed
+- `clear-computing-environment-server` and `ccec` built/installed
 
 ## Running the Suite
 

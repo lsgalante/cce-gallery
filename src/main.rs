@@ -1,6 +1,6 @@
 use clear_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Header, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    TextLabel, Toggle, Widget, Trackpad,
+    TextLabel, Toggle, Widget, Trackpad, hover_animation,
 };
 
 use glyphon::{
@@ -164,7 +164,7 @@ impl State {
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
+                power_preference: wgpu::PowerPreference::LowPower,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
@@ -338,7 +338,7 @@ impl State {
                      split, grid), fullscreening,\n\
                      dragging, and resizing.\n\n\
                      Testing layout:\n\
-                     cascades in clearwm."
+                     cascades in ccec."
                 ).with_font_size(11.0).with_color([0x83, 0x83, 0x8a])), // 24 (Info panel description)
                 Box::new(RangeSlider::new().with_label("RangeSlider")), // 25 (RangeSlider widget)
                 Box::new(Trackpad::new().with_label("Trackpad")), // 26 (Trackpad widget)
@@ -450,14 +450,19 @@ impl State {
         let sw = self.width;
         let sh = self.height;
         let mut verts = Vec::new();
+        hover_animation::reset_frame_registration();
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
                 continue;
             }
             verts.extend(widget_vertices(w.as_ref(), sw, sh));
-            for (qx, qy, qw, qh, qc) in w.extra_quads() {
+            for (qx, qy, qw, qh, qc) in w.all_quads() {
                 verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
             }
+        }
+        hover_animation::post_render_check();
+        if let Some((qx, qy, qw, qh, qc)) = hover_animation::get_quad() {
+            verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
         }
         verts
     }
@@ -683,6 +688,37 @@ impl State {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
+    }
+
+    fn tick(&mut self, dt: f32) -> bool {
+        let mut changed = false;
+        if hover_animation::tick(dt) {
+            changed = true;
+        }
+        let is_child = self.is_child;
+        let current_page = self.current_page;
+        let is_visible = |index: usize| -> bool {
+            if is_child {
+                return true;
+            }
+            match index {
+                0..=2 => true,
+                3..=13 | 25 | 26 => current_page == Page::Widgets,
+                14..=24 => current_page == Page::Windows,
+                _ => false,
+            }
+        };
+        for (i, w) in self.widgets.iter_mut().enumerate() {
+            if is_visible(i) {
+                if w.tick(dt) {
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            self.upload_vertices();
+        }
+        changed
     }
 }
 
@@ -1160,7 +1196,7 @@ impl PointerHandler for AppState {
                                                       split, grid), fullscreening,\n\
                                                       dragging, and resizing.\n\n\
                                                       Testing layout:\n\
-                                                      cascades in clearwm.",
+                                                      cascades in ccec.",
                                                 1 => "An anchored sub-surface\n\
                                                       popup (xdg_popup).\n\
                                                       Usually transient context\n\
@@ -1475,12 +1511,26 @@ fn main() {
     let loop_handle = event_loop.handle();
     WaylandSource::new(conn, event_queue).insert(loop_handle).unwrap();
 
+    let mut last_tick = std::time::Instant::now();
     loop {
         event_loop
             .dispatch(std::time::Duration::from_millis(16), &mut app)
             .unwrap();
         if app.exit {
             break;
+        }
+
+        let now = std::time::Instant::now();
+        let mut dt = now.duration_since(last_tick).as_secs_f32();
+        last_tick = now;
+        if dt > 0.1 {
+            dt = 0.1;
+        }
+
+        if let Some(state) = &mut app.state {
+            if state.tick(dt) {
+                app.redraw = true;
+            }
         }
 
         if app.redraw {
