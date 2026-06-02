@@ -329,8 +329,20 @@ impl State {
                     "Layer: Overlay".to_string(),
                     "Layer: Background".to_string(),
                 ], 0).with_label("Window Type")), // 21
-                Box::new(Panel::new(0.0, 0.0, 190.0, 250.0)), // 22 (Info panel background)
-                Box::new(Label::new("Surface Info").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 23 (Info panel header)
+                Box::new(Dropdown::new(vec![
+                    "Rectangular".to_string(),
+                    "Circular".to_string(),
+                ], 0).with_label("Window Shape")), // 22
+                Box::new({
+                    let mut cb = Checkbox::new();
+                    cb.set_checked(true);
+                    cb
+                }), // 23 Checkbox: Enable Border
+                Box::new(Label::new("Enable Border").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 24 Label: "Enable Border"
+                Box::new(Spinbox::new(400, 100, 2000, 10).with_label("Width")), // 25 Spinbox: Width
+                Box::new(Spinbox::new(250, 100, 2000, 10).with_label("Height")), // 26 Spinbox: Height
+                Box::new(Panel::new(0.0, 0.0, 190.0, 250.0)), // 27 (Info panel background)
+                Box::new(Label::new("Surface Info").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 28 (Info panel header)
                 Box::new(Label::new(
                     "A standard application\n\
                      window (xdg_toplevel).\n\
@@ -339,9 +351,9 @@ impl State {
                      dragging, and resizing.\n\n\
                      Testing layout:\n\
                      cascades in ccec."
-                ).with_font_size(11.0).with_color([0x83, 0x83, 0x8a])), // 24 (Info panel description)
-                Box::new(RangeSlider::new().with_label("RangeSlider")), // 25 (RangeSlider widget)
-                Box::new(Trackpad::new().with_label("Trackpad")), // 26 (Trackpad widget)
+                ).with_font_size(11.0).with_color([0x83, 0x83, 0x8a])), // 29 (Info panel description)
+                Box::new(RangeSlider::new().with_label("RangeSlider")), // 30 (RangeSlider widget)
+                Box::new(Trackpad::new().with_label("Trackpad")), // 31 (Trackpad widget)
             ]
         };
 
@@ -402,8 +414,8 @@ impl State {
         }
         match index {
             0..=2 => true,
-            3..=13 | 25 | 26 => self.current_page == Page::Widgets,
-            14..=24 => self.current_page == Page::Windows,
+            3..=13 | 30 | 31 => self.current_page == Page::Widgets,
+            14..=29 => self.current_page == Page::Windows,
             _ => false,
         }
     }
@@ -425,8 +437,8 @@ impl State {
             }
             match index {
                 0..=2 => true,
-                3..=13 | 25 | 26 => current_page == Page::Widgets,
-                14..=24 => current_page == Page::Windows,
+                3..=13 | 30 | 31 => current_page == Page::Widgets,
+                14..=29 => current_page == Page::Windows,
                 _ => false,
             }
         };
@@ -451,6 +463,8 @@ impl State {
         let sh = self.height;
         let mut verts = Vec::new();
         hover_animation::reset_frame_registration();
+        clear_ui::widget::popovers::clear();
+        
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
                 continue;
@@ -459,7 +473,25 @@ impl State {
             for (qx, qy, qw, qh, qc) in w.all_quads() {
                 verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
             }
+            if w.popover_rect().is_some() {
+                clear_ui::widget::popovers::register(w.as_ref());
+            }
         }
+
+        // Draw popover quads on top
+        let mut popover_pc = clear_ui::layout::PopoverCollector::new();
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !self.is_widget_visible(i) {
+                continue;
+            }
+            if w.popover_rect().is_some() {
+                w.render_popover(&mut popover_pc);
+            }
+        }
+        for (qc, qx, qy, qw, qh) in popover_pc.rects {
+            verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
+        }
+
         hover_animation::post_render_check();
         if let Some((qx, qy, qw, qh, qc)) = hover_animation::get_quad() {
             verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
@@ -499,8 +531,8 @@ impl State {
             }
             match index {
                 0..=2 => true,
-                3..=13 | 25 | 26 => current_page == Page::Widgets,
-                14..=24 => current_page == Page::Windows,
+                3..=13 | 30 | 31 => current_page == Page::Widgets,
+                14..=29 => current_page == Page::Windows,
                 _ => false,
             }
         };
@@ -599,6 +631,41 @@ impl State {
                     bottom: *physical_height as i32,
                 },
                 default_color: glyphon::Color::rgb(label.color[0], label.color[1], label.color[2]),
+                custom_glyphs: &[],
+            });
+        }
+
+        // Draw popover texts on top
+        let mut popover_pc = clear_ui::layout::PopoverCollector::new();
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !is_visible(i) {
+                continue;
+            }
+            if w.popover_rect().is_some() {
+                w.render_popover(&mut popover_pc);
+            }
+        }
+        let mut popover_buffers = Vec::new();
+        for (t, size, _x, _y, _tc, _font_opt) in &popover_pc.texts {
+            popover_buffers.push(make_text_buffer(font_system, t, *size));
+        }
+        for (buf, (_, size, x, y, tc, _font_opt)) in popover_buffers.iter().zip(popover_pc.texts.iter()) {
+            areas.push(TextArea {
+                buffer: buf,
+                left: *x * scale_f32,
+                top: *y * scale_f32,
+                scale: scale_f32,
+                bounds: TextBounds {
+                    left: 0,
+                    top: 0,
+                    right: *physical_width as i32,
+                    bottom: *physical_height as i32,
+                },
+                default_color: glyphon::Color::rgb(
+                    (tc[0] * 255.0) as u8,
+                    (tc[1] * 255.0) as u8,
+                    (tc[2] * 255.0) as u8,
+                ),
                 custom_glyphs: &[],
             });
         }
@@ -703,8 +770,8 @@ impl State {
             }
             match index {
                 0..=2 => true,
-                3..=13 | 25 | 26 => current_page == Page::Widgets,
-                14..=24 => current_page == Page::Windows,
+                3..=13 | 30 | 31 => current_page == Page::Widgets,
+                14..=29 => current_page == Page::Windows,
                 _ => false,
             }
         };
@@ -751,11 +818,16 @@ fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
         (170.0, 444.0, 300.0, 32.0),         // 19 Slider: Transparency level
         (480.0, 452.0, 150.0, 16.0),         // 20 Label: "Transparency level"
         (470.0, 360.0, 175.0, 40.0),         // 21 Dropdown: Window type
-        (590.0, 100.0, 190.0, 250.0),        // 22 Panel: Info background
-        (600.0, 110.0, 170.0, 20.0),         // 23 Label: Info header
-        (600.0, 140.0, 170.0, 200.0),        // 24 Label: Info description
-        (170.0, 530.0, 300.0, 24.0),         // 25 RangeSlider
-        (590.0, 120.0, 190.0, 200.0),         // 26 Trackpad
+        (470.0, 410.0, 175.0, 40.0),         // 22 Dropdown: Window shape
+        (170.0, 490.0, 24.0, 24.0),          // 23 Checkbox: Enable Border
+        (205.0, 495.0, 150.0, 16.0),         // 24 Label: "Enable Border"
+        (470.0, 490.0, 175.0, 40.0),         // 25 Spinbox: Width
+        (470.0, 540.0, 175.0, 40.0),         // 26 Spinbox: Height
+        (590.0, 100.0, 190.0, 250.0),        // 27 Panel: Info background
+        (600.0, 110.0, 170.0, 20.0),         // 28 Label: Info header
+        (600.0, 140.0, 170.0, 200.0),        // 29 Label: Info description
+        (170.0, 530.0, 300.0, 24.0),         // 30 RangeSlider
+        (590.0, 120.0, 190.0, 200.0),        // 31 Trackpad
     ]
 }
 
@@ -789,6 +861,13 @@ struct AppState {
 
     cursor_shape_manager: Option<smithay_client_toolkit::seat::pointer::cursor_shape::CursorShapeManager>,
     cursor_shape_device: Option<smithay_client_toolkit::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::WpCursorShapeDeviceV1>,
+
+    ctrl_pressed: bool,
+    shift_pressed: bool,
+
+    initial_width: f32,
+    initial_height: f32,
+    child_shape: Option<String>,
 }
 
 impl CompositorHandler for AppState {
@@ -958,8 +1037,8 @@ impl PointerHandler for AppState {
                                 }
                                 match index {
                                     0..=2 => true,
-                                    3..=13 | 25 | 26 => current_page == Page::Widgets,
-                                    14..=24 => current_page == Page::Windows,
+                                    3..=13 | 30 | 31 => current_page == Page::Widgets,
+                                    14..=29 => current_page == Page::Windows,
                                     _ => false,
                                 }
                             };
@@ -995,8 +1074,8 @@ impl PointerHandler for AppState {
                             }
                             match index {
                                 0..=2 => true,
-                                3..=13 | 25 | 26 => current_page == Page::Widgets,
-                                14..=24 => current_page == Page::Windows,
+                                3..=13 | 30 | 31 => current_page == Page::Widgets,
+                                14..=29 => current_page == Page::Windows,
                                 _ => false,
                             }
                         };
@@ -1067,8 +1146,8 @@ impl PointerHandler for AppState {
                             }
                             match index {
                                 0..=2 => true,
-                                3..=13 | 25 | 26 => current_page == Page::Widgets,
-                                14..=24 => current_page == Page::Windows,
+                                3..=13 | 30 | 31 => current_page == Page::Widgets,
+                                14..=29 => current_page == Page::Windows,
                                 _ => false,
                             }
                         };
@@ -1131,10 +1210,10 @@ impl PointerHandler for AppState {
                                                 changed = true;
                                             }
                                         }
-                                        if st.widgets[25].take_click() {
+                                        if st.widgets[30].take_click() {
                                             changed = true;
                                         }
-                                        if st.widgets[26].take_click() {
+                                        if st.widgets[31].take_click() {
                                             changed = true;
                                         }
                                     }
@@ -1180,7 +1259,7 @@ impl PointerHandler for AppState {
                                         tile_windows = true;
                                     } else {
                                         let mut dropdown_clicked = false;
-                                        for i in 17..=21 {
+                                        for i in 17..=26 {
                                             if st.widgets[i].take_click() {
                                                 changed = true;
                                                 if i == 21 {
@@ -1227,7 +1306,7 @@ impl PointerHandler for AppState {
                                                       full screen background.",
                                                 _ => "",
                                             };
-                                            st.widgets[24].set_text(desc);
+                                            st.widgets[29].set_text(desc);
                                         }
                                     }
                                     
@@ -1240,21 +1319,38 @@ impl PointerHandler for AppState {
                                             4 => "LayerBackground",
                                             _ => "Toplevel",
                                         };
+                                        let shape = match st.widgets[22].value() {
+                                            0 => "rectangular",
+                                            1 => "circular",
+                                            _ => "rectangular",
+                                        };
                                         let opacity_enabled = st.widgets[17].value() == 1;
                                         let transparency_pct = st.widgets[19].value();
                                         let transparency_val = transparency_pct as f32 / 100.0;
-
-                                        st.update_status_text(&format!("Spawning simulated {} window...", window_type));
+                                        let border_enabled = st.widgets[23].value() == 1;
+                                        let custom_width = st.widgets[25].value();
+                                        let custom_height = st.widgets[26].value();
+ 
+                                        st.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
                                         if let Ok(exe) = std::env::current_exe() {
                                             let mut cmd = std::process::Command::new(exe);
                                             cmd.arg("--child")
                                                .arg("--type")
-                                               .arg(window_type);
+                                               .arg(window_type)
+                                               .arg("--shape")
+                                               .arg(shape);
                                             if opacity_enabled {
                                                 cmd.arg("--opacity")
                                                    .arg("--transparency")
                                                    .arg(transparency_val.to_string());
                                             }
+                                            if !border_enabled {
+                                                cmd.arg("--no-border");
+                                            }
+                                            cmd.arg("--width")
+                                               .arg(custom_width.to_string())
+                                               .arg("--height")
+                                               .arg(custom_height.to_string());
                                             let _ = cmd.spawn();
                                         }
                                         changed = true;
@@ -1308,7 +1404,49 @@ impl KeyboardHandler for AppState {
         _serial: u32,
         event: smithay_client_toolkit::seat::keyboard::KeyEvent,
     ) {
-        if event.keysym == xkeysym::Keysym::Escape {
+        let logical_key = match event.keysym {
+            xkeysym::Keysym::Escape => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Escape),
+            xkeysym::Keysym::Return => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Enter),
+            xkeysym::Keysym::BackSpace => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Backspace),
+            xkeysym::Keysym::Down => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowDown),
+            xkeysym::Keysym::Up => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowUp),
+            xkeysym::Keysym::Left => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowLeft),
+            xkeysym::Keysym::Right => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowRight),
+            xkeysym::Keysym::Tab => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Tab),
+            xkeysym::Keysym::Delete => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Delete),
+            xkeysym::Keysym::space => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Space),
+            _ => {
+                if let Some(ref text) = event.utf8 {
+                    clear_ui::widget::Key::Character(text.clone())
+                } else if let Some(ch) = event.keysym.key_char() {
+                    clear_ui::widget::Key::Character(ch.to_string())
+                } else {
+                    return;
+                }
+            }
+        };
+
+        let custom_event = clear_ui::widget::KeyEvent {
+            state: clear_ui::widget::ElementState::Pressed,
+            logical_key,
+            text: event.utf8.clone(),
+            repeat: false,
+            ctrl: self.ctrl_pressed,
+            shift: self.shift_pressed,
+        };
+
+        let mut handled = false;
+        if let Some(state) = &mut self.state {
+            if let Some(focused) = state.focused_widget {
+                if state.widgets[focused].keyboard_input(&custom_event) {
+                    state.upload_vertices();
+                    self.redraw = true;
+                    handled = true;
+                }
+            }
+        }
+
+        if !handled && event.keysym == xkeysym::Keysym::Escape {
             self.exit = true;
         }
     }
@@ -1329,9 +1467,11 @@ impl KeyboardHandler for AppState {
         _qh: &QueueHandle<Self>,
         _keyboard: &wl_keyboard::WlKeyboard,
         _serial: u32,
-        _modifiers: smithay_client_toolkit::seat::keyboard::Modifiers,
+        modifiers: smithay_client_toolkit::seat::keyboard::Modifiers,
         _layout: u32,
     ) {
+        self.ctrl_pressed = modifiers.ctrl;
+        self.shift_pressed = modifiers.shift;
     }
 }
 
@@ -1346,10 +1486,17 @@ impl WindowHandler for AppState {
     ) {
         if let Some(state) = &mut self.state {
             let (w, h) = configure.new_size;
-            let default_w = if state.is_child { 400 } else { 1024 };
-            let default_h = if state.is_child { 250 } else { 768 };
-            let w = w.unwrap_or(std::num::NonZeroU32::new(default_w).unwrap()).get();
-            let h = h.unwrap_or(std::num::NonZeroU32::new(default_h).unwrap()).get();
+            let default_w = if state.is_child { self.initial_width as u32 } else { 1024 };
+            let default_h = if state.is_child { self.initial_height as u32 } else { 768 };
+            let mut w = w.unwrap_or(std::num::NonZeroU32::new(default_w).unwrap()).get();
+            let mut h = h.unwrap_or(std::num::NonZeroU32::new(default_h).unwrap()).get();
+
+            if state.is_child && self.child_shape.as_deref() == Some("circular") {
+                let side = w.min(h);
+                w = side;
+                h = side;
+            }
+
             let pw = (w as f64 * state.scale) as u32;
             let ph = (h as f64 * state.scale) as u32;
             state.resize(pw, ph);
@@ -1400,12 +1547,45 @@ fn main() {
     let is_child = args.contains(&"--child".to_string());
     let type_idx = args.iter().position(|a| a == "--type");
     let child_type = type_idx.and_then(|i| args.get(i + 1)).cloned();
+    let shape_idx = args.iter().position(|a| a == "--shape");
+    let child_shape = shape_idx.and_then(|i| args.get(i + 1)).cloned();
     let opacity = args.contains(&"--opacity".to_string());
     let transp_idx = args.iter().position(|a| a == "--transparency");
     let transparency = transp_idx
         .and_then(|i| args.get(i + 1))
         .and_then(|s| s.parse::<f32>().ok())
         .unwrap_or(1.0);
+    let no_border = args.contains(&"--no-border".to_string());
+    let width_idx = args.iter().position(|a| a == "--width");
+    let custom_width = width_idx
+        .and_then(|i| args.get(i + 1))
+        .and_then(|s| s.parse::<f32>().ok());
+    let height_idx = args.iter().position(|a| a == "--height");
+    let custom_height = height_idx
+        .and_then(|i| args.get(i + 1))
+        .and_then(|s| s.parse::<f32>().ok());
+
+    let (mut c_w, mut c_h): (f32, f32) = if is_child {
+        if let (Some(w), Some(h)) = (custom_width, custom_height) {
+            (w, h)
+        } else {
+            match child_type.as_deref() {
+                Some("Toplevel") => (400.0, 250.0),
+                Some("Popup") => (250.0, 150.0),
+                Some("LayerTop") => (800.0, 40.0),
+                Some("LayerOverlay") => (300.0, 180.0),
+                Some("LayerBackground") => (800.0, 600.0),
+                _ => (400.0, 250.0),
+            }
+        }
+    } else {
+        (800.0, 600.0)
+    };
+    if is_child && child_shape.as_deref() == Some("circular") {
+        let side = c_w.min(c_h);
+        c_w = side;
+        c_h = side;
+    }
 
     let conn = Connection::connect_to_env().unwrap();
     let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
@@ -1437,6 +1617,11 @@ fn main() {
         redraw: true,
         cursor_shape_manager,
         cursor_shape_device: None,
+        ctrl_pressed: false,
+        shift_pressed: false,
+        initial_width: c_w,
+        initial_height: c_h,
+        child_shape: child_shape.clone(),
     };
 
     event_queue.roundtrip(&mut app).unwrap();
@@ -1446,20 +1631,8 @@ fn main() {
     let surface = app.compositor_state.create_surface(&qh);
     surface.set_buffer_scale(scale as i32);
 
-    let (c_w, c_h) = if is_child {
-        match child_type.as_deref() {
-            Some("Toplevel") => (400.0, 250.0),
-            Some("Popup") => (250.0, 150.0),
-            Some("LayerTop") => (800.0, 40.0),
-            Some("LayerOverlay") => (300.0, 180.0),
-            Some("LayerBackground") => (800.0, 600.0),
-            _ => (400.0, 250.0),
-        }
-    } else {
-        (800.0, 600.0)
-    };
-    let pw = (c_w * scale) as u32;
-    let ph = (c_h * scale) as u32;
+    let pw = (c_w * scale as f32) as u32;
+    let ph = (c_h * scale as f32) as u32;
 
     let window = app.xdg_shell_state.create_window(surface.clone(), WindowDecorations::None, &qh);
     if is_child {
@@ -1474,17 +1647,29 @@ fn main() {
         };
         window.set_title(&win_title);
         
-        let app_id = if let Some(ref t) = child_type {
+        let mut app_id = if let Some(ref t) = child_type {
             format!("clear-test-child-{}", t.to_lowercase())
         } else {
             "clear-test-child".to_string()
         };
+        if let Some(ref s) = child_shape {
+            if s == "circular" {
+                app_id.push_str("-circular");
+            }
+        }
+        if no_border {
+            app_id.push_str("-noborder");
+        }
         window.set_app_id(&app_id);
     } else {
         window.set_title("Clear Test Suite - Diagnostics Dashboard");
         window.set_app_id("clear-test-suite");
     }
-    window.set_min_size(Some((100, 100)));
+    if is_child {
+        window.set_min_size(Some((c_w as u32, c_h as u32)));
+    } else {
+        window.set_min_size(Some((100, 100)));
+    }
     window.commit();
 
     let wayland_handle = Box::leak(Box::new(clear_ui::wayland::WaylandSurfaceHandle {
