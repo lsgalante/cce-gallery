@@ -41,12 +41,14 @@ use calloop_wayland_source::WaylandSource;
 struct Vertex {
     position: [f32; 2],
     color: [f32; 4],
+    clip_circle: [f32; 3],
 }
 
 impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+    const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
         0 => Float32x2,
         1 => Float32x4,
+        2 => Float32x3,
     ];
 
     fn desc() -> wgpu::VertexBufferLayout<'static> {
@@ -69,12 +71,12 @@ fn quad_vertices(
     let y1 = 1.0 - ((y + h) / surface_h) * 2.0;
 
     [
-        Vertex { position: [x0, y0], color },
-        Vertex { position: [x1, y0], color },
-        Vertex { position: [x0, y1], color },
-        Vertex { position: [x1, y0], color },
-        Vertex { position: [x1, y1], color },
-        Vertex { position: [x0, y1], color },
+        Vertex { position: [x0, y0], color, clip_circle: [0.0, 0.0, 0.0] },
+        Vertex { position: [x1, y0], color, clip_circle: [0.0, 0.0, 0.0] },
+        Vertex { position: [x0, y1], color, clip_circle: [0.0, 0.0, 0.0] },
+        Vertex { position: [x1, y0], color, clip_circle: [0.0, 0.0, 0.0] },
+        Vertex { position: [x1, y1], color, clip_circle: [0.0, 0.0, 0.0] },
+        Vertex { position: [x0, y1], color, clip_circle: [0.0, 0.0, 0.0] },
     ]
 }
 
@@ -95,6 +97,7 @@ fn make_text_buffer(font_system: &mut FontSystem, text: &str, size: f32) -> Buff
 enum Page {
     Widgets,
     Windows,
+    Xdg,
 }
 
 struct State {
@@ -275,7 +278,7 @@ impl State {
             };
             make_text_buffer(&mut font_system, &title, 16.0)
         } else {
-            make_text_buffer(&mut font_system, "Clear Test Suite - Widgets", 16.0)
+            make_text_buffer(&mut font_system, "Clear Test Interface - Widgets", 16.0)
         };
         let status_buffer = make_text_buffer(&mut font_system, "Select a test case to begin verification.", 12.0);
 
@@ -298,7 +301,7 @@ impl State {
         } else {
             vec![
                 Box::new(Header::new()), // 0
-                Box::new(Paginator::new(150.0, vec!["Widgets".to_string(), "Windows".to_string()])), // 1
+                Box::new(Paginator::new(56.0, vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]).with_tabs_rotated(true)), // 1
                 Box::new(StatusBar::new()), // 2
                 
                 // "Widgets" page (indices 3..13)
@@ -354,6 +357,10 @@ impl State {
                 ).with_font_size(11.0).with_color([0x83, 0x83, 0x8a])), // 29 (Info panel description)
                 Box::new(RangeSlider::new().with_label("RangeSlider")), // 30 (RangeSlider widget)
                 Box::new(Trackpad::new().with_label("Trackpad")), // 31 (Trackpad widget)
+                Box::new(Panel::new(0.0, 0.0, 450.0, 200.0).with_label("XDG Desktop Portal FileChooser")), // 32
+                Box::new(Label::new("This page verifies the integration of the XDG Desktop Portal\nFile Chooser in the Clear environment.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 33
+                Box::new(Button::new(0.0, 0.0, 180.0, 40.0).with_label("Open File Dialog")), // 34
+                Box::new(Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File Dialog")), // 35
             ]
         };
 
@@ -416,14 +423,16 @@ impl State {
             0..=2 => true,
             3..=13 | 30 | 31 => self.current_page == Page::Widgets,
             14..=29 => self.current_page == Page::Windows,
+            32..=35 => self.current_page == Page::Xdg,
             _ => false,
         }
     }
 
     fn update_page_title(&mut self) {
         let title = match self.current_page {
-            Page::Widgets => "Clear Test Suite - Widgets",
-            Page::Windows => "Clear Test Suite - Windows",
+            Page::Widgets => "Clear Test Interface - Widgets",
+            Page::Windows => "Clear Test Interface - Windows",
+            Page::Xdg => "Clear Test Interface - XDG Portal",
         };
         self.label_buffer = make_text_buffer(&mut self.font_system, title, 16.0);
     }
@@ -439,6 +448,7 @@ impl State {
                 0..=2 => true,
                 3..=13 | 30 | 31 => current_page == Page::Widgets,
                 14..=29 => current_page == Page::Windows,
+                32..=35 => current_page == Page::Xdg,
                 _ => false,
             }
         };
@@ -533,6 +543,7 @@ impl State {
                 0..=2 => true,
                 3..=13 | 30 | 31 => current_page == Page::Widgets,
                 14..=29 => current_page == Page::Windows,
+                32..=35 => current_page == Page::Xdg,
                 _ => false,
             }
         };
@@ -557,7 +568,7 @@ impl State {
         text_viewport.update(queue, viewport);
 
         let scale_f32 = *scale as f32;
-        let left_margin = if is_child { 20.0 } else { 170.0 };
+        let left_margin = if is_child { 20.0 } else { 76.0 };
 
         let mut areas: Vec<TextArea> = vec![
             TextArea {
@@ -772,6 +783,7 @@ impl State {
                 0..=2 => true,
                 3..=13 | 30 | 31 => current_page == Page::Widgets,
                 14..=29 => current_page == Page::Windows,
+                32..=35 => current_page == Page::Xdg,
                 _ => false,
             }
         };
@@ -797,37 +809,42 @@ fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
         (0.0, sh - 28.0, sw, 28.0),         // 2 status_bar
 
         // "Widgets" page only
-        (170.0, 50.0, 140.0, 40.0),          // 3 verify_opacity
-        (320.0, 50.0, 140.0, 40.0),          // 4 verify_blur
-        (470.0, 50.0, 140.0, 40.0),          // 5 verify_layout
-        (170.0, 120.0, 400.0, 200.0),        // 6 panel
-        (170.0, 340.0, 140.0, 40.0),         // 7 run_diagnostics
-        (320.0, 340.0, 140.0, 40.0),         // 8 reset
-        (170.0, 410.0, 24.0, 24.0),          // 9 checkbox
-        (280.0, 410.0, 48.0, 24.0),          // 10 toggle
-        (400.0, 410.0, 160.0, 24.0),         // 11 progress_bar
-        (170.0, 470.0, 300.0, 24.0),         // 12 slider
-        (500.0, 470.0, 120.0, 24.0),         // 13 spinbox
+        (76.0, 50.0, 140.0, 40.0),          // 3 verify_opacity
+        (226.0, 50.0, 140.0, 40.0),          // 4 verify_blur
+        (376.0, 50.0, 140.0, 40.0),          // 5 verify_layout
+        (76.0, 120.0, 400.0, 200.0),        // 6 panel
+        (76.0, 340.0, 140.0, 40.0),         // 7 run_diagnostics
+        (226.0, 340.0, 140.0, 40.0),         // 8 reset
+        (76.0, 410.0, 24.0, 24.0),          // 9 checkbox
+        (186.0, 410.0, 48.0, 24.0),          // 10 toggle
+        (306.0, 410.0, 160.0, 24.0),         // 11 progress_bar
+        (76.0, 470.0, 300.0, 24.0),         // 12 slider
+        (406.0, 470.0, 120.0, 24.0),         // 13 spinbox
 
         // "Windows" page only
-        (170.0, 100.0, 400.0, 250.0),        // 14 Panel (Window area)
-        (170.0, 360.0, 140.0, 40.0),         // 15 Button: Create Window
-        (320.0, 360.0, 140.0, 40.0),         // 16 Button: Tile Windows
-        (170.0, 410.0, 24.0, 24.0),          // 17 Checkbox: Enable Opacity
-        (205.0, 415.0, 150.0, 16.0),         // 18 Label: "Enable Opacity"
-        (170.0, 444.0, 300.0, 32.0),         // 19 Slider: Transparency level
-        (480.0, 452.0, 150.0, 16.0),         // 20 Label: "Transparency level"
-        (470.0, 360.0, 175.0, 40.0),         // 21 Dropdown: Window type
-        (470.0, 410.0, 175.0, 40.0),         // 22 Dropdown: Window shape
-        (170.0, 490.0, 24.0, 24.0),          // 23 Checkbox: Enable Border
-        (205.0, 495.0, 150.0, 16.0),         // 24 Label: "Enable Border"
-        (470.0, 490.0, 175.0, 40.0),         // 25 Spinbox: Width
-        (470.0, 540.0, 175.0, 40.0),         // 26 Spinbox: Height
-        (590.0, 100.0, 190.0, 250.0),        // 27 Panel: Info background
-        (600.0, 110.0, 170.0, 20.0),         // 28 Label: Info header
-        (600.0, 140.0, 170.0, 200.0),        // 29 Label: Info description
-        (170.0, 530.0, 300.0, 24.0),         // 30 RangeSlider
-        (590.0, 120.0, 190.0, 200.0),        // 31 Trackpad
+        (76.0, 100.0, 400.0, 250.0),        // 14 Panel (Window area)
+        (76.0, 360.0, 140.0, 40.0),         // 15 Button: Create Window
+        (226.0, 360.0, 140.0, 40.0),         // 16 Button: Tile Windows
+        (76.0, 410.0, 24.0, 24.0),          // 17 Checkbox: Enable Opacity
+        (111.0, 415.0, 150.0, 16.0),         // 18 Label: "Enable Opacity"
+        (76.0, 444.0, 300.0, 32.0),         // 19 Slider: Transparency level
+        (386.0, 452.0, 150.0, 16.0),         // 20 Label: "Transparency level"
+        (376.0, 360.0, 175.0, 40.0),         // 21 Dropdown: Window type
+        (376.0, 410.0, 175.0, 40.0),         // 22 Dropdown: Window shape
+        (76.0, 490.0, 24.0, 24.0),          // 23 Checkbox: Enable Border
+        (111.0, 495.0, 150.0, 16.0),         // 24 Label: "Enable Border"
+        (376.0, 490.0, 175.0, 40.0),         // 25 Spinbox: Width
+        (376.0, 540.0, 175.0, 40.0),         // 26 Spinbox: Height
+        (496.0, 100.0, 190.0, 250.0),        // 27 Panel: Info background
+        (506.0, 110.0, 170.0, 20.0),         // 28 Label: Info header
+        (506.0, 140.0, 170.0, 200.0),        // 29 Label: Info description
+        (76.0, 530.0, 300.0, 24.0),         // 30 RangeSlider
+        (496.0, 120.0, 190.0, 200.0),        // 31 Trackpad
+        // "XDG" page only
+        (76.0, 100.0, 450.0, 200.0),        // 32 Panel: XDG Portal background
+        (96.0, 140.0, 410.0, 40.0),         // 33 Label: XDG explanation
+        (96.0, 220.0, 180.0, 40.0),         // 34 Button: Open File Dialog
+        (296.0, 220.0, 180.0, 40.0),         // 35 Button: Save File Dialog
     ]
 }
 
@@ -868,6 +885,7 @@ struct AppState {
     initial_width: f32,
     initial_height: f32,
     child_shape: Option<String>,
+    sender: calloop::channel::Sender<String>,
 }
 
 impl CompositorHandler for AppState {
@@ -1039,6 +1057,7 @@ impl PointerHandler for AppState {
                                     0..=2 => true,
                                     3..=13 | 30 | 31 => current_page == Page::Widgets,
                                     14..=29 => current_page == Page::Windows,
+                                    32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
                             };
@@ -1076,6 +1095,7 @@ impl PointerHandler for AppState {
                                 0..=2 => true,
                                 3..=13 | 30 | 31 => current_page == Page::Widgets,
                                 14..=29 => current_page == Page::Windows,
+                                32..=35 => current_page == Page::Xdg,
                                 _ => false,
                             }
                         };
@@ -1148,6 +1168,7 @@ impl PointerHandler for AppState {
                                 0..=2 => true,
                                 3..=13 | 30 | 31 => current_page == Page::Widgets,
                                 14..=29 => current_page == Page::Windows,
+                                32..=35 => current_page == Page::Xdg,
                                 _ => false,
                             }
                         };
@@ -1179,10 +1200,14 @@ impl PointerHandler for AppState {
                                         st.current_page = Page::Widgets;
                                         st.update_page_title();
                                         st.update_status_text("Viewing Widgets Page");
-                                    } else {
+                                    } else if selected == 1 {
                                         st.current_page = Page::Windows;
                                         st.update_page_title();
                                         st.update_status_text("Viewing Windows Page");
+                                    } else {
+                                        st.current_page = Page::Xdg;
+                                        st.update_page_title();
+                                        st.update_status_text("Viewing XDG Page");
                                     }
                                     st.apply_layout();
                                     st.upload_vertices();
@@ -1358,6 +1383,30 @@ impl PointerHandler for AppState {
                                         st.update_status_text("Window Action: Tile active client windows");
                                         changed = true;
                                     }
+                                } else if st.current_page == Page::Xdg {
+                                    let mut open_file = false;
+                                    let mut save_file = false;
+                                    if st.widgets[34].take_click() {
+                                        open_file = true;
+                                    } else if st.widgets[35].take_click() {
+                                        save_file = true;
+                                    }
+
+                                    if open_file {
+                                        st.update_status_text("Opening Open File Dialog...");
+                                        let sender_clone = self.sender.clone();
+                                        std::thread::spawn(move || {
+                                            open_file_dialog_portal(sender_clone);
+                                        });
+                                        changed = true;
+                                    } else if save_file {
+                                        st.update_status_text("Opening Save File Dialog...");
+                                        let sender_clone = self.sender.clone();
+                                        std::thread::spawn(move || {
+                                            save_file_dialog_portal(sender_clone);
+                                        });
+                                        changed = true;
+                                    }
                                 }
                             }
                         }
@@ -1367,7 +1416,23 @@ impl PointerHandler for AppState {
                         }
                     }
                 }
-                PointerEventKind::Axis { .. } => {}
+                PointerEventKind::Axis { horizontal, vertical, .. } => {
+                    if let Some(st) = &mut self.state {
+                        let h_scroll = horizontal.absolute as f32;
+                        let v_scroll = vertical.absolute as f32;
+                        let delta = clear_ui::widget::MouseScrollDelta::LineDelta(-h_scroll / 10.0, -v_scroll / 10.0);
+                        let mut changed = false;
+                        for w in &mut st.widgets {
+                            if w.mouse_wheel(&delta, st.cursor_x, st.cursor_y) {
+                                changed = true;
+                            }
+                        }
+                        if changed {
+                            st.upload_vertices();
+                            self.redraw = true;
+                        }
+                    }
+                }
             }
         }
     }
@@ -1591,6 +1656,8 @@ fn main() {
     let (globals, mut event_queue) = registry_queue_init(&conn).unwrap();
     let qh = event_queue.handle();
 
+    let (sender, channel) = calloop::channel::channel::<String>();
+
     let compositor_state = CompositorState::bind(&globals, &qh).unwrap();
     let xdg_shell_state = XdgShell::bind(&globals, &qh).unwrap();
     let shm_state = Shm::bind(&globals, &qh).unwrap();
@@ -1622,6 +1689,7 @@ fn main() {
         initial_width: c_w,
         initial_height: c_h,
         child_shape: child_shape.clone(),
+        sender,
     };
 
     event_queue.roundtrip(&mut app).unwrap();
@@ -1662,8 +1730,8 @@ fn main() {
         }
         window.set_app_id(&app_id);
     } else {
-        window.set_title("Clear Test Suite - Diagnostics Dashboard");
-        window.set_app_id("clear-test-suite");
+        window.set_title("Clear Test Interface - Diagnostics Dashboard");
+        window.set_app_id("clear-test-interface");
     }
     if is_child {
         window.set_min_size(Some((c_w as u32, c_h as u32)));
@@ -1694,7 +1762,17 @@ fn main() {
 
     let mut event_loop = EventLoop::try_new().unwrap();
     let loop_handle = event_loop.handle();
-    WaylandSource::new(conn, event_queue).insert(loop_handle).unwrap();
+    WaylandSource::new(conn, event_queue).insert(loop_handle.clone()).unwrap();
+
+    loop_handle.insert_source(channel, |event, _metadata, app_state: &mut AppState| {
+        if let calloop::channel::Event::Msg(msg) = event {
+            if let Some(state) = &mut app_state.state {
+                state.update_status_text(&msg);
+                state.upload_vertices();
+            }
+            app_state.redraw = true;
+        }
+    }).unwrap();
 
     let mut last_tick = std::time::Instant::now();
     loop {
@@ -1726,3 +1804,143 @@ fn main() {
         }
     }
 }
+
+fn percent_decode(s: &str) -> String {
+    let mut bytes = Vec::new();
+    let mut chars = s.as_bytes().iter();
+    while let Some(&b) = chars.next() {
+        if b == b'%' {
+            if let (Some(&h), Some(&l)) = (chars.next(), chars.next()) {
+                if let Ok(hex) = String::from_utf8(vec![h, l]) {
+                    if let Ok(decoded) = u8::from_str_radix(&hex, 16) {
+                        bytes.push(decoded);
+                        continue;
+                    }
+                }
+            }
+        }
+        bytes.push(b);
+    }
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+fn open_file_dialog_portal(sender: calloop::channel::Sender<String>) {
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let conn = zbus::blocking::Connection::session()?;
+        let mut options = std::collections::HashMap::new();
+        options.insert("handle_token".to_string(), zbus::zvariant::Value::from("clear_test_open_token"));
+
+        let msg: zbus::Message = conn.call_method(
+            Some("org.freedesktop.portal.Desktop"),
+            "/org/freedesktop/portal/desktop",
+            Some("org.freedesktop.portal.FileChooser"),
+            "OpenFile",
+            &("", "Open File Dialog", &options),
+        )?;
+        let reply: zbus::zvariant::OwnedObjectPath = msg.body().deserialize()?;
+
+        let request_proxy = zbus::blocking::Proxy::new(
+            &conn,
+            "org.freedesktop.portal.Desktop",
+            reply,
+            "org.freedesktop.portal.Request",
+        )?;
+
+        let mut signal_stream = request_proxy.receive_signal("Response")?;
+        if let Some(msg) = signal_stream.next() {
+            let (response_code, results): (u32, std::collections::HashMap<String, zbus::zvariant::OwnedValue>) = msg.body().deserialize()?;
+            if response_code == 0 {
+                if let Some(val) = results.get("uris") {
+                    if let Ok(uris) = Vec::<String>::try_from(val.clone()) {
+                        let mut file_paths = Vec::new();
+                        for uri in uris {
+                            let path = uri.trim_start_matches("file://");
+                            file_paths.push(percent_decode(path));
+                        }
+                        if !file_paths.is_empty() {
+                            let _ = sender.send(format!("Selected: {}", file_paths.join(", ")));
+                        } else {
+                            let _ = sender.send("Selected no files".to_string());
+                        }
+                    } else {
+                        let _ = sender.send("Selected success, but failed to parse URIs".to_string());
+                    }
+                } else {
+                    let _ = sender.send("Selected success, but no uris".to_string());
+                }
+            } else if response_code == 1 {
+                let _ = sender.send("File dialog cancelled by user".to_string());
+            } else {
+                let _ = sender.send(format!("File dialog closed (code {})", response_code));
+            }
+        } else {
+            let _ = sender.send("Request closed without response".to_string());
+        }
+        Ok(())
+    })();
+
+    if let Err(e) = result {
+        let _ = sender.send(format!("Error: {}", e));
+    }
+}
+
+fn save_file_dialog_portal(sender: calloop::channel::Sender<String>) {
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let conn = zbus::blocking::Connection::session()?;
+        let mut options = std::collections::HashMap::new();
+        options.insert("handle_token".to_string(), zbus::zvariant::Value::from("clear_test_save_token"));
+
+        let msg: zbus::Message = conn.call_method(
+            Some("org.freedesktop.portal.Desktop"),
+            "/org/freedesktop/portal/desktop",
+            Some("org.freedesktop.portal.FileChooser"),
+            "SaveFile",
+            &("", "Save File Dialog", &options),
+        )?;
+        let reply: zbus::zvariant::OwnedObjectPath = msg.body().deserialize()?;
+
+        let request_proxy = zbus::blocking::Proxy::new(
+            &conn,
+            "org.freedesktop.portal.Desktop",
+            reply,
+            "org.freedesktop.portal.Request",
+        )?;
+
+        let mut signal_stream = request_proxy.receive_signal("Response")?;
+        if let Some(msg) = signal_stream.next() {
+            let (response_code, results): (u32, std::collections::HashMap<String, zbus::zvariant::OwnedValue>) = msg.body().deserialize()?;
+            if response_code == 0 {
+                if let Some(val) = results.get("uris") {
+                    if let Ok(uris) = Vec::<String>::try_from(val.clone()) {
+                        let mut file_paths = Vec::new();
+                        for uri in uris {
+                            let path = uri.trim_start_matches("file://");
+                            file_paths.push(percent_decode(path));
+                        }
+                        if !file_paths.is_empty() {
+                            let _ = sender.send(format!("Saved to: {}", file_paths.join(", ")));
+                        } else {
+                            let _ = sender.send("Saved to no file".to_string());
+                        }
+                    } else {
+                        let _ = sender.send("Save success, but failed to parse URIs".to_string());
+                    }
+                } else {
+                    let _ = sender.send("Save success, but no uris".to_string());
+                }
+            } else if response_code == 1 {
+                let _ = sender.send("Save dialog cancelled by user".to_string());
+            } else {
+                let _ = sender.send(format!("Save dialog closed (code {})", response_code));
+            }
+        } else {
+            let _ = sender.send("Request closed without response".to_string());
+        }
+        Ok(())
+    })();
+
+    if let Err(e) = result {
+        let _ = sender.send(format!("Error: {}", e));
+    }
+}
+

@@ -1,5 +1,5 @@
 [package]
-name = "clear-test-suite"
+name = "clear-test-interface"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,3 +17,5 @@ calloop-wayland-source = "0.3.0"
 wayland-client = { version = "0.31", features = ["system"] }
 xkeysym = "0.2"
 resvg = "0.41.0"
+zbus = "5"
+

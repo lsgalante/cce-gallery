@@ -1,4 +1,4 @@
-# Clear Test Suite
+# Clear Test Interface
 
 This repository contains integration and verification tests for the `clear` desktop environment programs, specifically:
 - `clear-computing-environment-server` (Wayland compositor with background blur support)
