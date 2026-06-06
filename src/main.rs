@@ -1,6 +1,6 @@
 use clear_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Header, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    TextLabel, Toggle, Widget, Trackpad, hover_animation,
+    TextLabel, Toggle, Element, Trackpad, hover_animation,
 };
 
 use glyphon::{
@@ -80,7 +80,7 @@ fn quad_vertices(
     ]
 }
 
-fn widget_vertices(w: &dyn Widget, sw: f32, sh: f32) -> Vec<Vertex> {
+fn widget_vertices(w: &dyn Element, sw: f32, sh: f32) -> Vec<Vertex> {
     let (x, y, ww, h) = w.rect();
     quad_vertices(x, y, ww, h, sw, sh, w.color()).to_vec()
 }
@@ -109,7 +109,7 @@ struct State {
     vertex_buffer: wgpu::Buffer,
     vertex_count: u32,
 
-    widgets: Vec<Box<dyn Widget>>,
+    widgets: Vec<Box<dyn Element>>,
     positions: Vec<(f32, f32, f32, f32)>,
 
     font_system: FontSystem,
@@ -282,7 +282,7 @@ impl State {
         };
         let status_buffer = make_text_buffer(&mut font_system, "Select a test case to begin verification.", 12.0);
 
-        let widgets: Vec<Box<dyn Widget>> = if is_child {
+        let widgets: Vec<Box<dyn Element>> = if is_child {
             let desc_label = match child_type.as_deref() {
                 Some("Toplevel") => "This is an active simulated Toplevel window.".to_string(),
                 Some("Popup") => "This is an active simulated Popup window.".to_string(),
