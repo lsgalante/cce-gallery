@@ -367,7 +367,8 @@ impl State {
         let positions = if is_child {
             child_positions(sw, sh)
         } else {
-            demo_positions(sw, sh)
+            let sidebar_w = widgets[1].sidebar_w();
+            demo_positions(sw, sh, sidebar_w)
         };
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -410,6 +411,7 @@ impl State {
             transparency,
         };
 
+        clear_ui::scale::set_scale_factor(scale as f32);
         state.apply_layout();
         state.upload_vertices();
         state
@@ -657,21 +659,31 @@ impl State {
             }
         }
         let mut popover_buffers = Vec::new();
-        for (t, size, _x, _y, _tc, _font_opt) in &popover_pc.texts {
+        for (t, size, _x, _y, _tc, _font_opt, _bounds) in &popover_pc.texts {
             popover_buffers.push(make_text_buffer(font_system, t, *size));
         }
-        for (buf, (_, size, x, y, tc, _font_opt)) in popover_buffers.iter().zip(popover_pc.texts.iter()) {
+        for (buf, (_, size, x, y, tc, _font_opt, bounds)) in popover_buffers.iter().zip(popover_pc.texts.iter()) {
+            let item_bounds = if let Some([l, t, r, b]) = bounds {
+                TextBounds {
+                    left: (l * scale_f32).round() as i32,
+                    top: (t * scale_f32).round() as i32,
+                    right: (r * scale_f32).round() as i32,
+                    bottom: (b * scale_f32).round() as i32,
+                }
+            } else {
+                TextBounds {
+                    left: 0,
+                    top: 0,
+                    right: *physical_width as i32,
+                    bottom: *physical_height as i32,
+                }
+            };
             areas.push(TextArea {
                 buffer: buf,
                 left: *x * scale_f32,
                 top: *y * scale_f32,
                 scale: scale_f32,
-                bounds: TextBounds {
-                    left: 0,
-                    top: 0,
-                    right: *physical_width as i32,
-                    bottom: *physical_height as i32,
-                },
+                bounds: item_bounds,
                 default_color: glyphon::Color::rgb(
                     (tc[0] * 255.0) as u8,
                     (tc[1] * 255.0) as u8,
@@ -698,8 +710,10 @@ impl State {
             self.positions = if self.is_child {
                 child_positions(self.width, self.height)
             } else {
-                demo_positions(self.width, self.height)
+                let sidebar_w = self.widgets[1].sidebar_w();
+                demo_positions(self.width, self.height, sidebar_w)
             };
+            clear_ui::scale::set_scale_factor(self.scale as f32);
             self.apply_layout();
             self.upload_vertices();
         }
@@ -801,7 +815,8 @@ impl State {
     }
 }
 
-fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
+fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)> {
+    let base_x = sidebar_w + 20.0;
     vec![
         // Always visible
         (0.0, 0.0, sw, 40.0),               // 0 header
@@ -809,42 +824,42 @@ fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
         (0.0, sh - 28.0, sw, 28.0),         // 2 status_bar
 
         // "Widgets" page only
-        (76.0, 50.0, 140.0, 40.0),          // 3 verify_opacity
-        (226.0, 50.0, 140.0, 40.0),          // 4 verify_blur
-        (376.0, 50.0, 140.0, 40.0),          // 5 verify_layout
-        (76.0, 120.0, 400.0, 200.0),        // 6 panel
-        (76.0, 340.0, 140.0, 40.0),         // 7 run_diagnostics
-        (226.0, 340.0, 140.0, 40.0),         // 8 reset
-        (76.0, 410.0, 24.0, 24.0),          // 9 checkbox
-        (186.0, 410.0, 48.0, 24.0),          // 10 toggle
-        (306.0, 410.0, 160.0, 24.0),         // 11 progress_bar
-        (76.0, 470.0, 300.0, 24.0),         // 12 slider
-        (406.0, 470.0, 120.0, 24.0),         // 13 spinbox
+        (base_x, 50.0, 140.0, 40.0),          // 3 verify_opacity
+        (base_x + 150.0, 50.0, 140.0, 40.0),          // 4 verify_blur
+        (base_x + 300.0, 50.0, 140.0, 40.0),          // 5 verify_layout
+        (base_x, 120.0, 400.0, 200.0),        // 6 panel
+        (base_x, 340.0, 140.0, 40.0),         // 7 run_diagnostics
+        (base_x + 150.0, 340.0, 140.0, 40.0),         // 8 reset
+        (base_x, 410.0, 24.0, 24.0),          // 9 checkbox
+        (base_x + 110.0, 410.0, 48.0, 24.0),          // 10 toggle
+        (base_x + 230.0, 410.0, 160.0, 24.0),         // 11 progress_bar
+        (base_x, 470.0, 300.0, 24.0),         // 12 slider
+        (base_x + 330.0, 470.0, 120.0, 24.0),         // 13 spinbox
 
         // "Windows" page only
-        (76.0, 100.0, 400.0, 250.0),        // 14 Panel (Window area)
-        (76.0, 360.0, 140.0, 40.0),         // 15 Button: Create Window
-        (226.0, 360.0, 140.0, 40.0),         // 16 Button: Tile Windows
-        (76.0, 410.0, 24.0, 24.0),          // 17 Checkbox: Enable Opacity
-        (111.0, 415.0, 150.0, 16.0),         // 18 Label: "Enable Opacity"
-        (76.0, 444.0, 300.0, 32.0),         // 19 Slider: Transparency level
-        (386.0, 452.0, 150.0, 16.0),         // 20 Label: "Transparency level"
-        (376.0, 360.0, 175.0, 40.0),         // 21 Dropdown: Window type
-        (376.0, 410.0, 175.0, 40.0),         // 22 Dropdown: Window shape
-        (76.0, 490.0, 24.0, 24.0),          // 23 Checkbox: Enable Border
-        (111.0, 495.0, 150.0, 16.0),         // 24 Label: "Enable Border"
-        (376.0, 490.0, 175.0, 40.0),         // 25 Spinbox: Width
-        (376.0, 540.0, 175.0, 40.0),         // 26 Spinbox: Height
-        (496.0, 100.0, 190.0, 250.0),        // 27 Panel: Info background
-        (506.0, 110.0, 170.0, 20.0),         // 28 Label: Info header
-        (506.0, 140.0, 170.0, 200.0),        // 29 Label: Info description
-        (76.0, 530.0, 300.0, 24.0),         // 30 RangeSlider
-        (496.0, 120.0, 190.0, 200.0),        // 31 Trackpad
+        (base_x, 100.0, 400.0, 250.0),        // 14 Panel (Window area)
+        (base_x, 360.0, 140.0, 40.0),         // 15 Button: Create Window
+        (base_x + 150.0, 360.0, 140.0, 40.0),         // 16 Button: Tile Windows
+        (base_x, 410.0, 24.0, 24.0),          // 17 Checkbox: Enable Opacity
+        (base_x + 35.0, 415.0, 150.0, 16.0),         // 18 Label: "Enable Opacity"
+        (base_x, 444.0, 300.0, 32.0),         // 19 Slider: Transparency level
+        (base_x + 310.0, 452.0, 150.0, 16.0),         // 20 Label: "Transparency level"
+        (base_x + 300.0, 360.0, 175.0, 40.0),         // 21 Dropdown: Window type
+        (base_x + 300.0, 410.0, 175.0, 40.0),         // 22 Dropdown: Window shape
+        (base_x, 490.0, 24.0, 24.0),          // 23 Checkbox: Enable Border
+        (base_x + 35.0, 495.0, 150.0, 16.0),         // 24 Label: "Enable Border"
+        (base_x + 300.0, 490.0, 175.0, 40.0),         // 25 Spinbox: Width
+        (base_x + 300.0, 540.0, 175.0, 40.0),         // 26 Spinbox: Height
+        (base_x + 420.0, 100.0, 190.0, 250.0),        // 27 Panel: Info background
+        (base_x + 430.0, 110.0, 170.0, 20.0),         // 28 Label: Info header
+        (base_x + 430.0, 140.0, 170.0, 200.0),        // 29 Label: Info description
+        (base_x, 530.0, 300.0, 24.0),         // 30 RangeSlider
+        (base_x + 420.0, 120.0, 190.0, 200.0),        // 31 Trackpad
         // "XDG" page only
-        (76.0, 100.0, 450.0, 200.0),        // 32 Panel: XDG Portal background
-        (96.0, 140.0, 410.0, 40.0),         // 33 Label: XDG explanation
-        (96.0, 220.0, 180.0, 40.0),         // 34 Button: Open File Dialog
-        (296.0, 220.0, 180.0, 40.0),         // 35 Button: Save File Dialog
+        (base_x, 100.0, 450.0, 200.0),        // 32 Panel: XDG Portal background
+        (base_x + 20.0, 140.0, 410.0, 40.0),         // 33 Label: XDG explanation
+        (base_x + 20.0, 220.0, 180.0, 40.0),         // 34 Button: Open File Dialog
+        (base_x + 220.0, 220.0, 180.0, 40.0),         // 35 Button: Save File Dialog
     ]
 }
 
