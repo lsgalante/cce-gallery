@@ -138,6 +138,7 @@ struct State {
     is_child: bool,
     opacity: bool,
     transparency: f32,
+    ui_context: clear_ui::context::UiContext,
 }
 
 impl State {
@@ -353,7 +354,7 @@ impl State {
                      split, grid), fullscreening,\n\
                      dragging, and resizing.\n\n\
                      Testing layout:\n\
-                     cascades in ccec."
+                     cascades in cce."
                 ).with_font_size(11.0).with_color([0x83, 0x83, 0x8a])), // 29 (Info panel description)
                 Box::new(RangeSlider::new().with_label("RangeSlider")), // 30 (RangeSlider widget)
                 Box::new(Trackpad::new().with_label("Trackpad")), // 31 (Trackpad widget)
@@ -409,6 +410,7 @@ impl State {
             is_child,
             opacity,
             transparency,
+            ui_context: clear_ui::context::UiContext::new(),
         };
 
         clear_ui::scale::set_scale_factor(scale as f32);
@@ -482,7 +484,7 @@ impl State {
                 continue;
             }
             verts.extend(widget_vertices(w.as_ref(), sw, sh));
-            for (qx, qy, qw, qh, qc) in w.all_quads() {
+            for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
                 verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
             }
             if w.popover_rect().is_some() {
@@ -575,8 +577,8 @@ impl State {
         let mut areas: Vec<TextArea> = vec![
             TextArea {
                 buffer: label_buffer,
-                left: left_margin * scale_f32,
-                top: 12.0 * scale_f32,
+                left: (left_margin * scale_f32).round(),
+                top: (12.0 * scale_f32).round(),
                 scale: scale_f32,
                 bounds: TextBounds {
                     left: 0,
@@ -592,8 +594,8 @@ impl State {
         if !is_child {
             areas.push(TextArea {
                 buffer: status_buffer,
-                left: 12.0 * scale_f32,
-                top: *physical_height as f32 - 24.0 * scale_f32,
+                left: (12.0 * scale_f32).round(),
+                top: (*physical_height as f32 - 24.0 * scale_f32).round(),
                 scale: scale_f32,
                 bounds: TextBounds {
                     left: 0,
@@ -634,8 +636,8 @@ impl State {
         for (buf, label) in widget_buffers.iter().zip(widget_labels.iter()) {
             areas.push(TextArea {
                 buffer: buf,
-                left: label.x * scale_f32,
-                top: label.y * scale_f32,
+                left: (label.x * scale_f32).round(),
+                top: (label.y * scale_f32).round(),
                 scale: scale_f32,
                 bounds: TextBounds {
                     left: 0,
@@ -680,8 +682,8 @@ impl State {
             };
             areas.push(TextArea {
                 buffer: buf,
-                left: *x * scale_f32,
-                top: *y * scale_f32,
+                left: (*x * scale_f32).round(),
+                top: (*y * scale_f32).round(),
                 scale: scale_f32,
                 bounds: item_bounds,
                 default_color: glyphon::Color::rgb(
@@ -803,7 +805,7 @@ impl State {
         };
         for (i, w) in self.widgets.iter_mut().enumerate() {
             if is_visible(i) {
-                if w.tick(dt) {
+                if w.tick(dt, &mut self.ui_context) {
                     changed = true;
                 }
             }
@@ -1080,7 +1082,7 @@ impl PointerHandler for AppState {
                                 if !is_visible(i) {
                                     continue;
                                 }
-                                if w.cursor_moved(state.cursor_x, state.cursor_y) {
+                                if w.cursor_moved(state.cursor_x, state.cursor_y, &mut state.ui_context) {
                                     changed = true;
                                 }
                             }
@@ -1119,7 +1121,7 @@ impl PointerHandler for AppState {
                             if !is_visible(i) {
                                 continue;
                             }
-                            if st.widgets[i].hit_test(st.cursor_x, st.cursor_y) {
+                            if st.widgets[i].hit_test(st.cursor_x, st.cursor_y, &st.ui_context) {
                                 clicked_idx = Some(i);
                                 break;
                             }
@@ -1138,6 +1140,7 @@ impl PointerHandler for AppState {
                                 clear_ui::widget::ElementState::Pressed,
                                 st.cursor_x,
                                 st.cursor_y,
+                                &mut st.ui_context,
                             ) {
                                 changed = true;
                             }
@@ -1191,7 +1194,7 @@ impl PointerHandler for AppState {
                             if !is_visible(i) {
                                 continue;
                             }
-                            if w.mouse_input(btn, clear_ui::widget::ElementState::Released, st.cursor_x, st.cursor_y) {
+                            if w.mouse_input(btn, clear_ui::widget::ElementState::Released, st.cursor_x, st.cursor_y, &mut st.ui_context) {
                                 changed = true;
                             }
                         }
@@ -1315,7 +1318,7 @@ impl PointerHandler for AppState {
                                                       split, grid), fullscreening,\n\
                                                       dragging, and resizing.\n\n\
                                                       Testing layout:\n\
-                                                      cascades in ccec.",
+                                                      cascades in cce.",
                                                 1 => "An anchored sub-surface\n\
                                                       popup (xdg_popup).\n\
                                                       Usually transient context\n\
@@ -1438,7 +1441,7 @@ impl PointerHandler for AppState {
                         let delta = clear_ui::widget::MouseScrollDelta::LineDelta(-h_scroll / 10.0, -v_scroll / 10.0);
                         let mut changed = false;
                         for w in &mut st.widgets {
-                            if w.mouse_wheel(&delta, st.cursor_x, st.cursor_y) {
+                            if w.mouse_wheel(&delta, st.cursor_x, st.cursor_y, &mut st.ui_context) {
                                 changed = true;
                             }
                         }
@@ -1518,7 +1521,7 @@ impl KeyboardHandler for AppState {
         let mut handled = false;
         if let Some(state) = &mut self.state {
             if let Some(focused) = state.focused_widget {
-                if state.widgets[focused].keyboard_input(&custom_event) {
+                if state.widgets[focused].keyboard_input(&custom_event, &mut state.ui_context) {
                     state.upload_vertices();
                     self.redraw = true;
                     handled = true;
@@ -1746,7 +1749,7 @@ fn main() {
         window.set_app_id(&app_id);
     } else {
         window.set_title("Clear Test Interface - Diagnostics Dashboard");
-        window.set_app_id("clear-test-interface");
+        window.set_app_id("cce-test-interface");
     }
     if is_child {
         window.set_min_size(Some((c_w as u32, c_h as u32)));

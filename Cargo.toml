@@ -1,5 +1,5 @@
 [package]
-name = "clear-test-interface"
+name = "cce-test-interface"
 version = "0.1.0"
 edition = "2021"
 
