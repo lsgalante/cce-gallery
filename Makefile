@@ -5,7 +5,7 @@ build:
 
 install: build
 	mkdir -p ~/.local/bin
-	install -m 755 target/release/cce-test-interface ~/.local/bin/cce-test-interface
+	install -m 755 ../target/release/cce-test-interface ~/.local/bin/cce-test-interface
 
 run:
 	cargo run

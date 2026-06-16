@@ -368,7 +368,7 @@ impl State {
         let positions = if is_child {
             child_positions(sw, sh)
         } else {
-            let sidebar_w = widgets[1].sidebar_w();
+            let sidebar_w = widgets[1].as_page_selector().unwrap().sidebar_w();
             demo_positions(sw, sh, sidebar_w)
         };
 
@@ -712,7 +712,7 @@ impl State {
             self.positions = if self.is_child {
                 child_positions(self.width, self.height)
             } else {
-                let sidebar_w = self.widgets[1].sidebar_w();
+                let sidebar_w = self.widgets[1].as_page_selector().unwrap().sidebar_w();
                 demo_positions(self.width, self.height, sidebar_w)
             };
             clear_ui::scale::set_scale_factor(self.scale as f32);
