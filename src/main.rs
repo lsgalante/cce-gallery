@@ -1,4 +1,4 @@
-use clear_ui::widget::{
+use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Header, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     TextLabel, Toggle, Element, Trackpad, hover_animation,
 };
@@ -138,12 +138,12 @@ struct State {
     is_child: bool,
     opacity: bool,
     transparency: f32,
-    ui_context: clear_ui::context::UiContext,
+    ui_context: cce_ui::context::UiContext,
 }
 
 impl State {
     async fn new(
-        wayland_handle: &'static clear_ui::wayland::WaylandSurfaceHandle,
+        wayland_handle: &'static cce_ui::wayland::WaylandSurfaceHandle,
         pw: u32,
         ph: u32,
         scale: f64,
@@ -210,7 +210,7 @@ impl State {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(clear_ui::SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(cce_ui::SHADER.into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -410,10 +410,10 @@ impl State {
             is_child,
             opacity,
             transparency,
-            ui_context: clear_ui::context::UiContext::new(),
+            ui_context: cce_ui::context::UiContext::new(),
         };
 
-        clear_ui::scale::set_scale_factor(scale as f32);
+        cce_ui::scale::set_scale_factor(scale as f32);
         state.apply_layout();
         state.upload_vertices();
         state
@@ -477,7 +477,7 @@ impl State {
         let sh = self.height;
         let mut verts = Vec::new();
         hover_animation::reset_frame_registration();
-        clear_ui::widget::popovers::clear();
+        cce_ui::widget::popovers::clear();
         
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
@@ -488,12 +488,12 @@ impl State {
                 verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
             }
             if w.popover_rect().is_some() {
-                clear_ui::widget::popovers::register(w.as_ref());
+                cce_ui::widget::popovers::register(w.as_ref());
             }
         }
 
         // Draw popover quads on top
-        let mut popover_pc = clear_ui::layout::PopoverCollector::new();
+        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
                 continue;
@@ -615,21 +615,8 @@ impl State {
                 continue;
             }
             for label in w.text_labels() {
-                let mut covered = false;
-                for (pi, pw) in self.widgets.iter().enumerate() {
-                    if pi != i && is_visible(pi) {
-                        if let Some((px, py, pw_val, ph)) = pw.popover_rect() {
-                            if label.is_covered_by(px, py, pw_val, ph) {
-                                covered = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if !covered {
-                    widget_buffers.push(make_text_buffer(font_system, &label.text, label.font_size));
-                    widget_labels.push(label);
-                }
+                widget_buffers.push(make_text_buffer(font_system, &label.text, label.font_size));
+                widget_labels.push(label);
             }
         }
 
@@ -651,7 +638,7 @@ impl State {
         }
 
         // Draw popover texts on top
-        let mut popover_pc = clear_ui::layout::PopoverCollector::new();
+        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
         for (i, w) in self.widgets.iter().enumerate() {
             if !is_visible(i) {
                 continue;
@@ -715,7 +702,7 @@ impl State {
                 let sidebar_w = self.widgets[1].as_page_selector().unwrap().sidebar_w();
                 demo_positions(self.width, self.height, sidebar_w)
             };
-            clear_ui::scale::set_scale_factor(self.scale as f32);
+            cce_ui::scale::set_scale_factor(self.scale as f32);
             self.apply_layout();
             self.upload_vertices();
         }
@@ -1095,9 +1082,9 @@ impl PointerHandler for AppState {
                 }
                 PointerEventKind::Press { button, .. } => {
                     let btn = match *button {
-                        272 => clear_ui::widget::MouseButton::Left,
-                        273 => clear_ui::widget::MouseButton::Right,
-                        274 => clear_ui::widget::MouseButton::Middle,
+                        272 => cce_ui::widget::MouseButton::Left,
+                        273 => cce_ui::widget::MouseButton::Right,
+                        274 => cce_ui::widget::MouseButton::Middle,
                         _ => continue,
                     };
                     if let Some(st) = &mut self.state {
@@ -1126,7 +1113,7 @@ impl PointerHandler for AppState {
                                 break;
                             }
                         }
-                        if btn == clear_ui::widget::MouseButton::Left {
+                        if btn == cce_ui::widget::MouseButton::Left {
                             if let Some(old) = st.focused_widget {
                                 if Some(old) != clicked_idx {
                                     st.widgets[old].unfocus();
@@ -1137,18 +1124,18 @@ impl PointerHandler for AppState {
                         if let Some(i) = clicked_idx {
                             if st.widgets[i].mouse_input(
                                 btn,
-                                clear_ui::widget::ElementState::Pressed,
+                                cce_ui::widget::ElementState::Pressed,
                                 st.cursor_x,
                                 st.cursor_y,
                                 &mut st.ui_context,
                             ) {
                                 changed = true;
                             }
-                            if btn == clear_ui::widget::MouseButton::Left && st.widgets[i].draggable() {
+                            if btn == cce_ui::widget::MouseButton::Left && st.widgets[i].draggable() {
                                 st.widgets[i].drag_begin(st.cursor_x, st.cursor_y);
                                 st.drag_widget = Some(i);
                             }
-                            if btn == clear_ui::widget::MouseButton::Left {
+                            if btn == cce_ui::widget::MouseButton::Left {
                                 st.widgets[i].focus();
                                 st.focused_widget = Some(i);
                             }
@@ -1161,14 +1148,14 @@ impl PointerHandler for AppState {
                 }
                 PointerEventKind::Release { button, .. } => {
                     let btn = match *button {
-                        272 => clear_ui::widget::MouseButton::Left,
-                        273 => clear_ui::widget::MouseButton::Right,
-                        274 => clear_ui::widget::MouseButton::Middle,
+                        272 => cce_ui::widget::MouseButton::Left,
+                        273 => cce_ui::widget::MouseButton::Right,
+                        274 => cce_ui::widget::MouseButton::Middle,
                         _ => continue,
                     };
                     if let Some(st) = &mut self.state {
                         let mut changed = false;
-                        if btn == clear_ui::widget::MouseButton::Left {
+                        if btn == cce_ui::widget::MouseButton::Left {
                             if let Some(idx) = st.drag_widget {
                                 st.widgets[idx].drag_end();
                                 st.drag_widget = None;
@@ -1194,12 +1181,12 @@ impl PointerHandler for AppState {
                             if !is_visible(i) {
                                 continue;
                             }
-                            if w.mouse_input(btn, clear_ui::widget::ElementState::Released, st.cursor_x, st.cursor_y, &mut st.ui_context) {
+                            if w.mouse_input(btn, cce_ui::widget::ElementState::Released, st.cursor_x, st.cursor_y, &mut st.ui_context) {
                                 changed = true;
                             }
                         }
                         
-                        if btn == clear_ui::widget::MouseButton::Left {
+                        if btn == cce_ui::widget::MouseButton::Left {
                             if st.is_child {
                                 if st.widgets[3].take_click() {
                                     self.exit = true;
@@ -1438,7 +1425,7 @@ impl PointerHandler for AppState {
                     if let Some(st) = &mut self.state {
                         let h_scroll = horizontal.absolute as f32;
                         let v_scroll = vertical.absolute as f32;
-                        let delta = clear_ui::widget::MouseScrollDelta::LineDelta(-h_scroll / 10.0, -v_scroll / 10.0);
+                        let delta = cce_ui::widget::MouseScrollDelta::LineDelta(-h_scroll / 10.0, -v_scroll / 10.0);
                         let mut changed = false;
                         for w in &mut st.widgets {
                             if w.mouse_wheel(&delta, st.cursor_x, st.cursor_y, &mut st.ui_context) {
@@ -1488,29 +1475,29 @@ impl KeyboardHandler for AppState {
         event: smithay_client_toolkit::seat::keyboard::KeyEvent,
     ) {
         let logical_key = match event.keysym {
-            xkeysym::Keysym::Escape => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Escape),
-            xkeysym::Keysym::Return => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Enter),
-            xkeysym::Keysym::BackSpace => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Backspace),
-            xkeysym::Keysym::Down => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowDown),
-            xkeysym::Keysym::Up => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowUp),
-            xkeysym::Keysym::Left => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowLeft),
-            xkeysym::Keysym::Right => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::ArrowRight),
-            xkeysym::Keysym::Tab => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Tab),
-            xkeysym::Keysym::Delete => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Delete),
-            xkeysym::Keysym::space => clear_ui::widget::Key::Named(clear_ui::widget::NamedKey::Space),
+            xkeysym::Keysym::Escape => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::Escape),
+            xkeysym::Keysym::Return => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::Enter),
+            xkeysym::Keysym::BackSpace => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::Backspace),
+            xkeysym::Keysym::Down => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::ArrowDown),
+            xkeysym::Keysym::Up => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::ArrowUp),
+            xkeysym::Keysym::Left => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::ArrowLeft),
+            xkeysym::Keysym::Right => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::ArrowRight),
+            xkeysym::Keysym::Tab => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::Tab),
+            xkeysym::Keysym::Delete => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::Delete),
+            xkeysym::Keysym::space => cce_ui::widget::Key::Named(cce_ui::widget::NamedKey::Space),
             _ => {
                 if let Some(ref text) = event.utf8 {
-                    clear_ui::widget::Key::Character(text.clone())
+                    cce_ui::widget::Key::Character(text.clone())
                 } else if let Some(ch) = event.keysym.key_char() {
-                    clear_ui::widget::Key::Character(ch.to_string())
+                    cce_ui::widget::Key::Character(ch.to_string())
                 } else {
                     return;
                 }
             }
         };
 
-        let custom_event = clear_ui::widget::KeyEvent {
-            state: clear_ui::widget::ElementState::Pressed,
+        let custom_event = cce_ui::widget::KeyEvent {
+            state: cce_ui::widget::ElementState::Pressed,
             logical_key,
             text: event.utf8.clone(),
             repeat: false,
@@ -1712,7 +1699,7 @@ fn main() {
 
     event_queue.roundtrip(&mut app).unwrap();
 
-    let scale = clear_ui::wayland::detect_scale_factor(&app.output_state);
+    let scale = cce_ui::wayland::detect_scale_factor(&app.output_state);
 
     let surface = app.compositor_state.create_surface(&qh);
     surface.set_buffer_scale(scale as i32);
@@ -1758,7 +1745,7 @@ fn main() {
     }
     window.commit();
 
-    let wayland_handle = Box::leak(Box::new(clear_ui::wayland::WaylandSurfaceHandle {
+    let wayland_handle = Box::leak(Box::new(cce_ui::wayland::WaylandSurfaceHandle {
         display_ptr: conn.backend().display_id().as_ptr() as *mut std::ffi::c_void,
         surface_ptr: surface.id().as_ptr() as *mut std::ffi::c_void,
     }));
