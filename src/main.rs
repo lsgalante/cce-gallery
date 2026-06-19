@@ -30,7 +30,7 @@ use smithay_client_toolkit::{
 };
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_shm, wl_surface},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
     Connection, QueueHandle, Proxy,
 };
 use calloop::EventLoop;
@@ -100,6 +100,7 @@ enum Page {
     Xdg,
 }
 
+#[allow(dead_code)]
 struct State {
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
@@ -651,7 +652,7 @@ impl State {
         for (t, size, _x, _y, _tc, _font_opt, _bounds) in &popover_pc.texts {
             popover_buffers.push(make_text_buffer(font_system, t, *size));
         }
-        for (buf, (_, size, x, y, tc, _font_opt, bounds)) in popover_buffers.iter().zip(popover_pc.texts.iter()) {
+        for (buf, (_, _size, x, y, tc, _font_opt, bounds)) in popover_buffers.iter().zip(popover_pc.texts.iter()) {
             let item_bounds = if let Some([l, t, r, b]) = bounds {
                 TextBounds {
                     left: (l * scale_f32).round() as i32,
