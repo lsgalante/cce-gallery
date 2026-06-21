@@ -1,6 +1,6 @@
 use cce_ui::widget::{
-    Button, Checkbox, ContentBg, Dropdown, Header, Label, MenuBar, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    TextLabel, Toggle, Element, Trackpad, hover_animation, PageSelector,
+    Button, Checkbox, ContentBg, Dropdown, Header, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
+    TextLabel, Toggle, Element, Trackpad, hover_animation,
 };
 
 use glyphon::{
@@ -304,9 +304,8 @@ impl State {
             vec![
                 Box::new(Header::new()), // 0
                 {
-                    let mut menubar = MenuBar::new(0.0, 0.0, 56.0, 0.0).with_vertical(true);
-                    menubar.set_pages(vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]);
-                    Box::new(menubar)
+                    let paginator = Paginator::new(56.0, vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]);
+                    Box::new(paginator)
                 }, // 1
                 Box::new(StatusBar::new()), // 2
                 
