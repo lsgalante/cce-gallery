@@ -1,6 +1,6 @@
 use cce_ui::widget::{
-    Button, Checkbox, ContentBg, Dropdown, Header, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    TextLabel, Toggle, Element, Trackpad, hover_animation,
+    Button, Checkbox, ContentBg, Dropdown, Header, Label, MenuBar, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
+    TextLabel, Toggle, Element, Trackpad, hover_animation, PageSelector,
 };
 
 use glyphon::{
@@ -303,7 +303,11 @@ impl State {
         } else {
             vec![
                 Box::new(Header::new()), // 0
-                Box::new(Paginator::new(56.0, vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]).with_tabs_rotated(true)), // 1
+                {
+                    let mut menubar = MenuBar::new(0.0, 0.0, 56.0, 0.0).with_vertical(true);
+                    menubar.set_pages(vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]);
+                    Box::new(menubar)
+                }, // 1
                 Box::new(StatusBar::new()), // 2
                 
                 // "Widgets" page (indices 3..13)
@@ -1196,12 +1200,14 @@ impl PointerHandler for AppState {
                             } else {
                                 let mut page_changed = false;
                                 
-                                if st.widgets[1].take_click() {
+                                let mut selected = 0;
+                                if let Some((new_page, _)) = st.widgets[1].as_menu_controller_mut().unwrap().menu_click() {
+                                    st.widgets[1].as_page_selector_mut().unwrap().set_selected_page(new_page);
+                                    selected = new_page as i32;
                                     page_changed = true;
                                 }
                                 
                                 if page_changed {
-                                    let selected = st.widgets[1].value();
                                     if selected == 0 {
                                         st.current_page = Page::Widgets;
                                         st.update_page_title();
