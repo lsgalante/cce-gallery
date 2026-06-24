@@ -304,7 +304,7 @@ impl State {
             vec![
                 Box::new(Header::new()), // 0
                 {
-                    let paginator = Paginator::new(56.0, vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]);
+                    let paginator = Paginator::new(vec!["Widgets".to_string(), "Windows".to_string(), "XDG".to_string()]);
                     Box::new(paginator)
                 }, // 1
                 Box::new(StatusBar::new()), // 2
