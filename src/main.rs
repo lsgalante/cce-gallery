@@ -1,6 +1,7 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     TextLabel, Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
+    Ramp,
 };
 use cce_ui::engine::{Vertex, quad_vertices, push_rounded_rect_vertices_corners};
 
@@ -94,6 +95,7 @@ struct State {
     border_enabled: bool,
     border_width: f32,
     border_bevel: bool,
+    child_type: Option<String>,
     ui_context: cce_ui::context::UiContext,
 }
 
@@ -260,17 +262,27 @@ impl State {
             } else {
                 Box::new(ContentBg::new())
             };
-            let menu_bar = MenuBar::new(0.0, 0.0, lw, 40.0)
-                .with_item("File", &["New", "Open", "Save", "Exit"])
-                .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"]);
+            if child_type.as_deref() == Some("Ramp") {
+                vec![
+                    bg,                      // 0
+                    Box::new(Ramp::new()), // 1
+                    Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
+                    Box::new(Label::new("").with_font_size(12.0)), // 3
+                    Box::new(Label::new("").with_font_size(12.0)), // 4
+                ]
+            } else {
+                let menu_bar = MenuBar::new(0.0, 0.0, lw, 40.0)
+                    .with_item("File", &["New", "Open", "Save", "Exit"])
+                    .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"]);
 
-            vec![
-                bg,                      // 0
-                Box::new(Label::new(&desc_label).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 1
-                Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
-                Box::new(menu_bar),      // 3
-                Box::new(StatusBar::new()), // 4
-            ]
+                vec![
+                    bg,                      // 0
+                    Box::new(Label::new(&desc_label).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 1
+                    Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
+                    Box::new(menu_bar),      // 3
+                    Box::new(StatusBar::new()), // 4
+                ]
+            }
         } else {
             let menu_bar = MenuBar::new(0.0, 0.0, lw, 40.0)
                 .with_item("File", &["Exit"])
@@ -369,11 +381,12 @@ cascades in cce."
                 Box::new(Spinbox::new(1, 1, 10, 1).with_label("Border Width")), // 43 Spinbox: Border Width
                 Box::new(SectionContainer::new("Window Elements")), // 44 Section: Window Elements
                 Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true)), // 45 Dropdown: Page selector
+                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp Control...")), // 46 Button: Ramp Control
             ]
         };
 
         let positions = if is_child {
-            child_positions(sw, sh, use_backplate, use_menubar, use_statusbar)
+            child_positions(sw, sh, use_backplate, use_menubar, use_statusbar, child_type.as_deref())
         } else {
             let sidebar_w = widgets[1].as_page_selector().unwrap().sidebar_w();
             demo_positions(sw, sh, sidebar_w)
@@ -423,6 +436,7 @@ cascades in cce."
             border_enabled,
             border_width,
             border_bevel,
+            child_type: child_type.clone(),
             ui_context: cce_ui::context::UiContext::new(),
         };
 
@@ -443,7 +457,7 @@ cascades in cce."
         }
         match index {
             0..=2 | 45 => true,
-            3..=13 | 30 | 31 | 36 | 37 => self.current_page == Page::Controls,
+            3..=13 | 30 | 31 | 36 | 37 | 46 => self.current_page == Page::Controls,
             14..=29 | 38..=44 => self.current_page == Page::Windows,
             32..=35 => self.current_page == Page::Xdg,
             _ => false,
@@ -820,7 +834,7 @@ cascades in cce."
             } else {
                 match index {
                     0..=2 | 45 => true,
-                    3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
+                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
                     14..=29 | 38..=44 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
@@ -985,7 +999,7 @@ cascades in cce."
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
             self.positions = if self.is_child {
-                child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar)
+                child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
             } else {
                 let sidebar_w = self.widgets[1].as_page_selector().unwrap().sidebar_w();
                 demo_positions(self.width, self.height, sidebar_w)
@@ -1083,7 +1097,7 @@ cascades in cce."
             } else {
                 match index {
                     0..=2 | 45 => true,
-                    3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
+                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
                     14..=29 | 38..=44 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
@@ -1120,9 +1134,10 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let ctrl_verify_layout_pos = (base_x + 300.0, ctrl_y, 140.0, bh);
     ctrl_y += bh + 20.0;
     
-    // Row 2: diagnostics & reset
+    // Row 2: diagnostics & reset & ramp
     let ctrl_diagnostics_pos = (base_x, ctrl_y, 140.0, bh);
     let ctrl_reset_pos = (base_x + 150.0, ctrl_y, 140.0, bh);
+    let ctrl_ramp_pos = (base_x + 300.0, ctrl_y, 140.0, bh);
     ctrl_y += bh + 20.0;
     
     // Row 3: checkbox, toggle, progress_bar
@@ -1248,6 +1263,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         border_width_pos,                     // 43 Spinbox: Border Width
         win_sec_pos,                          // 44 SectionContainer: Window Elements
         (sw - 140.0, sh - 25.0, 120.0, 22.0),         // 45 Dropdown: Page selector
+        ctrl_ramp_pos,                        // 46 Button: Ramp Control
     ]
 }
 
@@ -1257,34 +1273,49 @@ fn child_positions(
     _use_backplate: bool,
     use_menubar: bool,
     use_statusbar: bool,
+    child_type: Option<&str>,
 ) -> Vec<(f32, f32, f32, f32)> {
-    let bg_y = 0.0;
-    let bg_h = sh;
-
-    let status_h = if use_statusbar { 30.0 } else { 0.0 };
-
-    let menu_pos = if use_menubar {
-        (0.0, 0.0, sw, 40.0)
+    if child_type == Some("Ramp") {
+        let bg_y = 0.0;
+        let bg_h = sh;
+        let ramp_pos = (10.0, 10.0, sw - 20.0, sh - 60.0);
+        let close_pos = ((sw - 100.0) / 2.0, sh - 45.0, 100.0, 30.0);
+        vec![
+            (0.0, bg_y, sw, bg_h),              // 0 bg
+            ramp_pos,                           // 1 Ramp
+            close_pos,                          // 2 close button
+            (-1000.0, -1000.0, 0.0, 0.0),       // 3 dummy
+            (-1000.0, -1000.0, 0.0, 0.0),       // 4 dummy
+        ]
     } else {
-        (-1000.0, -1000.0, 0.0, 0.0)
-    };
+        let bg_y = 0.0;
+        let bg_h = sh;
 
-    let status_pos = if use_statusbar {
-        (0.0, sh - 30.0, sw, 30.0)
-    } else {
-        (-1000.0, -1000.0, 0.0, 0.0)
-    };
+        let status_h = if use_statusbar { 30.0 } else { 0.0 };
 
-    let label_pos = (20.0, 80.0, sw - 40.0, 40.0);
-    let close_pos = ((sw - 100.0) / 2.0, sh - status_h - 60.0, 100.0, 35.0);
+        let menu_pos = if use_menubar {
+            (0.0, 0.0, sw, 40.0)
+        } else {
+            (-1000.0, -1000.0, 0.0, 0.0)
+        };
 
-    vec![
-        (0.0, bg_y, sw, bg_h),              // 0 bg
-        label_pos,                          // 1 label
-        close_pos,                          // 2 close button
-        menu_pos,                           // 3 MenuBar
-        status_pos,                         // 4 StatusBar
-    ]
+        let status_pos = if use_statusbar {
+            (0.0, sh - 30.0, sw, 30.0)
+        } else {
+            (-1000.0, -1000.0, 0.0, 0.0)
+        };
+
+        let label_pos = (20.0, 80.0, sw - 40.0, 40.0);
+        let close_pos = ((sw - 100.0) / 2.0, sh - status_h - 60.0, 100.0, 35.0);
+
+        vec![
+            (0.0, bg_y, sw, bg_h),              // 0 bg
+            label_pos,                          // 1 label
+            close_pos,                          // 2 close button
+            menu_pos,                           // 3 MenuBar
+            status_pos,                         // 4 StatusBar
+        ]
+    }
 }
 
 struct AppState {
@@ -1492,7 +1523,7 @@ impl PointerHandler for AppState {
                                 } else {
                                     match index {
                                         0..=2 | 45 => true,
-                                        3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
+                                        3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
                                         14..=29 | 38..=44 => current_page == Page::Windows,
                                         32..=35 => current_page == Page::Xdg,
                                         _ => false,
@@ -1538,7 +1569,7 @@ impl PointerHandler for AppState {
                             } else {
                                 match index {
                                     0..=2 | 45 => true,
-                                    3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
+                                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
                                     14..=29 | 38..=44 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
@@ -1620,7 +1651,7 @@ impl PointerHandler for AppState {
                             } else {
                                 match index {
                                     0..=2 | 45 => true,
-                                    3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
+                                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
                                     14..=29 | 38..=44 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
@@ -1684,6 +1715,19 @@ impl PointerHandler for AppState {
                                         run_all = true;
                                     } else if st.widgets[8].take_click() {
                                         do_reset = true;
+                                    } else if st.widgets[46].take_click() {
+                                        if let Ok(exe) = std::env::current_exe() {
+                                            let mut cmd = std::process::Command::new(exe);
+                                            cmd.arg("--child")
+                                               .arg("--type")
+                                               .arg("Ramp")
+                                               .arg("--width")
+                                               .arg("450")
+                                               .arg("--height")
+                                               .arg("200")
+                                               .arg("--backplate");
+                                            let _ = cmd.spawn();
+                                        }
                                     } else {
                                         for i in [9, 10, 11, 12, 13, 30, 31, 36, 37] {
                                             if st.widgets[i].take_click() {
