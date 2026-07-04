@@ -288,7 +288,7 @@ impl State {
                 Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Verify Opacity")), // 3
                 Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Verify Blur")), // 4
                 Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Verify Layout")), // 5
-                Box::new(Panel::new(0.0, 0.0, 400.0, 200.0).with_label("Panel")), // 6
+                Box::new(Label::new("").with_font_size(12.0)), // 6 Dummy label (hidden)
                 Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Run Diagnostics")), // 7
                 Box::new(Button::new_reset(0.0, 0.0, 140.0, 40.0).with_label("Reset")), // 8
                 Box::new(Checkbox::new().with_label("Checkbox")), // 9
@@ -1111,6 +1111,32 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let slh = cce_ui::layout::slider_height();
     let bh = cce_ui::layout::button_height();
 
+    // Dynamic calculations for Controls page layout
+    let mut ctrl_y = 60.0;
+    
+    // Row 1: verify buttons
+    let ctrl_verify_opacity_pos = (base_x, ctrl_y, 140.0, bh);
+    let ctrl_verify_blur_pos = (base_x + 150.0, ctrl_y, 140.0, bh);
+    let ctrl_verify_layout_pos = (base_x + 300.0, ctrl_y, 140.0, bh);
+    ctrl_y += bh + 20.0;
+    
+    // Row 2: diagnostics & reset
+    let ctrl_diagnostics_pos = (base_x, ctrl_y, 140.0, bh);
+    let ctrl_reset_pos = (base_x + 150.0, ctrl_y, 140.0, bh);
+    ctrl_y += bh + 20.0;
+    
+    // Row 3: checkbox, toggle, progress_bar
+    let row3_h = tgh.max(24.0);
+    let ctrl_checkbox_pos = (base_x, ctrl_y + (row3_h - 24.0)/2.0, 24.0, 24.0);
+    let ctrl_toggle_pos = (base_x + 110.0, ctrl_y + (row3_h - tgh)/2.0, 48.0, tgh);
+    let ctrl_progress_pos = (base_x + 230.0, ctrl_y + (row3_h - 24.0)/2.0, 160.0, 24.0);
+    ctrl_y += row3_h + 20.0;
+    
+    // Row 4: slider & spinbox
+    let row4_h = sph.max(slh);
+    let ctrl_slider_pos = (base_x, ctrl_y + (row4_h - slh)/2.0, 300.0, slh);
+    let ctrl_spinbox_pos = (base_x + 330.0, ctrl_y + (row4_h - sph)/2.0, 120.0, sph);
+
     // Dynamic calculations for Windows page layout
     let mut left_y = 80.0;
     
@@ -1174,17 +1200,17 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         (0.0, sh - 28.0, sw, 28.0),         // 2 status_bar
 
         // "Controls" page only
-        (base_x, 50.0, 140.0, bh),            // 3 verify_opacity
-        (base_x + 150.0, 50.0, 140.0, bh),            // 4 verify_blur
-        (base_x + 300.0, 50.0, 140.0, bh),            // 5 verify_layout
-        (base_x, 120.0, 400.0, 200.0),        // 6 panel
-        (base_x, 340.0, 140.0, bh),           // 7 run_diagnostics
-        (base_x + 150.0, 340.0, 140.0, bh),           // 8 reset
-        (base_x, 410.0, 24.0, 24.0),          // 9 checkbox
-        (base_x + 110.0, 410.0, 48.0, tgh),           // 10 toggle
-        (base_x + 230.0, 410.0, 160.0, 24.0),         // 11 progress_bar
-        (base_x, 470.0, 300.0, slh),          // 12 slider
-        (base_x + 330.0, 470.0, 120.0, sph),          // 13 spinbox
+        ctrl_verify_opacity_pos,              // 3 verify_opacity
+        ctrl_verify_blur_pos,                 // 4 verify_blur
+        ctrl_verify_layout_pos,               // 5 verify_layout
+        (-1000.0, -1000.0, 0.0, 0.0),         // 6 Panel (hidden dummy)
+        ctrl_diagnostics_pos,                 // 7 run_diagnostics
+        ctrl_reset_pos,                       // 8 reset
+        ctrl_checkbox_pos,                    // 9 checkbox
+        ctrl_toggle_pos,                      // 10 toggle
+        ctrl_progress_pos,                    // 11 progress_bar
+        ctrl_slider_pos,                      // 12 slider
+        ctrl_spinbox_pos,                     // 13 spinbox
 
         // "Windows" page only
         preview_pos,                          // 14 Panel (Window area)
