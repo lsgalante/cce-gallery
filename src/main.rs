@@ -1109,6 +1109,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let sph = cce_ui::layout::spinbox_height();
     let tgh = cce_ui::layout::toggle_height();
     let slh = cce_ui::layout::slider_height();
+    let bh = cce_ui::layout::button_height();
 
     // Dynamic calculations for Windows page layout
     let mut left_y = 80.0;
@@ -1118,9 +1119,9 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     left_y += 240.0 + 15.0; // 335.0
     
     // Buttons Row
-    let create_btn_pos = (base_x, left_y, 172.0, 35.0);
-    let tile_btn_pos = (base_x + 188.0, left_y, 172.0, 35.0);
-    left_y += 35.0 + 15.0; // 385.0
+    let create_btn_pos = (base_x, left_y, 172.0, bh);
+    let tile_btn_pos = (base_x + 188.0, left_y, 172.0, bh);
+    left_y += bh + 15.0; // 385.0
     
     // Window Type Dropdown
     let type_dd_pos = (base_x, left_y, 360.0, 35.0);
@@ -1173,12 +1174,12 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         (0.0, sh - 28.0, sw, 28.0),         // 2 status_bar
 
         // "Controls" page only
-        (base_x, 50.0, 140.0, 40.0),          // 3 verify_opacity
-        (base_x + 150.0, 50.0, 140.0, 40.0),          // 4 verify_blur
-        (base_x + 300.0, 50.0, 140.0, 40.0),          // 5 verify_layout
+        (base_x, 50.0, 140.0, bh),            // 3 verify_opacity
+        (base_x + 150.0, 50.0, 140.0, bh),            // 4 verify_blur
+        (base_x + 300.0, 50.0, 140.0, bh),            // 5 verify_layout
         (base_x, 120.0, 400.0, 200.0),        // 6 panel
-        (base_x, 340.0, 140.0, 40.0),         // 7 run_diagnostics
-        (base_x + 150.0, 340.0, 140.0, 40.0),         // 8 reset
+        (base_x, 340.0, 140.0, bh),           // 7 run_diagnostics
+        (base_x + 150.0, 340.0, 140.0, bh),           // 8 reset
         (base_x, 410.0, 24.0, 24.0),          // 9 checkbox
         (base_x + 110.0, 410.0, 48.0, tgh),           // 10 toggle
         (base_x + 230.0, 410.0, 160.0, 24.0),         // 11 progress_bar
@@ -1207,8 +1208,8 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         // "XDG" page only
         (base_x, 100.0, 450.0, 200.0),        // 32 Panel: XDG Portal background
         (base_x + 20.0, 140.0, 410.0, 40.0),         // 33 Label: XDG explanation
-        (base_x + 20.0, 220.0, 180.0, 40.0),         // 34 Button: Open File Dialog
-        (base_x + 220.0, 220.0, 180.0, 40.0),         // 35 Button: Save File Dialog
+        (base_x + 20.0, 220.0, 180.0, bh),            // 34 Button: Open File Dialog
+        (base_x + 220.0, 220.0, 180.0, bh),            // 35 Button: Save File Dialog
         
         // New widgets
         (-1000.0, -1000.0, 0.0, 0.0),         // 36 TextBox
