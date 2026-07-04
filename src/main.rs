@@ -1082,7 +1082,7 @@ cascades in cce."
                 }
             } else {
                 match index {
-                    0..=2 => true,
+                    0..=2 | 45 => true,
                     3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
                     14..=29 | 38..=44 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
@@ -1491,7 +1491,7 @@ impl PointerHandler for AppState {
                                     }
                                 } else {
                                     match index {
-                                        0..=2 => true,
+                                        0..=2 | 45 => true,
                                         3..=13 | 30 | 31 | 36 | 37 => current_page == Page::Controls,
                                         14..=29 | 38..=44 => current_page == Page::Windows,
                                         32..=35 => current_page == Page::Xdg,
