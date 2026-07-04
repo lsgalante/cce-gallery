@@ -157,10 +157,10 @@ impl State {
         config.present_mode = wgpu::PresentMode::Fifo;
         let alpha_mode = if opacity || use_backplate {
             let caps = surface.get_capabilities(&adapter);
-            if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
-                wgpu::CompositeAlphaMode::PostMultiplied
-            } else if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
+            if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
                 wgpu::CompositeAlphaMode::PreMultiplied
+            } else if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
+                wgpu::CompositeAlphaMode::PostMultiplied
             } else {
                 wgpu::CompositeAlphaMode::Opaque
             }
