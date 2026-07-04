@@ -368,7 +368,7 @@ cascades in cce."
                 }), // 42 Toggle: Bevel
                 Box::new(Spinbox::new(1, 1, 10, 1).with_label("Border Width")), // 43 Spinbox: Border Width
                 Box::new(SectionContainer::new("Window Elements")), // 44 Section: Window Elements
-                Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0)), // 45 Dropdown: Page selector
+                Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true)), // 45 Dropdown: Page selector
             ]
         };
 
