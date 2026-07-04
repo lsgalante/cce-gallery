@@ -1035,9 +1035,9 @@ cascades in cce."
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.05,
-                            g: 0.05,
-                            b: 0.08,
+                            r: 0.05 * clear_alpha,
+                            g: 0.05 * clear_alpha,
+                            b: 0.08 * clear_alpha,
                             a: clear_alpha,
                         }),
                         store: wgpu::StoreOp::Store,
