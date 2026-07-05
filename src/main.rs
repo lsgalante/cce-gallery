@@ -788,6 +788,11 @@ cascades in cce."
                 verts.extend(quad_vertices(qx, qy, qw, qh, sw, sh, qc));
             }
             
+            // Render extra circles
+            for (cx, cy, r, qc) in w.extra_circles() {
+                verts.extend(cce_ui::backend::window_runner::circle_vertices(cx, cy, r, sw, sh, qc, 16, [0.0, 0.0, -1.0]));
+            }
+            
             // Draw solid border if defined, or custom child border
             if self.is_child && i == 0 && self.border_enabled {
                 let border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
