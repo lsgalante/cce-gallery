@@ -1664,69 +1664,162 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let slh = cce_ui::layout::slider_height();
     let bh = cce_ui::layout::button_height();
     let ddh = cce_ui::layout::dropdown_height();
-    let vec = vec![
-        (0.0, 0.0, sw, 40.0), // 0 MenuBar
-        (0.0, 40.0, sidebar_w, sh - 40.0 - 24.0), // 1 Page selector (Sidebar)
-        (0.0, sh - 24.0, sw, 24.0), // 2 StatusBar
+    
+    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 52];
+    
+    // Common layout elements
+    vec[0] = (0.0, 0.0, sw, 40.0); // 0 MenuBar
+    vec[1] = (0.0, 40.0, sidebar_w, sh - 40.0 - 24.0); // 1 Page selector (Sidebar)
+    vec[2] = (0.0, sh - 24.0, sw, 24.0); // 2 StatusBar
+    
+    // Page 1 (Windows)
+    vec[14] = (base_x, 60.0, 400.0, 250.0); // 14 Panel (Window simulation area)
+    vec[15] = (base_x + 420.0, 60.0, 140.0, bh); // 15 Button (Create Window)
+    vec[16] = (base_x + 420.0, 110.0, 140.0, bh); // 16 Button (Tile Windows)
+    vec[17] = (base_x + 420.0, 160.0, 140.0, tgh); // 17 Toggle (Opacity)
+    vec[18] = (-1000.0, -1000.0, 0.0, 0.0); // 18
+    vec[19] = (base_x + 420.0, 210.0, 140.0, slh); // 19 Slider
+    vec[20] = (base_x + 420.0, 250.0, 140.0, 20.0); // 20 Label
+    vec[21] = (base_x + 580.0, 60.0, 180.0, ddh); // 21 Dropdown (Window Type)
+    vec[22] = (base_x + 580.0, 115.0, 180.0, ddh); // 22 Dropdown (Window Shape)
+    vec[23] = (base_x + 580.0, 170.0, 120.0, tgh); // 23 Toggle (Enable)
+    vec[24] = (-1000.0, -1000.0, 0.0, 0.0); // 24
+    vec[25] = (base_x + 580.0, 210.0, 140.0, sph); // 25 Spinbox (Width)
+    vec[26] = (base_x + 580.0, 255.0, 140.0, sph); // 26 Spinbox (Height)
+    vec[27] = (base_x, 320.0, 190.0, 250.0); // 27 Plate
+    vec[28] = (base_x + 10.0, 330.0, 170.0, 20.0); // 28 Label
+    vec[29] = (base_x + 10.0, 360.0, 170.0, 180.0); // 29 Label
+    
+    // Page 2 (XDG FileChooser)
+    vec[32] = (base_x, 60.0, 450.0, 200.0); // 32 Panel
+    vec[33] = (base_x + 20.0, 80.0, 410.0, 60.0); // 33 Label
+    vec[34] = (base_x + 20.0, 160.0, 180.0, bh); // 34 Button
+    vec[35] = (base_x + 220.0, 160.0, 180.0, bh); // 35 Button
+    
+    // Window Simulation options (visible when Page::Windows is active)
+    vec[38] = (base_x + 420.0, 300.0, 140.0, tgh); // 38 Toggle: Backplate
+    vec[39] = (base_x + 420.0, 340.0, 140.0, tgh); // 39 Toggle: MenuBar
+    vec[40] = (base_x + 420.0, 380.0, 140.0, tgh); // 40 Toggle: StatusBar
+    vec[41] = (base_x + 420.0, 420.0, 140.0, 20.0); // 41 SectionContainer: Border
+    vec[42] = (base_x + 420.0, 450.0, 140.0, tgh); // 42 Toggle: Bevel
+    vec[43] = (base_x + 420.0, 490.0, 140.0, sph); // 43 Spinbox: Border Width
+    vec[44] = (base_x + 420.0, 535.0, 140.0, sph); // 44 Spinbox: Bevel Depth
+    vec[45] = (base_x + 420.0, 270.0, 140.0, 20.0); // 45 SectionContainer: Window Elements
+    vec[46] = (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh); // 46 Dropdown: Page selector
+    vec[48] = (base_x + 420.0, 580.0, 140.0, bh); // 48 Button: Bevel Shape
+    vec[51] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 51 ControlPanel
+    
+    // Dynamically position Page 0 (Controls) elements
+    let available_w = (sw - base_x - 40.0).max(300.0);
+    let mut y = 60.0;
+    
+    // Row 1: Diagnostics Buttons (Flow layout)
+    let button_w = 140.0;
+    let gap = 15.0;
+    let mut btn_x = base_x;
+    let mut btn_y = y;
+    for &idx in &[3, 4, 5, 7, 8] {
+        if btn_x + button_w > sw - 20.0 && btn_x > base_x {
+            btn_x = base_x;
+            btn_y += bh + gap;
+        }
+        vec[idx] = (btn_x, btn_y, button_w, bh);
+        btn_x += button_w + gap;
+    }
+    vec[6] = (-1000.0, -1000.0, 0.0, 0.0); // 6 is spacer Label, keep hidden/out of sight
+    
+    y = btn_y + bh + 25.0;
+    
+    // Row 2: Progress Bar
+    vec[11] = (base_x, y, available_w, 24.0);
+    y += 24.0 + 25.0;
+    
+    // Row 3 and below: Columns of inputs
+    // Determine dynamic column count based on available space
+    let num_cols = if available_w > 720.0 {
+        3
+    } else if available_w > 480.0 {
+        2
+    } else {
+        1
+    };
+    
+    let col_w = ((available_w - (num_cols - 1) as f32 * 30.0) / num_cols as f32).max(220.0);
+    let mut columns: Vec<Vec<(usize, f32, f32)>> = vec![Vec::new(); num_cols];
+    
+    if num_cols == 3 {
+        // Col 0: checkbox (9), toggle (10), slider (12), spinbox (13), TextBox (36)
+        columns[0].push((9, 100.0, tgh));
+        columns[0].push((10, 100.0, tgh));
+        columns[0].push((12, col_w.min(200.0), slh));
+        columns[0].push((13, col_w.min(140.0), sph));
+        columns[0].push((36, col_w.min(200.0), ddh));
         
-        // Page 0 (Controls)
-        (base_x, 60.0, 140.0, bh), // 3 verify_opacity
-        (base_x + 150.0, 60.0, 140.0, bh), // 4 verify_blur
-        (base_x + 300.0, 60.0, 140.0, bh), // 5 verify_layout
-        (-1000.0, -1000.0, 0.0, 0.0), // 6 Panel
-        (base_x + 450.0, 60.0, 140.0, bh), // 7 run_diagnostics
-        (base_x + 600.0, 60.0, 140.0, bh), // 8 reset
-        (base_x, 120.0, 100.0, tgh), // 9 checkbox
-        (base_x + 120.0, 120.0, 100.0, tgh), // 10 toggle
-        (base_x, 160.0, sw - base_x - 20.0, 24.0), // 11 progress_bar
-        (base_x, 200.0, 200.0, slh), // 12 slider
-        (base_x + 220.0, 200.0, 140.0, sph), // 13 spinbox
+        // Col 1: RangeSlider (30), Trackpad (31), Plate (37)
+        columns[1].push((30, col_w.min(200.0), slh));
+        columns[1].push((31, col_w.min(200.0), 100.0));
+        columns[1].push((37, col_w.min(120.0), 120.0));
         
-        // Page 1 (Windows)
-        (base_x, 60.0, 400.0, 250.0), // 14 Panel (Window simulation area)
-        (base_x + 420.0, 60.0, 140.0, bh), // 15 Button (Create Window)
-        (base_x + 420.0, 110.0, 140.0, bh), // 16 Button (Tile Windows)
-        (base_x + 420.0, 160.0, 140.0, tgh), // 17 Toggle (Opacity)
-        (-1000.0, -1000.0, 0.0, 0.0), // 18
-        (base_x + 420.0, 210.0, 140.0, slh), // 19 Slider
-        (base_x + 420.0, 250.0, 140.0, 20.0), // 20 Label
-        (base_x + 580.0, 60.0, 180.0, ddh), // 21 Dropdown (Window Type)
-        (base_x + 580.0, 115.0, 180.0, ddh), // 22 Dropdown (Window Shape)
-        (base_x + 580.0, 170.0, 120.0, tgh), // 23 Toggle (Enable)
-        (-1000.0, -1000.0, 0.0, 0.0), // 24
-        (base_x + 580.0, 210.0, 140.0, sph), // 25 Spinbox (Width)
-        (base_x + 580.0, 255.0, 140.0, sph), // 26 Spinbox (Height)
-        (base_x, 320.0, 190.0, 250.0), // 27 Plate
-        (base_x + 10.0, 330.0, 170.0, 20.0), // 28 Label
-        (base_x + 10.0, 360.0, 170.0, 180.0), // 29 Label
-        (base_x, 240.0, 200.0, slh), // 30 (RangeSlider)
-        (base_x + 220.0, 240.0, 200.0, 100.0), // 31 (Trackpad)
+        // Col 2: Color Ramp Button (47), Ramp Button (50), Ramp widget (49)
+        columns[2].push((47, col_w.min(120.0), bh));
+        columns[2].push((50, col_w.min(120.0), bh));
+        columns[2].push((49, col_w.min(200.0), 120.0));
+    } else if num_cols == 2 {
+        // Col 0: checkbox, toggle, slider, spinbox, TextBox, Color Ramp, Ramp Button
+        columns[0].push((9, 100.0, tgh));
+        columns[0].push((10, 100.0, tgh));
+        columns[0].push((12, col_w.min(200.0), slh));
+        columns[0].push((13, col_w.min(140.0), sph));
+        columns[0].push((36, col_w.min(200.0), ddh));
+        columns[0].push((47, col_w.min(120.0), bh));
+        columns[0].push((50, col_w.min(120.0), bh));
         
-        // Page 2 (XDG FileChooser)
-        (base_x, 60.0, 450.0, 200.0), // 32 Panel
-        (base_x + 20.0, 80.0, 410.0, 60.0), // 33 Label
-        (base_x + 20.0, 160.0, 180.0, bh), // 34 Button
-        (base_x + 220.0, 160.0, 180.0, bh), // 35 Button
+        // Col 1: RangeSlider, Trackpad, Plate, Ramp widget
+        columns[1].push((30, col_w.min(200.0), slh));
+        columns[1].push((31, col_w.min(200.0), 100.0));
+        columns[1].push((37, col_w.min(120.0), 120.0));
+        columns[1].push((49, col_w.min(200.0), 120.0));
+    } else {
+        // Col 0: all of them in order
+        columns[0].push((9, 100.0, tgh));
+        columns[0].push((10, 100.0, tgh));
+        columns[0].push((12, col_w.min(200.0), slh));
+        columns[0].push((13, col_w.min(140.0), sph));
+        columns[0].push((36, col_w.min(200.0), ddh));
+        columns[0].push((30, col_w.min(200.0), slh));
+        columns[0].push((31, col_w.min(200.0), 100.0));
+        columns[0].push((37, col_w.min(120.0), 120.0));
+        columns[0].push((47, col_w.min(120.0), bh));
+        columns[0].push((50, col_w.min(120.0), bh));
+        columns[0].push((49, col_w.min(200.0), 120.0));
+    }
+    
+    for col_idx in 0..num_cols {
+        let cx = base_x + col_idx as f32 * (col_w + 30.0);
+        let mut cy = y;
+        let mut i_in_col = 0;
         
-        // New widgets
-        (base_x, 360.0, 200.0, ddh), // 36 TextBox
-        (base_x + 220.0, 360.0, 120.0, 120.0), // 37 Plate
-        (base_x + 420.0, 300.0, 140.0, tgh), // 38 Toggle: Backplate
-        (base_x + 420.0, 340.0, 140.0, tgh), // 39 Toggle: MenuBar
-        (base_x + 420.0, 380.0, 140.0, tgh), // 40 Toggle: StatusBar
-        (base_x + 420.0, 420.0, 140.0, 20.0), // 41 SectionContainer: Border
-        (base_x + 420.0, 450.0, 140.0, tgh), // 42 Toggle: Bevel
-        (base_x + 420.0, 490.0, 140.0, sph), // 43 Spinbox: Border Width
-        (base_x + 420.0, 535.0, 140.0, sph), // 44 Spinbox: Bevel Depth
-        (base_x + 420.0, 270.0, 140.0, 20.0), // 45 SectionContainer: Window Elements
-        (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh), // 46 Dropdown: Page selector
-        (base_x, 400.0, 120.0, bh), // 47 (Color Ramp Button)
-        (base_x + 420.0, 580.0, 140.0, bh), // 48 Button: Bevel Shape
-        (base_x + 130.0, 400.0, 120.0, bh), // 49 (Bevel Shape Button)
-        (base_x + 260.0, 400.0, 120.0, bh), // 50 (Ramp Button)
-        (sw - 270.0, 60.0, 250.0, sh - 100.0), // 51 ControlPanel
-    ];
-
+        while i_in_col < columns[col_idx].len() {
+            let (idx, w_item, h_item) = columns[col_idx][i_in_col];
+            
+            if idx == 9 && i_in_col + 1 < columns[col_idx].len() && columns[col_idx][i_in_col + 1].0 == 10 && col_w >= 220.0 {
+                vec[9] = (cx, cy, 100.0, tgh);
+                vec[10] = (cx + 110.0, cy, 100.0, tgh);
+                cy += tgh + 15.0;
+                i_in_col += 2;
+            } else if idx == 47 && i_in_col + 1 < columns[col_idx].len() && columns[col_idx][i_in_col + 1].0 == 50 && col_w >= 250.0 {
+                vec[47] = (cx, cy, 120.0, bh);
+                vec[50] = (cx + 130.0, cy, 120.0, bh);
+                cy += bh + 15.0;
+                i_in_col += 2;
+            } else {
+                vec[idx] = (cx, cy, w_item, h_item);
+                cy += h_item + 15.0;
+                i_in_col += 1;
+            }
+        }
+    }
+    
     vec
 }
 
