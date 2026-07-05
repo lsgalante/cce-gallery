@@ -2381,6 +2381,7 @@ fn main() {
                 Some("LayerTop") => (800.0, 40.0),
                 Some("LayerOverlay") => (300.0, 180.0),
                 Some("LayerBackground") => (800.0, 600.0),
+                Some("Ramp") | Some("ColorRamp") => (450.0, 300.0),
                 _ => (400.0, 250.0),
             }
         }
