@@ -739,6 +739,14 @@ cascades in cce."
             state.widgets[46].set_parent(Some(statusbar_ptr), &mut state.ui_context);
             let dropdown_ptr = state.widgets[46].as_ptr_mut();
             state.widgets[2].add_child(dropdown_ptr, &mut state.ui_context);
+        } else {
+            state.focused_widget = Some(1);
+            let ramp = unsafe { &mut *(state.widgets[1].as_ptr_mut() as *mut Ramp) };
+            let preset_ptr = &mut ramp.preset_dropdown as *mut Dropdown as *mut (dyn Element + 'static);
+            state.ui_context.set_focused_ptr(preset_ptr);
+            unsafe {
+                (*preset_ptr).focus();
+            }
         }
 
         state.apply_layout();
@@ -913,6 +921,22 @@ cascades in cce."
             } else {
                 quads.extend(w.all_quads(&self.ui_context));
             }
+        }
+
+        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !self.is_widget_visible(i) {
+                continue;
+            }
+            if is_control_panel_child(i) {
+                continue;
+            }
+            if w.popover_rect().is_some() {
+                w.render_popover(&mut popover_pc);
+            }
+        }
+        for (qc, qx, qy, qw, qh) in popover_pc.rects {
+            quads.push((qx, qy, qw, qh, qc));
         }
     }
 
@@ -1652,23 +1676,28 @@ full screen background.",
                 }
             }
         };
-        for (i, w) in self.widgets.iter_mut().enumerate() {
-            if !is_visible(i) {
-                continue;
-            }
-            if is_control_panel_child(i) {
-                continue;
-            }
-            if w.keyboard_input(event, &mut self.ui_context) {
-                changed = true;
-            }
-        }
-        
         let mut handled = false;
         if let Some(focused) = self.focused_widget {
             if self.widgets[focused].keyboard_input(event, &mut self.ui_context) {
                 changed = true;
                 handled = true;
+            }
+        }
+
+        if !handled {
+            for (i, w) in self.widgets.iter_mut().enumerate() {
+                if Some(i) == self.focused_widget {
+                    continue;
+                }
+                if !is_visible(i) {
+                    continue;
+                }
+                if is_control_panel_child(i) {
+                    continue;
+                }
+                if w.keyboard_input(event, &mut self.ui_context) {
+                    changed = true;
+                }
             }
         }
 
