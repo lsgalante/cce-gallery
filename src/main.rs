@@ -686,7 +686,7 @@ cascades in cce."
             child_positions(c_w, c_h, use_backplate, use_menubar, use_statusbar, child_type.as_deref())
         } else {
             let sidebar_w = widgets[1].as_page_selector().unwrap().sidebar_w();
-            demo_positions(c_w, c_h, sidebar_w, 9)
+            demo_positions(c_w, c_h, sidebar_w, 9, &widgets)
         };
 
         let (loaded_keys, loaded_type) = load_bevel_ramp();
@@ -888,7 +888,7 @@ cascades in cce."
                 child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
             } else {
                 let sidebar_w = self.widgets[1].as_page_selector().unwrap().sidebar_w();
-                demo_positions(self.width, self.height, sidebar_w, self.layout_idx)
+                demo_positions(self.width, self.height, sidebar_w, self.layout_idx, &self.widgets)
             };
             self.apply_layout();
             let text = self.status_text.clone();
@@ -1346,7 +1346,7 @@ cascades in cce."
                         changed = true;
                     } else if self.widgets[52].take_click() {
                         self.layout_idx = self.widgets[52].value() as usize;
-                        self.positions = demo_positions(self.width, self.height, self.widgets[1].as_page_selector().unwrap().sidebar_w(), self.layout_idx);
+                        self.positions = demo_positions(self.width, self.height, self.widgets[1].as_page_selector().unwrap().sidebar_w(), self.layout_idx, &self.widgets);
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
@@ -1761,7 +1761,7 @@ full screen background.",
     }
 }
 
-fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f32, f32, f32, f32)> {
+fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: &[Box<dyn Element>]) -> Vec<(f32, f32, f32, f32)> {
     let base_x = sidebar_w + 20.0;
     let sph = cce_ui::layout::spinbox_height();
     let tgh = cce_ui::layout::toggle_height();
@@ -1893,28 +1893,32 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         }
     }
 
+    let label_off = |idx: usize| -> f32 {
+        cce_ui::widget::label_offset(widgets[idx].as_ref())
+    };
+
     let mut items = vec![
         // Diagnostics Buttons
-        (3, 140.0, bh),
-        (4, 140.0, bh),
-        (5, 140.0, bh),
-        (7, 140.0, bh),
-        (8, 140.0, bh),
+        (3, 140.0, bh + label_off(3), bh),
+        (4, 140.0, bh + label_off(4), bh),
+        (5, 140.0, bh + label_off(5), bh),
+        (7, 140.0, bh + label_off(7), bh),
+        (8, 140.0, bh + label_off(8), bh),
         // Progress Bar
-        (11, (available_w - 20.0).max(200.0), 24.0),
+        (11, (available_w - 20.0).max(200.0), 24.0 + label_off(11), 24.0),
         // Inputs
-        (52, 200.0, ddh),
-        (9, 100.0, tgh),
-        (10, 100.0, tgh),
-        (12, 200.0, slh),
-        (13, 140.0, sph),
-        (36, 200.0, ddh),
-        (30, 200.0, slh),
-        (31, 200.0, 100.0),
-        (37, 120.0, 120.0),
-        (47, 120.0, bh),
-        (50, 120.0, bh),
-        (49, 240.0, 150.0),
+        (52, 200.0, ddh + label_off(52), ddh),
+        (9, 100.0, tgh + label_off(9), tgh),
+        (10, 100.0, tgh + label_off(10), tgh),
+        (12, 200.0, slh + label_off(12), slh),
+        (13, 140.0, sph + label_off(13), sph),
+        (36, 200.0, ddh + label_off(36), ddh),
+        (30, 200.0, slh + label_off(30), slh),
+        (31, 200.0, 100.0 + label_off(31), 100.0),
+        (37, 120.0, 120.0 + label_off(37), 120.0),
+        (47, 120.0, bh + label_off(47), bh),
+        (50, 120.0, bh + label_off(50), bh),
+        (49, 240.0, 150.0 + label_off(49), 150.0),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -1922,9 +1926,9 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         0 => {
             // Vertical Layout
             let mut cur_y = 60.0;
-            for (idx, _w_item, h_item) in items {
-                vec[idx] = (base_x, cur_y, available_w, h_item);
-                cur_y += h_item + 15.0;
+            for (idx, _w_item, h_item_total, h_item_content) in items {
+                vec[idx] = (base_x, cur_y, available_w, h_item_content);
+                cur_y += h_item_total + 15.0;
             }
         }
         1 => {
@@ -1932,12 +1936,12 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let num_cols = 3;
             let col_w = (available_w - (num_cols - 1) as f32 * 15.0) / num_cols as f32;
             let mut col_y = vec![60.0; num_cols];
-            for (i, (idx, _w_item, h_item)) in items.into_iter().enumerate() {
+            for (i, (idx, _w_item, h_item_total, h_item_content)) in items.into_iter().enumerate() {
                 let col = i % num_cols;
                 let cx = base_x + col as f32 * (col_w + 15.0);
                 let cy = col_y[col];
-                vec[idx] = (cx, cy, col_w, h_item);
-                col_y[col] += h_item + 15.0;
+                vec[idx] = (cx, cy, col_w, h_item_content);
+                col_y[col] += h_item_total + 15.0;
             }
         }
         2 | 3 => {
@@ -1950,7 +1954,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             };
             let col_w = (available_w - (num_cols - 1) as f32 * 15.0) / num_cols as f32;
             let mut col_y = vec![60.0; num_cols];
-            for (idx, _w_item, h_item) in items {
+            for (idx, _w_item, h_item_total, h_item_content) in items {
                 let mut shortest_col = 0;
                 let mut min_h = col_y[0];
                 for col in 1..num_cols {
@@ -1961,14 +1965,14 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
                 }
                 let cx = base_x + shortest_col as f32 * (col_w + 15.0);
                 let cy = col_y[shortest_col];
-                vec[idx] = (cx, cy, col_w, h_item);
-                col_y[shortest_col] += h_item + 15.0;
+                vec[idx] = (cx, cy, col_w, h_item_content);
+                col_y[shortest_col] += h_item_total + 15.0;
             }
         }
         4 => {
             // Overlay Layout
-            for (idx, _w_item, h_item) in items {
-                vec[idx] = (base_x, 60.0, available_w, h_item);
+            for (idx, _w_item, _h_item_total, h_item_content) in items {
+                vec[idx] = (base_x, 60.0, available_w, h_item_content);
             }
         }
         5 => {
@@ -1976,16 +1980,16 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let mut cur_x = base_x;
             let mut cur_y = 60.0;
             let mut row_h = 0.0f32;
-            for (idx, w_item, h_item) in items {
+            for (idx, w_item, h_item_total, h_item_content) in items {
                 let target_w = w_item.min(available_w);
                 if cur_x + target_w > base_x + available_w && cur_x > base_x {
                     cur_x = base_x;
                     cur_y += row_h + 15.0;
                     row_h = 0.0;
                 }
-                vec[idx] = (cur_x, cur_y, target_w, h_item);
+                vec[idx] = (cur_x, cur_y, target_w, h_item_content);
                 cur_x += target_w + 15.0;
-                row_h = row_h.max(h_item);
+                row_h = row_h.max(h_item_total);
             }
         }
         6 => {
@@ -1994,8 +1998,9 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let total_h = (sh - 120.0).max(300.0);
             let single_h = (total_h - (count - 1) as f32 * 10.0) / count as f32;
             let mut cur_y = 60.0;
-            for (idx, _w_item, _h_item) in items {
-                vec[idx] = (base_x, cur_y, available_w, single_h);
+            for (idx, _w_item, _h_item_total, _h_item_content) in items {
+                let content_h = (single_h - label_off(idx)).max(10.0);
+                vec[idx] = (base_x, cur_y, available_w, content_h);
                 cur_y += single_h + 10.0;
             }
         }
@@ -2005,11 +2010,11 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let cy = 300.0;
             let radius = 180.0;
             let count = items.len();
-            for (i, (idx, w_item, h_item)) in items.into_iter().enumerate() {
+            for (i, (idx, w_item, h_item_total, h_item_content)) in items.into_iter().enumerate() {
                 let angle = (i as f32 / count as f32) * 2.0 * std::f32::consts::PI;
                 let px = cx + radius * angle.cos() - w_item / 2.0;
-                let py = cy + radius * angle.sin() - h_item / 2.0;
-                vec[idx] = (px, py, w_item, h_item);
+                let py = cy + radius * angle.sin() - h_item_total / 2.0;
+                vec[idx] = (px, py, w_item, h_item_content);
             }
         }
         8 => {
@@ -2017,21 +2022,21 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let cx = base_x + available_w / 2.0;
             let cy = 300.0;
             let count = items.len();
-            for (i, (idx, w_item, h_item)) in items.into_iter().enumerate() {
+            for (i, (idx, w_item, h_item_total, h_item_content)) in items.into_iter().enumerate() {
                 let radius = 100.0 + (i as f32 * 12.0);
                 let angle = (i as f32 / count as f32) * 2.0 * std::f32::consts::PI;
                 let px = cx + radius * angle.cos() - w_item / 2.0;
-                let py = cy + radius * angle.sin() - h_item / 2.0;
-                vec[idx] = (px, py, w_item, h_item);
+                let py = cy + radius * angle.sin() - h_item_total / 2.0;
+                vec[idx] = (px, py, w_item, h_item_content);
             }
         }
         9 => {
             // Mosaic Layout (Guillotine Packer)
             let max_h = (sh - 99.0).max(300.0);
             let mut packer = DemoPacker::new(base_x, 60.0, available_w, max_h, 15.0);
-            for (idx, w_item, h_item) in items {
-                let (px, py) = packer.pack(w_item, h_item);
-                vec[idx] = (px, py, w_item.min(available_w), h_item);
+            for (idx, w_item, h_item_total, h_item_content) in items {
+                let (px, py) = packer.pack(w_item, h_item_total);
+                vec[idx] = (px, py, w_item.min(available_w), h_item_content);
             }
         }
         _ => {
@@ -2039,19 +2044,19 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let max_h = (sh - 99.0).max(300.0);
             let mut packer = DemoPacker::new(base_x, 60.0, available_w, max_h, 15.0);
             let mut temp = Vec::with_capacity(items.len());
-            for &(idx, w_item, h_item) in &items {
-                let (px, py) = packer.pack(w_item, h_item);
-                temp.push((px, py, w_item, h_item, idx));
+            for &(idx, w_item, h_item_total, h_item_content) in &items {
+                let (px, py) = packer.pack(w_item, h_item_total);
+                temp.push((px, py, w_item, h_item_total, h_item_content, idx));
             }
             let mut x_min = f32::MAX;
             let mut x_max = f32::MIN;
             let mut y_min = f32::MAX;
             let mut y_max = f32::MIN;
-            for &(px, py, pw, ph, _) in &temp {
+            for &(px, py, pw, ph_total, _, _) in &temp {
                 x_min = x_min.min(px);
                 x_max = x_max.max(px + pw);
                 y_min = y_min.min(py);
-                y_max = y_max.max(py + ph);
+                y_max = y_max.max(py + ph_total);
             }
             let src_w = (x_max - x_min).max(1.0);
             let src_h = (y_max - y_min).max(1.0);
@@ -2059,11 +2064,11 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
             let dst_h = (sh - 120.0).max(300.0);
             let scale_x = dst_w / src_w;
             let scale_y = dst_h / src_h;
-            for (px, py, pw, ph, idx) in temp {
+            for (px, py, pw, _ph_total, ph_content, idx) in temp {
                 let new_x = base_x + (px - x_min) * scale_x;
                 let new_y = 60.0 + (py - y_min) * scale_y;
                 let new_w = pw * scale_x;
-                let new_h = ph * scale_y;
+                let new_h = ph_content * scale_y;
                 vec[idx] = (new_x, new_y, new_w, new_h);
             }
         }
