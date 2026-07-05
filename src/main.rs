@@ -1,7 +1,7 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     TextLabel, Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
-    Ramp, ColorRamp, ColorRampKey,
+    Ramp, RampKey, ColorRamp,
 };
 use cce_ui::engine::{Vertex, quad_vertices, push_rounded_rect_vertices_corners};
 
@@ -97,22 +97,22 @@ struct State {
     border_bevel: bool,
     child_type: Option<String>,
     ui_context: cce_ui::context::UiContext,
-    bevel_ramp: Vec<ColorRampKey>,
+    bevel_ramp: Vec<RampKey>,
     last_ramp_mod: Option<std::time::SystemTime>,
 }
 
-fn save_bevel_ramp(keys: &[ColorRampKey]) {
+fn save_bevel_ramp(keys: &[RampKey]) {
     let mut s = String::new();
     s.push_str("keys {\n");
     for k in keys {
-        s.push_str(&format!("    key pos={} r={} g={} b={}\n", k.pos, k.color[0], k.color[1], k.color[2]));
+        s.push_str(&format!("    key pos={} val={}\n", k.pos, k.value));
     }
     s.push_str("}\n");
     let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
     let _ = std::fs::write(path, s);
 }
 
-fn load_bevel_ramp() -> Vec<ColorRampKey> {
+fn load_bevel_ramp() -> Vec<RampKey> {
     let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
     if let Ok(content) = std::fs::read_to_string(path) {
         let mut keys = Vec::new();
@@ -120,21 +120,15 @@ fn load_bevel_ramp() -> Vec<ColorRampKey> {
             let line = line.trim();
             if line.starts_with("key ") {
                 let mut pos = 0.0;
-                let mut r = 0.0;
-                let mut g = 0.0;
-                let mut b = 0.0;
+                let mut val = 0.5;
                 for part in line.split_whitespace() {
                     if let Some(rest) = part.strip_prefix("pos=") {
                         pos = rest.parse().unwrap_or(0.0);
-                    } else if let Some(rest) = part.strip_prefix("r=") {
-                        r = rest.parse().unwrap_or(0.0);
-                    } else if let Some(rest) = part.strip_prefix("g=") {
-                        g = rest.parse().unwrap_or(0.0);
-                    } else if let Some(rest) = part.strip_prefix("b=") {
-                        b = rest.parse().unwrap_or(0.0);
+                    } else if let Some(rest) = part.strip_prefix("val=") {
+                        val = rest.parse().unwrap_or(0.5);
                     }
                 }
-                keys.push(ColorRampKey { pos, color: [r, g, b] });
+                keys.push(RampKey { pos, value: val });
             }
         }
         if !keys.is_empty() {
@@ -142,22 +136,24 @@ fn load_bevel_ramp() -> Vec<ColorRampKey> {
             return keys;
         }
     }
-    // Default keys
+    // Default keys: raised bevel profile (starts/ends at backplate level 0.5, peaks at 1.0)
     vec![
-        ColorRampKey { pos: 0.0, color: [0.0, 0.0, 0.0] },
-        ColorRampKey { pos: 1.0, color: [1.0, 1.0, 1.0] },
+        RampKey { pos: 0.0, value: 0.5 },
+        RampKey { pos: 0.2, value: 1.0 },
+        RampKey { pos: 0.8, value: 1.0 },
+        RampKey { pos: 1.0, value: 0.5 },
     ]
 }
 
-fn interpolate_ramp_color(keys: &[ColorRampKey], u: f32) -> [f32; 3] {
+fn interpolate_ramp_value(keys: &[RampKey], u: f32) -> f32 {
     if keys.is_empty() {
-        return [0.0, 0.0, 0.0];
+        return 0.5;
     }
     if u <= keys[0].pos {
-        return keys[0].color;
+        return keys[0].value;
     }
     if u >= keys[keys.len() - 1].pos {
-        return keys[keys.len() - 1].color;
+        return keys[keys.len() - 1].value;
     }
     for i in 0..keys.len() - 1 {
         let k1 = &keys[i];
@@ -165,17 +161,13 @@ fn interpolate_ramp_color(keys: &[ColorRampKey], u: f32) -> [f32; 3] {
         if u >= k1.pos && u <= k2.pos {
             let range = k2.pos - k1.pos;
             if range.abs() < 0.0001 {
-                return k1.color;
+                return k1.value;
             }
             let w = (u - k1.pos) / range;
-            return [
-                k1.color[0] * (1.0 - w) + k2.color[0] * w,
-                k1.color[1] * (1.0 - w) + k2.color[1] * w,
-                k1.color[2] * (1.0 - w) + k2.color[2] * w,
-            ];
+            return k1.value * (1.0 - w) + k2.value * w;
         }
     }
-    keys[0].color
+    keys[0].value
 }
 
 impl State {
@@ -344,11 +336,7 @@ impl State {
             if child_type.as_deref() == Some("ColorRamp") {
                 vec![
                     bg,                      // 0
-                    Box::new({
-                        let mut ramp = ColorRamp::new();
-                        ramp.keys = load_bevel_ramp();
-                        ramp
-                    }), // 1
+                    Box::new(ColorRamp::new()), // 1
                     Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
                     Box::new(Label::new("").with_font_size(12.0)), // 3
                     Box::new(Label::new("").with_font_size(12.0)), // 4
@@ -356,7 +344,11 @@ impl State {
             } else if child_type.as_deref() == Some("Ramp") {
                 vec![
                     bg,                      // 0
-                    Box::new(Ramp::new()), // 1
+                    Box::new({
+                        let mut ramp = Ramp::new();
+                        ramp.keys = load_bevel_ramp();
+                        ramp
+                    }), // 1
                     Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
                     Box::new(Label::new("").with_font_size(12.0)), // 3
                     Box::new(Label::new("").with_font_size(12.0)), // 4
@@ -812,18 +804,25 @@ cascades in cce."
                         let slices = 5;
                         let slice_w = t / slices as f32;
                         for i in 0..slices {
-                            let u = i as f32 / (slices - 1).max(1) as f32;
-                            let col = interpolate_ramp_color(&self.bevel_ramp, u);
+                            let u_curr = i as f32 / slices as f32;
+                            let u_next = (i + 1) as f32 / slices as f32;
+                            
+                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
+                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                            
+                            let d_h = h_inner - h_outer;
+                            let color_offset = d_h * 0.4;
+                            
                             let light_color = [
-                                (border_color[0] + 0.35 * col[0]).min(1.0),
-                                (border_color[1] + 0.35 * col[1]).min(1.0),
-                                (border_color[2] + 0.35 * col[2]).min(1.0),
+                                (border_color[0] + color_offset).clamp(0.0, 1.0),
+                                (border_color[1] + color_offset).clamp(0.0, 1.0),
+                                (border_color[2] + color_offset).clamp(0.0, 1.0),
                                 border_color[3]
                             ];
                             let dark_color = [
-                                (border_color[0] - 0.35 * col[0]).max(0.0),
-                                (border_color[1] - 0.35 * col[1]).max(0.0),
-                                (border_color[2] - 0.35 * col[2]).max(0.0),
+                                (border_color[0] - color_offset).clamp(0.0, 1.0),
+                                (border_color[1] - color_offset).clamp(0.0, 1.0),
+                                (border_color[2] - color_offset).clamp(0.0, 1.0),
                                 border_color[3]
                             ];
                             let offset = i as f32 * slice_w;
@@ -839,18 +838,25 @@ cascades in cce."
                         let slices = 5;
                         let slice_w = t / slices as f32;
                         for i in 0..slices {
-                            let u = i as f32 / (slices - 1).max(1) as f32;
-                            let col = interpolate_ramp_color(&self.bevel_ramp, u);
+                            let u_curr = i as f32 / slices as f32;
+                            let u_next = (i + 1) as f32 / slices as f32;
+                            
+                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
+                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                            
+                            let d_h = h_inner - h_outer;
+                            let color_offset = d_h * 0.4;
+                            
                             let light_color = [
-                                (border_color[0] + 0.35 * col[0]).min(1.0),
-                                (border_color[1] + 0.35 * col[1]).min(1.0),
-                                (border_color[2] + 0.35 * col[2]).min(1.0),
+                                (border_color[0] + color_offset).clamp(0.0, 1.0),
+                                (border_color[1] + color_offset).clamp(0.0, 1.0),
+                                (border_color[2] + color_offset).clamp(0.0, 1.0),
                                 border_color[3]
                             ];
                             let dark_color = [
-                                (border_color[0] - 0.35 * col[0]).max(0.0),
-                                (border_color[1] - 0.35 * col[1]).max(0.0),
-                                (border_color[2] - 0.35 * col[2]).max(0.0),
+                                (border_color[0] - color_offset).clamp(0.0, 1.0),
+                                (border_color[1] - color_offset).clamp(0.0, 1.0),
+                                (border_color[2] - color_offset).clamp(0.0, 1.0),
                                 border_color[3]
                             ];
                             let offset = i as f32 * slice_w;
@@ -1231,8 +1237,8 @@ cascades in cce."
             if is_visible(i) {
                 if w.tick(dt, &mut self.ui_context) {
                     changed = true;
-                    if self.is_child && self.child_type.as_deref() == Some("ColorRamp") && i == 1 {
-                        if let Some(ramp) = w.as_any().downcast_ref::<ColorRamp>() {
+                    if self.is_child && self.child_type.as_deref() == Some("Ramp") && i == 1 {
+                        if let Some(ramp) = w.as_any().downcast_ref::<Ramp>() {
                             save_bevel_ramp(&ramp.keys);
                         }
                     }
@@ -1931,7 +1937,7 @@ impl PointerHandler for AppState {
                                             let mut cmd = std::process::Command::new(exe);
                                             cmd.arg("--child")
                                                .arg("--type")
-                                               .arg("ColorRamp")
+                                               .arg("Ramp")
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
