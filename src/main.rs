@@ -1795,9 +1795,9 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
     }
 
     impl DemoPacker {
-        fn new(start_x: f32, start_y: f32, max_width: f32, gap: f32) -> Self {
+        fn new(start_x: f32, start_y: f32, max_width: f32, max_height: f32, gap: f32) -> Self {
             Self {
-                free_rects: vec![(start_x, start_y, max_width, 100000.0)],
+                free_rects: vec![(start_x, start_y, max_width, max_height)],
                 max_w: max_width,
                 max_h: 0.0,
                 gap,
@@ -1837,14 +1837,25 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
 
             let rx = fx + cw_clamped + self.gap;
             let rw = fw - cw_clamped - self.gap;
-            if rw > 0.0 && ch > 0.0 {
-                self.free_rects.push((rx, py, rw, ch));
-            }
-
             let by = py + ch + self.gap;
             let bh = fh - ch - self.gap;
-            if bh > 0.0 && fw > 0.0 {
-                self.free_rects.push((fx, by, fw, bh));
+
+            let split_horizontally = rw * fh > fw * bh;
+
+            if split_horizontally {
+                if rw > 0.0 && fh > 0.0 {
+                    self.free_rects.push((rx, py, rw, fh));
+                }
+                if cw_clamped > 0.0 && bh > 0.0 {
+                    self.free_rects.push((fx, by, cw_clamped, bh));
+                }
+            } else {
+                if rw > 0.0 && ch > 0.0 {
+                    self.free_rects.push((rx, py, rw, ch));
+                }
+                if fw > 0.0 && bh > 0.0 {
+                    self.free_rects.push((fx, by, fw, bh));
+                }
             }
 
             self.max_h = self.max_h.max(py + ch);
@@ -1853,7 +1864,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         }
     }
 
-    let items = vec![
+    let mut items = vec![
         // Diagnostics Buttons
         (3, 140.0, bh),
         (4, 140.0, bh),
@@ -1876,6 +1887,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         (50, 120.0, bh),
         (49, 200.0, 135.0),
     ];
+    items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     match layout_idx {
         0 => {
@@ -1986,7 +1998,8 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         }
         9 => {
             // Mosaic Layout (Guillotine Packer)
-            let mut packer = DemoPacker::new(base_x, 60.0, available_w, 15.0);
+            let max_h = (sh - 99.0).max(300.0);
+            let mut packer = DemoPacker::new(base_x, 60.0, available_w, max_h, 15.0);
             for (idx, w_item, h_item) in items {
                 let (px, py) = packer.pack(w_item, h_item);
                 vec[idx] = (px, py, w_item.min(available_w), h_item);
@@ -1994,7 +2007,8 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         }
         _ => {
             // Reverse Mosaic Layout
-            let mut packer = DemoPacker::new(base_x, 60.0, available_w, 15.0);
+            let max_h = (sh - 99.0).max(300.0);
+            let mut packer = DemoPacker::new(base_x, 60.0, available_w, max_h, 15.0);
             let mut temp = Vec::with_capacity(items.len());
             for &(idx, w_item, h_item) in &items {
                 let (px, py) = packer.pack(w_item, h_item);
