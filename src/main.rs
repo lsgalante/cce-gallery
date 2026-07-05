@@ -583,7 +583,7 @@ impl cce_ui::engine::Application for State {
                 Box::new(Button::new_reset(0.0, 0.0, 140.0, 40.0).with_label("Reset")), // 8
                 Box::new(Checkbox::new().with_label("Checkbox")), // 9
                 Box::new(Toggle::new().with_label("Toggle")), // 10
-                Box::new(ProgressBar::new(0.0).with_label("ProgressBar")), // 11
+                Box::new(ProgressBar::new(0.43).with_label("ProgressBar")), // 11
                 Box::new(Slider::new().with_label("Slider")), // 12
                 Box::new(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")), // 13
 
@@ -1422,7 +1422,7 @@ cascades in cce."
                             changed = true;
                         } else if do_reset {
                             self.update_status_text("Verification state reset. Ready.");
-                            self.widgets[11] = Box::new(ProgressBar::new(0.00));
+                            self.widgets[11] = Box::new(ProgressBar::new(0.43));
                             self.apply_layout();
                             changed = true;
                         }
