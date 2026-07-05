@@ -246,6 +246,10 @@ impl State {
                     continue;
                 }
                 
+                if !self.is_child && i == 46 {
+                    continue;
+                }
+
                 let is_cp_child = is_control_panel_child(i);
                 if is_cp_child {
                     if !visible {
@@ -268,6 +272,15 @@ impl State {
             let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
             let (x, y, w, h) = self.positions[51];
             cp.set_rect(x, y, w, h);
+
+            let sb_rect = self.widgets[2].rect();
+            let ddh = cce_ui::layout::dropdown_height();
+            let pad_x = 10.0;
+            let pad_y = (sb_rect.3 - ddh) / 2.0;
+            let dw = 120.0;
+            let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
+            let dy = sb_rect.1 + pad_y;
+            self.widgets[46].set_rect(dx, dy, dw, ddh);
         }
     }
 
@@ -692,6 +705,12 @@ cascades in cce."
             for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48] {
                 cp.add_child(state.widgets[idx].as_ptr_mut());
             }
+
+            // Set page selector (46) parent to StatusBar (2)
+            let statusbar_ptr = state.widgets[2].as_ptr_mut();
+            state.widgets[46].set_parent(Some(statusbar_ptr), &mut state.ui_context);
+            let dropdown_ptr = state.widgets[46].as_ptr_mut();
+            state.widgets[2].add_child(dropdown_ptr, &mut state.ui_context);
         }
 
         state.apply_layout();
