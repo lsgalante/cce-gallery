@@ -282,13 +282,6 @@ impl State {
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
             self.widgets[46].set_rect(dx, dy, dw, ddh);
-
-            if self.is_widget_visible(52) {
-                let l_dx = dx - dw - 10.0;
-                self.widgets[52].set_rect(l_dx, dy, dw, ddh);
-            } else {
-                self.widgets[52].set_rect(-1000.0, -1000.0, 0.0, 0.0);
-            }
         }
     }
 
@@ -733,11 +726,6 @@ cascades in cce."
             state.widgets[46].set_parent(Some(statusbar_ptr), &mut state.ui_context);
             let dropdown_ptr = state.widgets[46].as_ptr_mut();
             state.widgets[2].add_child(dropdown_ptr, &mut state.ui_context);
-
-            // Set layout selector (52) parent to StatusBar (2)
-            state.widgets[52].set_parent(Some(statusbar_ptr), &mut state.ui_context);
-            let layout_dropdown_ptr = state.widgets[52].as_ptr_mut();
-            state.widgets[2].add_child(layout_dropdown_ptr, &mut state.ui_context);
         }
 
         state.apply_layout();
@@ -1782,7 +1770,6 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
     vec[46] = (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh); // 46 Dropdown: Page selector
     vec[48] = (base_x + 420.0, 580.0, 140.0, bh); // 48 Button: Bevel Shape
     vec[51] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 51 ControlPanel
-    vec[52] = (0.0, 0.0, 0.0, 0.0); // 52 Dropdown: Layout selector
     
     // Dynamically position Page 0 (Controls) elements using the selected layout index
     let available_w = (sw - base_x - 290.0).max(300.0);
@@ -1863,6 +1850,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         // Progress Bar
         (11, (available_w - 20.0).max(200.0), 24.0),
         // Inputs
+        (52, 200.0, ddh),
         (9, 100.0, tgh),
         (10, 100.0, tgh),
         (12, 200.0, slh),
