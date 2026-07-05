@@ -1905,7 +1905,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: 
         (7, 140.0, bh + label_off(7), bh),
         (8, 140.0, bh + label_off(8), bh),
         // Progress Bar
-        (11, (available_w - 20.0).max(200.0), 24.0 + label_off(11), 24.0),
+        (11, (available_w - 20.0).max(200.0), cce_ui::layout::progressbar_height() + label_off(11), cce_ui::layout::progressbar_height()),
         // Inputs
         (52, 200.0, ddh + label_off(52), ddh),
         (9, 100.0, tgh + label_off(9), tgh),
