@@ -1861,7 +1861,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         (37, 120.0, 120.0),
         (47, 120.0, bh),
         (50, 120.0, bh),
-        (49, 200.0, 120.0),
+        (49, 200.0, 150.0),
     ];
 
     match layout_idx {
