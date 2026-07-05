@@ -1868,7 +1868,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: 
         (12, 200.0, slh + label_off(12), slh),
         (13, 140.0, sph + label_off(13), sph),
         (36, 200.0, ddh + label_off(36), ddh),
-        (30, 200.0, slh + label_off(30), slh),
+        (30, 200.0, cce_ui::layout::rangeslider_height() + label_off(30), cce_ui::layout::rangeslider_height()),
         (31, 200.0, 100.0 + label_off(31), 100.0),
         (37, 120.0, 120.0 + label_off(37), 120.0),
         (47, 120.0, bh + label_off(47), bh),
