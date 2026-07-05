@@ -170,6 +170,79 @@ fn interpolate_ramp_value(keys: &[RampKey], u: f32) -> f32 {
     keys[0].value
 }
 
+fn push_bevel_slice_corners(
+    wx: f32, wy: f32, ww: f32, wh: f32,
+    r: f32,
+    r_offset: f32,
+    slice_w: f32,
+    sw: f32, sh: f32,
+    light_color: [f32; 4],
+    dark_color: [f32; 4],
+    verts: &mut Vec<Vertex>,
+) {
+    if r_offset <= 0.0 {
+        return;
+    }
+    let segments = 32;
+    // Top-Left: uniform light_color
+    cce_ui::backend::window_runner::push_arc_background_vertices(
+        wx + r, wy + r, r_offset, slice_w,
+        std::f32::consts::PI, 1.5 * std::f32::consts::PI,
+        sw, sh, light_color, segments, [0.0, 0.0, -1.0],
+        verts
+    );
+
+    // Top-Right: transitions from light_color (at 1.5 * PI) to dark_color (at 2.0 * PI)
+    let tr_start = 1.5 * std::f32::consts::PI;
+    let tr_end = 2.0 * std::f32::consts::PI;
+    for j in 0..segments {
+        let theta1 = tr_start + (j as f32) * (tr_end - tr_start) / (segments as f32);
+        let theta2 = tr_start + ((j + 1) as f32) * (tr_end - tr_start) / (segments as f32);
+        let t_val = (j as f32 + 0.5) / (segments as f32);
+        let segment_color = [
+            light_color[0] + t_val * (dark_color[0] - light_color[0]),
+            light_color[1] + t_val * (dark_color[1] - light_color[1]),
+            light_color[2] + t_val * (dark_color[2] - light_color[2]),
+            light_color[3],
+        ];
+        cce_ui::backend::window_runner::push_arc_background_vertices(
+            wx + ww - r, wy + r, r_offset, slice_w,
+            theta1, theta2,
+            sw, sh, segment_color, 1, [0.0, 0.0, -1.0],
+            verts
+        );
+    }
+
+    // Bottom-Right: uniform dark_color
+    cce_ui::backend::window_runner::push_arc_background_vertices(
+        wx + ww - r, wy + wh - r, r_offset, slice_w,
+        0.0, 0.5 * std::f32::consts::PI,
+        sw, sh, dark_color, segments, [0.0, 0.0, -1.0],
+        verts
+    );
+
+    // Bottom-Left: transitions from dark_color (at 0.5 * PI) to light_color (at 1.0 * PI)
+    let bl_start = 0.5 * std::f32::consts::PI;
+    let bl_end = std::f32::consts::PI;
+    for j in 0..segments {
+        let theta1 = bl_start + (j as f32) * (bl_end - bl_start) / (segments as f32);
+        let theta2 = bl_start + ((j + 1) as f32) * (bl_end - bl_start) / (segments as f32);
+        let t_val = (j as f32 + 0.5) / (segments as f32);
+        let segment_color = [
+            dark_color[0] + t_val * (light_color[0] - dark_color[0]),
+            dark_color[1] + t_val * (light_color[1] - dark_color[1]),
+            dark_color[2] + t_val * (light_color[2] - dark_color[2]),
+            dark_color[3],
+        ];
+        cce_ui::backend::window_runner::push_arc_background_vertices(
+            wx + r, wy + wh - r, r_offset, slice_w,
+            theta1, theta2,
+            sw, sh, segment_color, 1, [0.0, 0.0, -1.0],
+            verts
+        );
+    }
+}
+
 impl State {
     async fn new(
         wayland_handle: &'static cce_ui::wayland::WaylandSurfaceHandle,
@@ -738,39 +811,12 @@ cascades in cce."
                                 verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
                                 verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
 
-                                if r_offset > 0.0 {
-                                    let segments = 32;
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + r, wy + r, r_offset, slice_w,
-                                        std::f32::consts::PI, 1.5 * std::f32::consts::PI,
-                                        sw, sh, light_color, segments, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + ww - r, wy + r, r_offset, slice_w,
-                                        1.5 * std::f32::consts::PI, 1.75 * std::f32::consts::PI,
-                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + ww - r, wy + r, r_offset, slice_w,
-                                        1.75 * std::f32::consts::PI, 2.0 * std::f32::consts::PI,
-                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + ww - r, wy + wh - r, r_offset, slice_w,
-                                        0.0, 0.5 * std::f32::consts::PI,
-                                        sw, sh, dark_color, segments, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + r, wy + wh - r, r_offset, slice_w,
-                                        0.5 * std::f32::consts::PI, 0.75 * std::f32::consts::PI,
-                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + r, wy + wh - r, r_offset, slice_w,
-                                        0.75 * std::f32::consts::PI, std::f32::consts::PI,
-                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                }
+                                push_bevel_slice_corners(
+                                    wx, wy, ww, wh,
+                                    r, r_offset, slice_w,
+                                    sw, sh, light_color, dark_color,
+                                    &mut verts
+                                );
                             }
                         }
                     } else {
@@ -926,39 +972,12 @@ cascades in cce."
                             verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
                             verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
 
-                                if r_offset > 0.0 {
-                                    let segments = 32;
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + r, wy + r, r_offset, slice_w,
-                                        std::f32::consts::PI, 1.5 * std::f32::consts::PI,
-                                        sw, sh, light_color, segments, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + ww - r, wy + r, r_offset, slice_w,
-                                        1.5 * std::f32::consts::PI, 1.75 * std::f32::consts::PI,
-                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + ww - r, wy + r, r_offset, slice_w,
-                                        1.75 * std::f32::consts::PI, 2.0 * std::f32::consts::PI,
-                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + ww - r, wy + wh - r, r_offset, slice_w,
-                                        0.0, 0.5 * std::f32::consts::PI,
-                                        sw, sh, dark_color, segments, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + r, wy + wh - r, r_offset, slice_w,
-                                        0.5 * std::f32::consts::PI, 0.75 * std::f32::consts::PI,
-                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                    cce_ui::backend::window_runner::push_arc_background_vertices(
-                                        wx + r, wy + wh - r, r_offset, slice_w,
-                                        0.75 * std::f32::consts::PI, std::f32::consts::PI,
-                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
-                                    );
-                                }
+                                push_bevel_slice_corners(
+                                    wx, wy, ww, wh,
+                                    r, r_offset, slice_w,
+                                    sw, sh, light_color, dark_color,
+                                    &mut verts
+                                );
                         }
                     }
                 } else {
