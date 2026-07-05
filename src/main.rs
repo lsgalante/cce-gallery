@@ -400,7 +400,11 @@ impl State {
                 None => "This is an active simulated window in the window manager.".to_string(),
             };
             let bg: Box<dyn Element> = if use_backplate {
-                Box::new(Backplate::new(0.0, 0.0, lw, lh).with_movable(false))
+                let mut bp = Backplate::new(0.0, 0.0, lw, lh).with_movable(false);
+                if border_bevel {
+                    bp = bp.with_bevel(true, border_width);
+                }
+                Box::new(bp)
             } else {
                 Box::new(ContentBg::new())
             };
