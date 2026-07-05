@@ -2284,8 +2284,16 @@ impl WindowHandler for AppState {
             let (w, h) = configure.new_size;
             let default_w = if state.is_child { self.initial_width as u32 } else { 1024 };
             let default_h = if state.is_child { self.initial_height as u32 } else { 768 };
-            let mut w = w.unwrap_or(std::num::NonZeroU32::new(default_w).unwrap()).get();
-            let mut h = h.unwrap_or(std::num::NonZeroU32::new(default_h).unwrap()).get();
+            let mut w = if state.is_child {
+                default_w
+            } else {
+                w.unwrap_or(std::num::NonZeroU32::new(default_w).unwrap()).get()
+            };
+            let mut h = if state.is_child {
+                default_h
+            } else {
+                h.unwrap_or(std::num::NonZeroU32::new(default_h).unwrap()).get()
+            };
 
             if state.is_child && self.child_shape.as_deref() == Some("circular") {
                 let side = w.min(h);
@@ -2480,6 +2488,7 @@ fn main() {
     }
     if is_child {
         window.set_min_size(Some((c_w as u32, c_h as u32)));
+        window.set_max_size(Some((c_w as u32, c_h as u32)));
     } else {
         window.set_min_size(Some((100, 100)));
     }
