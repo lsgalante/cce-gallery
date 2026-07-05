@@ -585,10 +585,12 @@ cascades in cce."
             last_ramp_mod: None,
         };
 
-        let cp_ptr = state.widgets[50].as_ptr_mut();
-        let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
-        for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 47] {
-            cp.add_child(state.widgets[idx].as_ptr_mut());
+        if !is_child {
+            let cp_ptr = state.widgets[50].as_ptr_mut();
+            let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
+            for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 47] {
+                cp.add_child(state.widgets[idx].as_ptr_mut());
+            }
         }
 
         cce_ui::scale::set_scale_factor(scale as f32);
