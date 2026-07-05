@@ -32,7 +32,7 @@ use smithay_client_toolkit::{
 };
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface, wl_callback},
     Connection, QueueHandle, Proxy,
 };
 use calloop::EventLoop;
@@ -1712,6 +1712,7 @@ struct AppState {
     state: Option<State>,
     exit: bool,
     redraw: bool,
+    frame_callback_pending: bool,
 
     cursor_shape_manager: Option<smithay_client_toolkit::seat::pointer::cursor_shape::CursorShapeManager>,
     cursor_shape_device: Option<smithay_client_toolkit::reexports::protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1::WpCursorShapeDeviceV1>,
@@ -2514,6 +2515,7 @@ impl WindowHandler for AppState {
             state.resize(pw, ph);
         }
         self.redraw = true;
+        self.frame_callback_pending = false;
     }
 
     fn request_close(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _window: &XdgWindow) {
@@ -2542,6 +2544,21 @@ impl ProvidesRegistryState for AppState {
         _name: u32,
         _interface: &str,
     ) {}
+}
+
+impl wayland_client::Dispatch<wl_callback::WlCallback, ()> for AppState {
+    fn event(
+        state: &mut Self,
+        _proxy: &wl_callback::WlCallback,
+        event: wl_callback::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        if let wl_callback::Event::Done { .. } = event {
+            state.frame_callback_pending = false;
+        }
+    }
 }
 
 delegate_compositor!(AppState);
@@ -2643,6 +2660,7 @@ fn main() {
         state: None,
         exit: false,
         redraw: true,
+        frame_callback_pending: false,
         cursor_shape_manager,
         cursor_shape_device: None,
         ctrl_pressed: false,
@@ -2764,10 +2782,14 @@ fn main() {
             }
         }
 
-        if app.redraw {
+        if app.redraw && !app.frame_callback_pending {
             app.redraw = false;
             if let Some(state) = &mut app.state {
                 state.render();
+                if let Some(ref surface) = app.surface {
+                    let _callback = surface.frame(&qh, ());
+                    app.frame_callback_pending = true;
+                }
             }
         }
     }
