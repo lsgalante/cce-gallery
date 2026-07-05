@@ -618,23 +618,8 @@ cascades in cce."
             );
         }
         
-        // Draw ControlPanel first if visible so it is behind its children
-        if self.widgets.len() > 50 && self.is_widget_visible(50) {
-            let cp = &self.widgets[50];
-            let (cpx, cpy, cpw, cph) = cp.rect();
-            verts.extend(quad_vertices(cpx, cpy, cpw, cph, sw, sh, cp.color()));
-            let border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
-            verts.extend(quad_vertices(cpx, cpy, cpw, 1.0, sw, sh, border_color));
-            verts.extend(quad_vertices(cpx, cpy + cph - 1.0, cpw, 1.0, sw, sh, border_color));
-            verts.extend(quad_vertices(cpx, cpy, 1.0, cph, sw, sh, border_color));
-            verts.extend(quad_vertices(cpx + cpw - 1.0, cpy, 1.0, cph, sw, sh, border_color));
-        }
-
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
-                continue;
-            }
-            if i == 50 {
                 continue;
             }
             if is_control_panel_child(i) {
