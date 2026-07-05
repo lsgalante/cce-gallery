@@ -542,7 +542,11 @@ cascades in cce."
                     t
                 }), // 42 Toggle: Bevel
                 Box::new(Spinbox::new(1, 1, 20, 1).with_label("Border Width")), // 43 Spinbox: Border Width
-                Box::new(SectionContainer::new("Window Elements")), // 44 Section: Window Elements
+                Box::new({
+                    let default_depth = (cce_ui::layout::bevel_depth() * 100.0) as i32;
+                    Spinbox::new(default_depth, 0, 100, 1).with_label("Bevel Depth")
+                }), // 44 Spinbox: Bevel Depth
+                Box::new(SectionContainer::new("Window Elements")), // 45 Section: Window Elements
                 Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true)), // 45 Dropdown: Page selector
                 Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Color Ramp...")), // 46 Button: Color Ramp
                 Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Bevel Shape...")), // 47 Button: Bevel Shape
@@ -613,9 +617,9 @@ cascades in cce."
         };
 
         if !is_child {
-            let cp_ptr = state.widgets[50].as_ptr_mut();
+            let cp_ptr = state.widgets[51].as_ptr_mut();
             let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
-            for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 47] {
+            for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48] {
                 cp.add_child(state.widgets[idx].as_ptr_mut());
             }
         }
@@ -636,9 +640,9 @@ cascades in cce."
             };
         }
         match index {
-            0..=2 | 45 => true,
-            3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => self.current_page == Page::Controls,
-            14..=29 | 38..=44 | 47 | 50 => self.current_page == Page::Windows,
+            0..=2 | 46 => true,
+            3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => self.current_page == Page::Controls,
+            14..=29 | 38..=45 | 48 | 51 => self.current_page == Page::Windows,
             32..=35 => self.current_page == Page::Xdg,
             _ => false,
         }
@@ -811,7 +815,8 @@ cascades in cce."
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
-                                let color_offset = d_h * 0.4;
+                                let bevel_depth = self.widgets[44].value() as f32 / 100.0;
+                                let color_offset = d_h * bevel_depth * 2.667;
                                 
                                  let light_angle = cce_ui::layout::light_source_position();
                                  let rad = light_angle.to_radians();
@@ -864,7 +869,8 @@ cascades in cce."
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
-                                let color_offset = d_h * 0.4;
+                                let bevel_depth = self.widgets[44].value() as f32 / 100.0;
+                                let color_offset = d_h * bevel_depth * 2.667;
                                 
                                  let light_angle = cce_ui::layout::light_source_position();
                                  let rad = light_angle.to_radians();
@@ -1003,7 +1009,8 @@ cascades in cce."
                             let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                             
                             let d_h = h_inner - h_outer;
-                            let color_offset = d_h * 0.4;
+                            let bevel_depth = cce_ui::layout::bevel_depth();
+                            let color_offset = d_h * bevel_depth * 2.667;
                             
                              let light_angle = cce_ui::layout::light_source_position();
                              let rad = light_angle.to_radians();
@@ -1056,7 +1063,8 @@ cascades in cce."
                             let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                             
                             let d_h = h_inner - h_outer;
-                            let color_offset = d_h * 0.4;
+                            let bevel_depth = cce_ui::layout::bevel_depth();
+                            let color_offset = d_h * bevel_depth * 2.667;
                             
                             let light_angle = cce_ui::layout::light_source_position();
                             let rad = light_angle.to_radians();
@@ -2050,8 +2058,8 @@ impl PointerHandler for AppState {
                             } else {
                                 let mut page_changed = false;
                                 let mut selected = 0;
-                                if st.widgets[45].take_click() {
-                                    selected = st.widgets[45].value();
+                                if st.widgets[46].take_click() {
+                                    selected = st.widgets[46].value();
                                     page_changed = true;
                                 }
                                 
@@ -2089,7 +2097,7 @@ impl PointerHandler for AppState {
                                         run_all = true;
                                     } else if st.widgets[8].take_click() {
                                         do_reset = true;
-                                    } else if st.widgets[46].take_click() {
+                                    } else if st.widgets[47].take_click() {
                                         if let Ok(exe) = std::env::current_exe() {
                                             let mut cmd = std::process::Command::new(exe);
                                             cmd.arg("--child")
@@ -2102,7 +2110,7 @@ impl PointerHandler for AppState {
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
-                                    } else if st.widgets[49].take_click() {
+                                    } else if st.widgets[50].take_click() {
                                         if let Ok(exe) = std::env::current_exe() {
                                             let mut cmd = std::process::Command::new(exe);
                                             cmd.arg("--child")
@@ -2162,7 +2170,7 @@ impl PointerHandler for AppState {
                                         create_window = true;
                                     } else if st.widgets[16].take_click() {
                                         tile_windows = true;
-                                    } else if st.widgets[47].take_click() {
+                                    } else if st.widgets[48].take_click() {
                                         if let Ok(exe) = std::env::current_exe() {
                                             let mut cmd = std::process::Command::new(exe);
                                             cmd.arg("--child")
@@ -2177,11 +2185,17 @@ impl PointerHandler for AppState {
                                         }
                                     } else {
                                         let mut dropdown_clicked = false;
-                                        for i in [17, 19, 21, 22, 23, 25, 26, 38, 39, 40, 42, 43] {
+                                        for i in [17, 19, 21, 22, 23, 25, 26, 38, 39, 40, 42, 43, 44] {
                                             if st.widgets[i].take_click() {
                                                 changed = true;
                                                 if i == 21 {
                                                     dropdown_clicked = true;
+                                                }
+                                                if i == 44 {
+                                                    let depth = st.widgets[44].value() as f32 / 100.0;
+                                                    if let Ok(mut registry) = cce_ui::layout::get_style_registry().write() {
+                                                        registry.set_float("bevel_depth", depth);
+                                                    }
                                                 }
                                             }
                                         }
