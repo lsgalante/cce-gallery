@@ -1,5 +1,5 @@
 use cce_ui::widget::{
-    Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
+    Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, RangeSlider, Slider, Spinbox, StatusBar,
     Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
     Ramp, RampKey, ColorRamp, ControlPanel, TextItem, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
@@ -575,15 +575,15 @@ impl cce_ui::engine::Application for State {
                 }, // 1
                 Box::new(StatusBar::new()), // 2
                 
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Verify Opacity")), // 3
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Verify Blur")), // 4
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Verify Layout")), // 5
+                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Button")), // 3
+                Box::new(Label::new("").with_font_size(12.0)), // 4
+                Box::new(Label::new("").with_font_size(12.0)), // 5
                 Box::new(Label::new("").with_font_size(12.0)), // 6
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Run Diagnostics")), // 7
-                Box::new(Button::new_reset(0.0, 0.0, 140.0, 40.0).with_label("Reset")), // 8
+                Box::new(Label::new("").with_font_size(12.0)), // 7
+                Box::new(Label::new("").with_font_size(12.0)), // 8
                 Box::new(Checkbox::new().with_label("Checkbox")), // 9
                 Box::new(Toggle::new().with_label("Toggle")), // 10
-                Box::new(ProgressBar::new(0.43).with_label("ProgressBar")), // 11
+                Box::new(Label::new("").with_font_size(12.0)), // 11
                 Box::new(Slider::new().with_label("Slider")), // 12
                 Box::new(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")), // 13
 
@@ -1350,22 +1350,8 @@ cascades in cce."
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
-                        let mut run_opacity = false;
-                        let mut run_blur = false;
-                        let mut run_layout = false;
-                        let mut run_all = false;
-                        let mut do_reset = false;
-                        
                         if self.widgets[3].take_click() {
-                            run_opacity = true;
-                        } else if self.widgets[4].take_click() {
-                            run_blur = true;
-                        } else if self.widgets[5].take_click() {
-                            run_layout = true;
-                        } else if self.widgets[7].take_click() {
-                            run_all = true;
-                        } else if self.widgets[8].take_click() {
-                            do_reset = true;
+                            // Does nothing
                         } else if self.widgets[47].take_click() {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
@@ -1393,38 +1379,11 @@ cascades in cce."
                                 let _ = cmd.spawn();
                             }
                         } else {
-                            for i in [9, 10, 11, 12, 13, 30, 31, 36, 37] {
+                            for i in [9, 10, 12, 13, 30, 31, 36, 37] {
                                 if self.widgets[i].take_click() {
                                     changed = true;
                                 }
                             }
-                        }
-                        
-                        if run_opacity {
-                            self.update_status_text("Opacity Test: PASSED (transparency alpha = 0.20 successfully checked)");
-                            self.widgets[11] = Box::new(ProgressBar::new(0.35));
-                            self.apply_layout();
-                            changed = true;
-                        } else if run_blur {
-                            self.update_status_text("Blur Test: PASSED (wlr_scene_set_blur_data initialization confirmed)");
-                            self.widgets[11] = Box::new(ProgressBar::new(0.70));
-                            self.apply_layout();
-                            changed = true;
-                        } else if run_layout {
-                            self.update_status_text("Layout Test: PASSED (Grid/Cascade IPC modes tiling verified)");
-                            self.widgets[11] = Box::new(ProgressBar::new(1.00));
-                            self.apply_layout();
-                            changed = true;
-                        } else if run_all {
-                            self.update_status_text("All Diagnostics: SUCCESS (Compositor and window managers verified!)");
-                            self.widgets[11] = Box::new(ProgressBar::new(1.00));
-                            self.apply_layout();
-                            changed = true;
-                        } else if do_reset {
-                            self.update_status_text("Verification state reset. Ready.");
-                            self.widgets[11] = Box::new(ProgressBar::new(0.43));
-                            self.apply_layout();
-                            changed = true;
                         }
                     } else if self.current_page == Page::Windows {
                         let mut create_window = false;
@@ -1897,15 +1856,9 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: 
         cce_ui::widget::label_offset(widgets[idx].as_ref())
     };
 
-    let mut items = vec![
-        // Diagnostics Buttons
+    let mut items: Vec<(usize, f32, f32, f32)> = vec![
+        // Button
         (3, 140.0, bh + label_off(3), bh),
-        (4, 140.0, bh + label_off(4), bh),
-        (5, 140.0, bh + label_off(5), bh),
-        (7, 140.0, bh + label_off(7), bh),
-        (8, 140.0, bh + label_off(8), bh),
-        // Progress Bar
-        (11, (available_w - 20.0).max(200.0), cce_ui::layout::progressbar_height() + label_off(11), cce_ui::layout::progressbar_height()),
         // Inputs
         (52, 200.0, ddh + label_off(52), ddh),
         (9, 100.0, tgh + label_off(9), tgh),
