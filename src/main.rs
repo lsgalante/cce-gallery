@@ -98,24 +98,27 @@ struct State {
     child_type: Option<String>,
     ui_context: cce_ui::context::UiContext,
     bevel_ramp: Vec<RampKey>,
+    bevel_ramp_line_type: String,
     last_ramp_mod: Option<std::time::SystemTime>,
 }
 
-fn save_bevel_ramp(keys: &[RampKey]) {
+fn save_bevel_ramp(keys: &[RampKey], line_type: &str) {
     let mut s = String::new();
     s.push_str("keys {\n");
     for k in keys {
         s.push_str(&format!("    key pos={} val={}\n", k.pos, k.value));
     }
     s.push_str("}\n");
+    s.push_str(&format!("line_type \"{}\"\n", line_type));
     let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
     let _ = std::fs::write(path, s);
 }
 
-fn load_bevel_ramp() -> Vec<RampKey> {
+fn load_bevel_ramp() -> (Vec<RampKey>, String) {
     let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
+    let mut line_type = "linear".to_string();
+    let mut keys = Vec::new();
     if let Ok(content) = std::fs::read_to_string(path) {
-        let mut keys = Vec::new();
         for line in content.lines() {
             let line = line.trim();
             if line.starts_with("key ") {
@@ -129,23 +132,30 @@ fn load_bevel_ramp() -> Vec<RampKey> {
                     }
                 }
                 keys.push(RampKey { pos, value: val });
+            } else if line.starts_with("line_type ") {
+                if let Some(val_str) = line.split_whitespace().nth(1) {
+                    line_type = val_str.trim_matches('"').to_string();
+                }
             }
         }
         if !keys.is_empty() {
             keys.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
-            return keys;
+            return (keys, line_type);
         }
     }
     // Default keys: raised bevel profile (starts/ends at backplate level 0.5, peaks at 1.0)
-    vec![
-        RampKey { pos: 0.0, value: 0.5 },
-        RampKey { pos: 0.2, value: 1.0 },
-        RampKey { pos: 0.8, value: 1.0 },
-        RampKey { pos: 1.0, value: 0.5 },
-    ]
+    (
+        vec![
+            RampKey { pos: 0.0, value: 0.5 },
+            RampKey { pos: 0.2, value: 1.0 },
+            RampKey { pos: 0.8, value: 1.0 },
+            RampKey { pos: 1.0, value: 0.5 },
+        ],
+        "linear".to_string()
+    )
 }
 
-fn interpolate_ramp_value(keys: &[RampKey], u: f32) -> f32 {
+fn interpolate_ramp_value(keys: &[RampKey], u: f32, line_type: &str) -> f32 {
     if keys.is_empty() {
         return 0.5;
     }
@@ -164,7 +174,12 @@ fn interpolate_ramp_value(keys: &[RampKey], u: f32) -> f32 {
                 return k1.value;
             }
             let w = (u - k1.pos) / range;
-            return k1.value * (1.0 - w) + k2.value * w;
+            if line_type == "bezier" {
+                let w_smooth = w * w * (3.0 - 2.0 * w);
+                return k1.value * (1.0 - w_smooth) + k2.value * w_smooth;
+            } else {
+                return k1.value * (1.0 - w) + k2.value * w;
+            }
         }
     }
     keys[0].value
@@ -402,7 +417,12 @@ impl State {
                     bg,                      // 0
                     Box::new({
                         let mut ramp = Ramp::new();
-                        ramp.keys = load_bevel_ramp();
+                        let (loaded_keys, loaded_type) = load_bevel_ramp();
+                        ramp.keys = loaded_keys;
+                        ramp.line_type_dropdown.selected = match loaded_type.as_str() {
+                            "bezier" => 1,
+                            _ => 0,
+                        };
                         ramp
                     }), // 1
                     Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
@@ -542,6 +562,8 @@ cascades in cce."
             mapped_at_creation: false,
         });
 
+        let (loaded_keys, loaded_type) = load_bevel_ramp();
+
         let mut state = Self {
             surface,
             device,
@@ -581,7 +603,8 @@ cascades in cce."
             border_bevel,
             child_type: child_type.clone(),
             ui_context: cce_ui::context::UiContext::new(),
-            bevel_ramp: load_bevel_ramp(),
+            bevel_ramp: loaded_keys,
+            bevel_ramp_line_type: loaded_type,
             last_ramp_mod: None,
         };
 
@@ -768,8 +791,8 @@ cascades in cce."
                                 let u_curr = idx as f32 / slices as f32;
                                 let u_next = (idx + 1) as f32 / slices as f32;
                                 
-                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
-                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
+                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
                                 
                                 let d_h = h_inner - h_outer;
                                 let color_offset = d_h * 0.4;
@@ -817,8 +840,8 @@ cascades in cce."
                                 let u_curr = idx as f32 / slices as f32;
                                 let u_next = (idx + 1) as f32 / slices as f32;
                                 
-                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
-                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
+                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
                                 
                                 let d_h = h_inner - h_outer;
                                 let color_offset = d_h * 0.4;
@@ -952,8 +975,8 @@ cascades in cce."
                             let u_curr = i as f32 / slices as f32;
                             let u_next = (i + 1) as f32 / slices as f32;
                             
-                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
-                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
+                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
                             
                             let d_h = h_inner - h_outer;
                             let color_offset = d_h * 0.4;
@@ -1001,8 +1024,8 @@ cascades in cce."
                             let u_curr = i as f32 / slices as f32;
                             let u_next = (i + 1) as f32 / slices as f32;
                             
-                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
-                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
+                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
                             
                             let d_h = h_inner - h_outer;
                             let color_offset = d_h * 0.4;
@@ -1399,9 +1422,11 @@ cascades in cce."
             let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
             if let Ok(metadata) = std::fs::metadata(&path) {
                 if let Ok(mod_time) = metadata.modified() {
-                    if Some(mod_time) != self.last_ramp_mod {
+                     if Some(mod_time) != self.last_ramp_mod {
                         self.last_ramp_mod = Some(mod_time);
-                        self.bevel_ramp = load_bevel_ramp();
+                        let (keys, line_type) = load_bevel_ramp();
+                        self.bevel_ramp = keys;
+                        self.bevel_ramp_line_type = line_type;
                         changed = true;
                     }
                 }
@@ -1441,7 +1466,11 @@ cascades in cce."
                     changed = true;
                     if self.is_child && self.child_type.as_deref() == Some("Ramp") && i == 1 {
                         if let Some(ramp) = w.as_any().downcast_ref::<Ramp>() {
-                            save_bevel_ramp(&ramp.keys);
+                            let line_type_str = match ramp.line_type_dropdown.selected {
+                                1 => "bezier",
+                                _ => "linear",
+                            };
+                            save_bevel_ramp(&ramp.keys, line_type_str);
                         }
                     }
                 }
