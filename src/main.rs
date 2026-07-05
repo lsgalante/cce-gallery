@@ -1067,6 +1067,25 @@ cascades in cce."
             });
         }
 
+        let mut popover_rects = Vec::new();
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !is_visible(i) {
+                continue;
+            }
+            if let Some(rect) = w.popover_rect() {
+                popover_rects.push(rect);
+            }
+        }
+
+        let in_any_popover = |lx: f32, ly: f32| -> bool {
+            for &(px, py, pw, ph) in &popover_rects {
+                if lx >= px - 5.0 && lx <= px + pw + 5.0 && ly >= py - 5.0 && ly <= py + ph + 5.0 {
+                    return true;
+                }
+            }
+            false
+        };
+
         let mut widget_buffers: Vec<Buffer> = Vec::new();
         let mut widget_labels: Vec<(TextLabel, Option<[f32; 4]>)> = Vec::new();
         for (i, w) in self.widgets.iter().enumerate() {
@@ -1078,6 +1097,9 @@ cascades in cce."
             }
             let widget_font_opt = w.widget_font();
             for (label, font, bounds) in w.text_labels_with_font_and_bounds(&self.ui_context) {
+                if in_any_popover(label.x, label.y) {
+                    continue;
+                }
                 let active_font = font.or_else(|| widget_font_opt.clone());
                 let buf = cce_ui::backend::window_runner::get_text_buffer(
                     font_system,
