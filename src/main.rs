@@ -790,9 +790,6 @@ cascades in cce."
                     
                     if backplate_enabled {
                         let radii = CornerRadii::new(r, r, r, r);
-                        cce_ui::backend::window_runner::push_plate_solid_border_vertices(
-                            wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
-                        );
                         if border_bevel {
                             let slices = (t * 2.0).max(10.0) as i32;
                             let slice_w = t / slices as f32;
@@ -840,6 +837,10 @@ cascades in cce."
                                     &mut verts
                                 );
                             }
+                        } else {
+                            cce_ui::backend::window_runner::push_plate_solid_border_vertices(
+                                wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
+                            );
                         }
                     } else {
                         if border_bevel {
@@ -975,9 +976,6 @@ cascades in cce."
                 if backplate_enabled {
                     let bg_color = self.widgets[0].color();
                     let radii = CornerRadii::new(r, r, r, r);
-                    cce_ui::backend::window_runner::push_plate_solid_border_vertices(
-                        wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
-                    );
                     if self.border_bevel {
                         let slices = (t * 2.0).max(10.0) as i32;
                         let slice_w = t / slices as f32;
@@ -1025,6 +1023,10 @@ cascades in cce."
                                     &mut verts
                                 );
                         }
+                    } else {
+                        cce_ui::backend::window_runner::push_plate_solid_border_vertices(
+                            wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
+                        );
                     }
                 } else {
                     if self.border_bevel {
