@@ -1460,9 +1460,9 @@ fn child_positions(
 ) -> Vec<(f32, f32, f32, f32)> {
     if child_type == Some("Ramp") || child_type == Some("ColorRamp") {
         let bg_y = 0.0;
-        let bg_h = sh;
-        let ramp_pos = (10.0, 10.0, sw - 20.0, sh - 60.0);
-        let close_pos = ((sw - 100.0) / 2.0, sh - 45.0, 100.0, 30.0);
+        let bg_h = 200.0;
+        let ramp_pos = (10.0, 10.0, sw - 20.0, 140.0);
+        let close_pos = ((sw - 100.0) / 2.0, 160.0, 100.0, 30.0);
         vec![
             (0.0, bg_y, sw, bg_h),              // 0 bg
             ramp_pos,                           // 1 Ramp
@@ -1907,7 +1907,7 @@ impl PointerHandler for AppState {
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
-                                               .arg("300")
+                                               .arg("400")
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
@@ -1920,7 +1920,7 @@ impl PointerHandler for AppState {
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
-                                               .arg("300")
+                                               .arg("400")
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
@@ -1980,7 +1980,7 @@ impl PointerHandler for AppState {
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
-                                               .arg("300")
+                                               .arg("400")
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
@@ -2381,7 +2381,7 @@ fn main() {
                 Some("LayerTop") => (800.0, 40.0),
                 Some("LayerOverlay") => (300.0, 180.0),
                 Some("LayerBackground") => (800.0, 600.0),
-                Some("Ramp") | Some("ColorRamp") => (450.0, 300.0),
+                Some("Ramp") | Some("ColorRamp") => (450.0, 400.0),
                 _ => (400.0, 250.0),
             }
         }
