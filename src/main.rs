@@ -684,7 +684,7 @@ cascades in cce."
                             wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
                         );
                         if border_bevel {
-                            let slices = 5;
+                            let slices = (t * 2.0).max(10.0) as i32;
                             let slice_w = t / slices as f32;
                             for idx in 0..slices {
                                 let u_curr = idx as f32 / slices as f32;
@@ -718,7 +718,7 @@ cascades in cce."
                         }
                     } else {
                         if border_bevel {
-                            let slices = 5;
+                            let slices = (t * 2.0).max(10.0) as i32;
                             let slice_w = t / slices as f32;
                             for idx in 0..slices {
                                 let u_curr = idx as f32 / slices as f32;
@@ -838,7 +838,7 @@ cascades in cce."
                         wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
                     );
                     if self.border_bevel {
-                        let slices = 5;
+                        let slices = (t * 2.0).max(10.0) as i32;
                         let slice_w = t / slices as f32;
                         for i in 0..slices {
                             let u_curr = i as f32 / slices as f32;
@@ -872,7 +872,7 @@ cascades in cce."
                     }
                 } else {
                     if self.border_bevel {
-                        let slices = 5;
+                        let slices = (t * 2.0).max(10.0) as i32;
                         let slice_w = t / slices as f32;
                         for i in 0..slices {
                             let u_curr = i as f32 / slices as f32;
