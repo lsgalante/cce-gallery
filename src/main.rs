@@ -22,6 +22,7 @@ struct State {
     positions: Vec<(f32, f32, f32, f32)>,
 
     font_system: FontSystem,
+    status_text: String,
     status_buffer: Buffer,
 
     drag_widget: Option<usize>,
@@ -396,6 +397,7 @@ impl State {
     }
 
     fn update_status_text(&mut self, text: &str) {
+        self.status_text = text.to_string();
         let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
         let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
         self.status_buffer = make_text_buffer(&mut self.font_system, text, status_size);
@@ -471,7 +473,8 @@ impl cce_ui::engine::Application for State {
         let mut font_system = cce_ui::create_font_system();
         let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
         let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
-        let status_buffer = make_text_buffer(&mut font_system, "Select a test case to begin verification.", status_size);
+        let status_text = "Select a test case to begin verification.".to_string();
+        let status_buffer = make_text_buffer(&mut font_system, &status_text, status_size);
 
         let widgets: Vec<Box<dyn Element>> = if is_child {
             let desc_label = match child_type.as_deref() {
@@ -652,6 +655,7 @@ cascades in cce."
             widgets,
             positions,
             font_system,
+            status_text,
             status_buffer,
             drag_widget: None,
             focused_widget: None,
@@ -823,6 +827,7 @@ cascades in cce."
             self.physical_width = (size.width * scale as f32) as u32;
             self.physical_height = (size.height * scale as f32) as u32;
             self.scale = scale;
+            cce_ui::scale::set_scale_factor(scale as f32);
 
             self.positions = if self.is_child {
                 child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
@@ -831,6 +836,8 @@ cascades in cce."
                 demo_positions(self.width, self.height, sidebar_w)
             };
             self.apply_layout();
+            let text = self.status_text.clone();
+            self.update_status_text(&text);
             self.rebuild_text_items();
         }
 
