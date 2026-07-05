@@ -1,5 +1,5 @@
 use cce_ui::widget::{
-    Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, RangeSlider, Slider, Spinbox, StatusBar,
+    Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
     Ramp, RampKey, ColorRamp, ControlPanel, TextItem, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
@@ -583,7 +583,7 @@ impl cce_ui::engine::Application for State {
                 Box::new(Label::new("").with_font_size(12.0)), // 8
                 Box::new(Checkbox::new().with_label("Checkbox")), // 9
                 Box::new(Toggle::new().with_label("Toggle")), // 10
-                Box::new(Label::new("").with_font_size(12.0)), // 11
+                Box::new(ProgressBar::new(0.43).with_label("ProgressBar")), // 11
                 Box::new(Slider::new().with_label("Slider")), // 12
                 Box::new(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")), // 13
 
@@ -1859,6 +1859,8 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: 
     let mut items: Vec<(usize, f32, f32, f32)> = vec![
         // Button
         (3, 140.0, bh + label_off(3), bh),
+        // Progress Bar
+        (11, (available_w - 20.0).max(200.0), cce_ui::layout::progressbar_height() + label_off(11), cce_ui::layout::progressbar_height()),
         // Inputs
         (52, 200.0, ddh + label_off(52), ddh),
         (9, 100.0, tgh + label_off(9), tgh),
