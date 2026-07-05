@@ -1313,9 +1313,10 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     left_y += ddh + 15.0;
     
     // Opacity Toggle & Slider
-    let opacity_toggle_pos = (base_x, left_y, 110.0, 32.0);
-    let slider_pos = (base_x + 125.0, left_y, 235.0, 32.0);
-    let slider_label_pos = (base_x + 125.0, left_y - 15.0, 200.0, 12.0);
+    let max_opacity_h = tgh.max(slh);
+    let opacity_toggle_pos = (base_x, left_y + (max_opacity_h - tgh) / 2.0, 110.0, tgh);
+    let slider_pos = (base_x + 125.0, left_y + (max_opacity_h - slh) / 2.0, 235.0, slh);
+    let slider_label_pos = (base_x + 125.0, left_y + (max_opacity_h - slh) / 2.0 - 15.0, 200.0, 12.0);
 
     let mut right_y = 80.0;
     let rx = base_x + 380.0;
@@ -1335,20 +1336,20 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     
     // Border Section Container
     let label_offset = 12.0 + cce_ui::layout::label_margin();
-    let border_sec_h = 28.0 + 32.0 + 10.0 + sph + label_offset + 10.0 + bh + 10.0;
+    let border_sec_h = 28.0 + tgh + 10.0 + sph + label_offset + 10.0 + bh + 10.0;
     let border_sec_pos = (rx, right_y, rw, border_sec_h);
-    let border_enable_pos = (rx + 10.0, right_y + 28.0 + 5.0, 110.0, 32.0);
-    let bevel_toggle_pos = (rx + 130.0, right_y + 28.0 + 5.0, 110.0, 32.0);
-    let border_width_pos = (rx + 10.0, right_y + 28.0 + 5.0 + 32.0 + 10.0, rw - 20.0, sph);
-    let bevel_shape_pos = (rx + 10.0, right_y + 28.0 + 5.0 + 32.0 + 10.0 + sph + label_offset + 10.0, rw - 20.0, bh);
+    let border_enable_pos = (rx + 10.0, right_y + 28.0 + 5.0, 110.0, tgh);
+    let bevel_toggle_pos = (rx + 130.0, right_y + 28.0 + 5.0, 110.0, tgh);
+    let border_width_pos = (rx + 10.0, right_y + 28.0 + 5.0 + tgh + 10.0, rw - 20.0, sph);
+    let bevel_shape_pos = (rx + 10.0, right_y + 28.0 + 5.0 + tgh + 10.0 + sph + label_offset + 10.0, rw - 20.0, bh);
     right_y += border_sec_h + 15.0;
     
     // Window Elements Section Container
-    let win_sec_h = 28.0 + 32.0 + 10.0;
+    let win_sec_h = 28.0 + tgh + 10.0;
     let win_sec_pos = (rx, right_y, rw, win_sec_h);
-    let backplate_toggle_pos = (rx + 10.0, right_y + 28.0 + 5.0, 70.0, 32.0);
-    let menubar_toggle_pos = (rx + 85.0, right_y + 28.0 + 5.0, 70.0, 32.0);
-    let statusbar_toggle_pos = (rx + 160.0, right_y + 28.0 + 5.0, 70.0, 32.0);
+    let backplate_toggle_pos = (rx + 10.0, right_y + 28.0 + 5.0, 70.0, tgh);
+    let menubar_toggle_pos = (rx + 85.0, right_y + 28.0 + 5.0, 70.0, tgh);
+    let statusbar_toggle_pos = (rx + 160.0, right_y + 28.0 + 5.0, 70.0, tgh);
 
     vec![
         // Always visible
