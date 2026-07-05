@@ -737,6 +737,40 @@ cascades in cce."
                                 verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, light_color));
                                 verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
                                 verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
+
+                                if r_offset > 0.0 {
+                                    let segments = 32;
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + r, wy + r, r_offset, slice_w,
+                                        std::f32::consts::PI, 1.5 * std::f32::consts::PI,
+                                        sw, sh, light_color, segments, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + ww - r, wy + r, r_offset, slice_w,
+                                        1.5 * std::f32::consts::PI, 1.75 * std::f32::consts::PI,
+                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + ww - r, wy + r, r_offset, slice_w,
+                                        1.75 * std::f32::consts::PI, 2.0 * std::f32::consts::PI,
+                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + ww - r, wy + wh - r, r_offset, slice_w,
+                                        0.0, 0.5 * std::f32::consts::PI,
+                                        sw, sh, dark_color, segments, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + r, wy + wh - r, r_offset, slice_w,
+                                        0.5 * std::f32::consts::PI, 0.75 * std::f32::consts::PI,
+                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + r, wy + wh - r, r_offset, slice_w,
+                                        0.75 * std::f32::consts::PI, std::f32::consts::PI,
+                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                }
                             }
                         }
                     } else {
@@ -891,6 +925,40 @@ cascades in cce."
                             verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, light_color));
                             verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
                             verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
+
+                                if r_offset > 0.0 {
+                                    let segments = 32;
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + r, wy + r, r_offset, slice_w,
+                                        std::f32::consts::PI, 1.5 * std::f32::consts::PI,
+                                        sw, sh, light_color, segments, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + ww - r, wy + r, r_offset, slice_w,
+                                        1.5 * std::f32::consts::PI, 1.75 * std::f32::consts::PI,
+                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + ww - r, wy + r, r_offset, slice_w,
+                                        1.75 * std::f32::consts::PI, 2.0 * std::f32::consts::PI,
+                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + ww - r, wy + wh - r, r_offset, slice_w,
+                                        0.0, 0.5 * std::f32::consts::PI,
+                                        sw, sh, dark_color, segments, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + r, wy + wh - r, r_offset, slice_w,
+                                        0.5 * std::f32::consts::PI, 0.75 * std::f32::consts::PI,
+                                        sw, sh, dark_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                    cce_ui::backend::window_runner::push_arc_background_vertices(
+                                        wx + r, wy + wh - r, r_offset, slice_w,
+                                        0.75 * std::f32::consts::PI, std::f32::consts::PI,
+                                        sw, sh, light_color, segments / 2, [0.0, 0.0, -1.0], &mut verts
+                                    );
+                                }
                         }
                     }
                 } else {
