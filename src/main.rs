@@ -807,8 +807,8 @@ cascades in cce."
                                 let u_curr = idx as f32 / slices as f32;
                                 let u_next = (idx + 1) as f32 / slices as f32;
                                 
-                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
-                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
+                                let h_outer = interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type);
+                                let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
                                 let color_offset = d_h * 0.4;
@@ -860,8 +860,8 @@ cascades in cce."
                                 let u_curr = idx as f32 / slices as f32;
                                 let u_next = (idx + 1) as f32 / slices as f32;
                                 
-                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
-                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
+                                let h_outer = interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type);
+                                let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
                                 let color_offset = d_h * 0.4;
@@ -999,8 +999,8 @@ cascades in cce."
                             let u_curr = i as f32 / slices as f32;
                             let u_next = (i + 1) as f32 / slices as f32;
                             
-                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
-                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
+                            let h_outer = interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type);
+                            let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                             
                             let d_h = h_inner - h_outer;
                             let color_offset = d_h * 0.4;
@@ -1052,8 +1052,8 @@ cascades in cce."
                             let u_curr = i as f32 / slices as f32;
                             let u_next = (i + 1) as f32 / slices as f32;
                             
-                            let h_outer = if i == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type) };
-                            let h_inner = if i == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type) };
+                            let h_outer = interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type);
+                            let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                             
                             let d_h = h_inner - h_outer;
                             let color_offset = d_h * 0.4;
