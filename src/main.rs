@@ -56,6 +56,7 @@ struct State {
 
     sender: calloop::channel::Sender<String>,
     text_items: Vec<TextItem>,
+    layout_idx: usize,
 }
 
 fn save_bevel_ramp(keys: &[RampKey], line_type: &str) {
@@ -230,7 +231,7 @@ impl State {
         }
         match index {
             0..=2 | 46 => true,
-            3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => self.current_page == Page::Controls,
+            3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => self.current_page == Page::Controls,
             14..=29 | 38..=45 | 48 | 51 => self.current_page == Page::Windows,
             32..=35 => self.current_page == Page::Xdg,
             _ => false,
@@ -281,6 +282,13 @@ impl State {
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
             self.widgets[46].set_rect(dx, dy, dw, ddh);
+
+            if self.is_widget_visible(52) {
+                let l_dx = dx - dw - 10.0;
+                self.widgets[52].set_rect(l_dx, dy, dw, ddh);
+            } else {
+                self.widgets[52].set_rect(-1000.0, -1000.0, 0.0, 0.0);
+            }
         }
     }
 
@@ -652,6 +660,19 @@ cascades in cce."
                 Box::new(Ramp::new()), // 49
                 Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp...")), // 50
                 Box::new(ControlPanel::new().with_label("ControlPanel")), // 51
+                Box::new(Dropdown::new(vec![
+                    "Vertical".to_string(),
+                    "Columns".to_string(),
+                    "Grid".to_string(),
+                    "Adaptive Grid".to_string(),
+                    "Overlay".to_string(),
+                    "Flex".to_string(),
+                    "Splitter".to_string(),
+                    "Radial".to_string(),
+                    "Circular Pane".to_string(),
+                    "Mosaic".to_string(),
+                    "Reverse Mosaic".to_string(),
+                ], 9).with_label("Layout")), // 52
             ]
         };
 
@@ -659,7 +680,7 @@ cascades in cce."
             child_positions(c_w, c_h, use_backplate, use_menubar, use_statusbar, child_type.as_deref())
         } else {
             let sidebar_w = widgets[1].as_page_selector().unwrap().sidebar_w();
-            demo_positions(c_w, c_h, sidebar_w)
+            demo_positions(c_w, c_h, sidebar_w, 9)
         };
 
         let (loaded_keys, loaded_type) = load_bevel_ramp();
@@ -697,6 +718,7 @@ cascades in cce."
             child_shape: child_shape.clone(),
             sender,
             text_items: Vec::new(),
+            layout_idx: 9,
         };
 
         if !is_child {
@@ -711,6 +733,11 @@ cascades in cce."
             state.widgets[46].set_parent(Some(statusbar_ptr), &mut state.ui_context);
             let dropdown_ptr = state.widgets[46].as_ptr_mut();
             state.widgets[2].add_child(dropdown_ptr, &mut state.ui_context);
+
+            // Set layout selector (52) parent to StatusBar (2)
+            state.widgets[52].set_parent(Some(statusbar_ptr), &mut state.ui_context);
+            let layout_dropdown_ptr = state.widgets[52].as_ptr_mut();
+            state.widgets[2].add_child(layout_dropdown_ptr, &mut state.ui_context);
         }
 
         state.apply_layout();
@@ -852,7 +879,7 @@ cascades in cce."
                 child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
             } else {
                 let sidebar_w = self.widgets[1].as_page_selector().unwrap().sidebar_w();
-                demo_positions(self.width, self.height, sidebar_w)
+                demo_positions(self.width, self.height, sidebar_w, self.layout_idx)
             };
             self.apply_layout();
             let text = self.status_text.clone();
@@ -1292,6 +1319,11 @@ cascades in cce."
                         }
                         self.apply_layout();
                         changed = true;
+                    } else if self.widgets[52].take_click() {
+                        self.layout_idx = self.widgets[52].value() as usize;
+                        self.positions = demo_positions(self.width, self.height, self.widgets[1].as_page_selector().unwrap().sidebar_w(), self.layout_idx);
+                        self.apply_layout();
+                        changed = true;
                     } else if self.current_page == Page::Controls {
                         let mut run_opacity = false;
                         let mut run_blur = false;
@@ -1699,7 +1731,7 @@ full screen background.",
     }
 }
 
-fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)> {
+fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f32, f32, f32, f32)> {
     let base_x = sidebar_w + 20.0;
     let sph = cce_ui::layout::spinbox_height();
     let tgh = cce_ui::layout::toggle_height();
@@ -1707,7 +1739,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let bh = cce_ui::layout::button_height();
     let ddh = cce_ui::layout::dropdown_height();
     
-    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 52];
+    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 53];
     
     // Common layout elements
     vec[0] = (0.0, 0.0, sw, 40.0); // 0 MenuBar
@@ -1750,8 +1782,9 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     vec[46] = (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh); // 46 Dropdown: Page selector
     vec[48] = (base_x + 420.0, 580.0, 140.0, bh); // 48 Button: Bevel Shape
     vec[51] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 51 ControlPanel
+    vec[52] = (0.0, 0.0, 0.0, 0.0); // 52 Dropdown: Layout selector
     
-    // Dynamically position Page 0 (Controls) elements using MosaicLayout style bin packing
+    // Dynamically position Page 0 (Controls) elements using the selected layout index
     let available_w = (sw - base_x - 290.0).max(300.0);
     
     struct DemoPacker {
@@ -1820,8 +1853,6 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         }
     }
 
-    let mut packer = DemoPacker::new(base_x, 60.0, available_w, 15.0);
-    
     let items = vec![
         // Diagnostics Buttons
         (3, 140.0, bh),
@@ -1844,10 +1875,154 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         (50, 120.0, bh),
         (49, 200.0, 120.0),
     ];
-    
-    for (idx, w_item, h_item) in items {
-        let (px, py) = packer.pack(w_item, h_item);
-        vec[idx] = (px, py, w_item.min(available_w), h_item);
+
+    match layout_idx {
+        0 => {
+            // Vertical Layout
+            let mut cur_y = 60.0;
+            for (idx, _w_item, h_item) in items {
+                vec[idx] = (base_x, cur_y, available_w, h_item);
+                cur_y += h_item + 15.0;
+            }
+        }
+        1 => {
+            // Columns Layout
+            let num_cols = 3;
+            let col_w = (available_w - (num_cols - 1) as f32 * 15.0) / num_cols as f32;
+            let mut col_y = vec![60.0; num_cols];
+            for (i, (idx, _w_item, h_item)) in items.into_iter().enumerate() {
+                let col = i % num_cols;
+                let cx = base_x + col as f32 * (col_w + 15.0);
+                let cy = col_y[col];
+                vec[idx] = (cx, cy, col_w, h_item);
+                col_y[col] += h_item + 15.0;
+            }
+        }
+        2 | 3 => {
+            // Grid Layout and Adaptive Grid Layout
+            let num_cols = if layout_idx == 2 {
+                3
+            } else {
+                let min_col_w = 200.0;
+                (((available_w + 15.0) / (min_col_w + 15.0)).floor().max(1.0)) as usize
+            };
+            let col_w = (available_w - (num_cols - 1) as f32 * 15.0) / num_cols as f32;
+            let mut col_y = vec![60.0; num_cols];
+            for (idx, _w_item, h_item) in items {
+                let mut shortest_col = 0;
+                let mut min_h = col_y[0];
+                for col in 1..num_cols {
+                    if col_y[col] < min_h {
+                        min_h = col_y[col];
+                        shortest_col = col;
+                    }
+                }
+                let cx = base_x + shortest_col as f32 * (col_w + 15.0);
+                let cy = col_y[shortest_col];
+                vec[idx] = (cx, cy, col_w, h_item);
+                col_y[shortest_col] += h_item + 15.0;
+            }
+        }
+        4 => {
+            // Overlay Layout
+            for (idx, _w_item, h_item) in items {
+                vec[idx] = (base_x, 60.0, available_w, h_item);
+            }
+        }
+        5 => {
+            // Flex Layout
+            let mut cur_x = base_x;
+            let mut cur_y = 60.0;
+            let mut row_h = 0.0f32;
+            for (idx, w_item, h_item) in items {
+                let target_w = w_item.min(available_w);
+                if cur_x + target_w > base_x + available_w && cur_x > base_x {
+                    cur_x = base_x;
+                    cur_y += row_h + 15.0;
+                    row_h = 0.0;
+                }
+                vec[idx] = (cur_x, cur_y, target_w, h_item);
+                cur_x += target_w + 15.0;
+                row_h = row_h.max(h_item);
+            }
+        }
+        6 => {
+            // Splitter Layout
+            let count = items.len();
+            let total_h = (sh - 120.0).max(300.0);
+            let single_h = (total_h - (count - 1) as f32 * 10.0) / count as f32;
+            let mut cur_y = 60.0;
+            for (idx, _w_item, _h_item) in items {
+                vec[idx] = (base_x, cur_y, available_w, single_h);
+                cur_y += single_h + 10.0;
+            }
+        }
+        7 => {
+            // Radial Layout
+            let cx = base_x + available_w / 2.0;
+            let cy = 300.0;
+            let radius = 180.0;
+            let count = items.len();
+            for (i, (idx, w_item, h_item)) in items.into_iter().enumerate() {
+                let angle = (i as f32 / count as f32) * 2.0 * std::f32::consts::PI;
+                let px = cx + radius * angle.cos() - w_item / 2.0;
+                let py = cy + radius * angle.sin() - h_item / 2.0;
+                vec[idx] = (px, py, w_item, h_item);
+            }
+        }
+        8 => {
+            // Circular Pane Layout
+            let cx = base_x + available_w / 2.0;
+            let cy = 300.0;
+            let count = items.len();
+            for (i, (idx, w_item, h_item)) in items.into_iter().enumerate() {
+                let radius = 100.0 + (i as f32 * 12.0);
+                let angle = (i as f32 / count as f32) * 2.0 * std::f32::consts::PI;
+                let px = cx + radius * angle.cos() - w_item / 2.0;
+                let py = cy + radius * angle.sin() - h_item / 2.0;
+                vec[idx] = (px, py, w_item, h_item);
+            }
+        }
+        9 => {
+            // Mosaic Layout (Guillotine Packer)
+            let mut packer = DemoPacker::new(base_x, 60.0, available_w, 15.0);
+            for (idx, w_item, h_item) in items {
+                let (px, py) = packer.pack(w_item, h_item);
+                vec[idx] = (px, py, w_item.min(available_w), h_item);
+            }
+        }
+        _ => {
+            // Reverse Mosaic Layout
+            let mut packer = DemoPacker::new(base_x, 60.0, available_w, 15.0);
+            let mut temp = Vec::with_capacity(items.len());
+            for &(idx, w_item, h_item) in &items {
+                let (px, py) = packer.pack(w_item, h_item);
+                temp.push((px, py, w_item, h_item, idx));
+            }
+            let mut x_min = f32::MAX;
+            let mut x_max = f32::MIN;
+            let mut y_min = f32::MAX;
+            let mut y_max = f32::MIN;
+            for &(px, py, pw, ph, _) in &temp {
+                x_min = x_min.min(px);
+                x_max = x_max.max(px + pw);
+                y_min = y_min.min(py);
+                y_max = y_max.max(py + ph);
+            }
+            let src_w = (x_max - x_min).max(1.0);
+            let src_h = (y_max - y_min).max(1.0);
+            let dst_w = available_w;
+            let dst_h = (sh - 120.0).max(300.0);
+            let scale_x = dst_w / src_w;
+            let scale_y = dst_h / src_h;
+            for (px, py, pw, ph, idx) in temp {
+                let new_x = base_x + (px - x_min) * scale_x;
+                let new_y = 60.0 + (py - y_min) * scale_y;
+                let new_w = pw * scale_x;
+                let new_h = ph * scale_y;
+                vec[idx] = (new_x, new_y, new_w, new_h);
+            }
+        }
     }
     
     vec[6] = (-1000.0, -1000.0, 0.0, 0.0); // 6 is spacer Label, keep hidden/out of sight
