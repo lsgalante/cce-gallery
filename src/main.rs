@@ -1,7 +1,7 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     TextLabel, Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
-    Ramp,
+    Ramp, ColorRamp, ColorRampKey,
 };
 use cce_ui::engine::{Vertex, quad_vertices, push_rounded_rect_vertices_corners};
 
@@ -97,6 +97,85 @@ struct State {
     border_bevel: bool,
     child_type: Option<String>,
     ui_context: cce_ui::context::UiContext,
+    bevel_ramp: Vec<ColorRampKey>,
+    last_ramp_mod: Option<std::time::SystemTime>,
+}
+
+fn save_bevel_ramp(keys: &[ColorRampKey]) {
+    let mut s = String::new();
+    s.push_str("keys {\n");
+    for k in keys {
+        s.push_str(&format!("    key pos={} r={} g={} b={}\n", k.pos, k.color[0], k.color[1], k.color[2]));
+    }
+    s.push_str("}\n");
+    let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
+    let _ = std::fs::write(path, s);
+}
+
+fn load_bevel_ramp() -> Vec<ColorRampKey> {
+    let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
+    if let Ok(content) = std::fs::read_to_string(path) {
+        let mut keys = Vec::new();
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with("key ") {
+                let mut pos = 0.0;
+                let mut r = 0.0;
+                let mut g = 0.0;
+                let mut b = 0.0;
+                for part in line.split_whitespace() {
+                    if let Some(rest) = part.strip_prefix("pos=") {
+                        pos = rest.parse().unwrap_or(0.0);
+                    } else if let Some(rest) = part.strip_prefix("r=") {
+                        r = rest.parse().unwrap_or(0.0);
+                    } else if let Some(rest) = part.strip_prefix("g=") {
+                        g = rest.parse().unwrap_or(0.0);
+                    } else if let Some(rest) = part.strip_prefix("b=") {
+                        b = rest.parse().unwrap_or(0.0);
+                    }
+                }
+                keys.push(ColorRampKey { pos, color: [r, g, b] });
+            }
+        }
+        if !keys.is_empty() {
+            keys.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
+            return keys;
+        }
+    }
+    // Default keys
+    vec![
+        ColorRampKey { pos: 0.0, color: [0.0, 0.0, 0.0] },
+        ColorRampKey { pos: 1.0, color: [1.0, 1.0, 1.0] },
+    ]
+}
+
+fn interpolate_ramp_color(keys: &[ColorRampKey], u: f32) -> [f32; 3] {
+    if keys.is_empty() {
+        return [0.0, 0.0, 0.0];
+    }
+    if u <= keys[0].pos {
+        return keys[0].color;
+    }
+    if u >= keys[keys.len() - 1].pos {
+        return keys[keys.len() - 1].color;
+    }
+    for i in 0..keys.len() - 1 {
+        let k1 = &keys[i];
+        let k2 = &keys[i+1];
+        if u >= k1.pos && u <= k2.pos {
+            let range = k2.pos - k1.pos;
+            if range.abs() < 0.0001 {
+                return k1.color;
+            }
+            let w = (u - k1.pos) / range;
+            return [
+                k1.color[0] * (1.0 - w) + k2.color[0] * w,
+                k1.color[1] * (1.0 - w) + k2.color[1] * w,
+                k1.color[2] * (1.0 - w) + k2.color[2] * w,
+            ];
+        }
+    }
+    keys[0].color
 }
 
 impl State {
@@ -262,7 +341,19 @@ impl State {
             } else {
                 Box::new(ContentBg::new())
             };
-            if child_type.as_deref() == Some("Ramp") {
+            if child_type.as_deref() == Some("ColorRamp") {
+                vec![
+                    bg,                      // 0
+                    Box::new({
+                        let mut ramp = ColorRamp::new();
+                        ramp.keys = load_bevel_ramp();
+                        ramp
+                    }), // 1
+                    Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")), // 2
+                    Box::new(Label::new("").with_font_size(12.0)), // 3
+                    Box::new(Label::new("").with_font_size(12.0)), // 4
+                ]
+            } else if child_type.as_deref() == Some("Ramp") {
                 vec![
                     bg,                      // 0
                     Box::new(Ramp::new()), // 1
@@ -381,7 +472,10 @@ cascades in cce."
                 Box::new(Spinbox::new(1, 1, 10, 1).with_label("Border Width")), // 43 Spinbox: Border Width
                 Box::new(SectionContainer::new("Window Elements")), // 44 Section: Window Elements
                 Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true)), // 45 Dropdown: Page selector
-                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp Control...")), // 46 Button: Ramp Control
+                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Color Ramp...")), // 46 Button: Color Ramp
+                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Bevel Shape...")), // 47 Button: Bevel Shape
+                Box::new(Ramp::new()), // 48 Ramp: Controls page ramp
+                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp...")), // 49 Button: Ramp
             ]
         };
 
@@ -438,6 +532,8 @@ cascades in cce."
             border_bevel,
             child_type: child_type.clone(),
             ui_context: cce_ui::context::UiContext::new(),
+            bevel_ramp: load_bevel_ramp(),
+            last_ramp_mod: None,
         };
 
         cce_ui::scale::set_scale_factor(scale as f32);
@@ -457,8 +553,8 @@ cascades in cce."
         }
         match index {
             0..=2 | 45 => true,
-            3..=13 | 30 | 31 | 36 | 37 | 46 => self.current_page == Page::Controls,
-            14..=29 | 38..=44 => self.current_page == Page::Windows,
+            3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => self.current_page == Page::Controls,
+            14..=29 | 38..=44 | 47 => self.current_page == Page::Windows,
             32..=35 => self.current_page == Page::Xdg,
             _ => false,
         }
@@ -713,41 +809,56 @@ cascades in cce."
                         wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
                     );
                     if self.border_bevel {
-                        let light_color = [
-                            (border_color[0] + 0.2).min(1.0),
-                            (border_color[1] + 0.2).min(1.0),
-                            (border_color[2] + 0.2).min(1.0),
-                            border_color[3]
-                        ];
-                        let dark_color = [
-                            (border_color[0] - 0.2).max(0.0),
-                            (border_color[1] - 0.2).max(0.0),
-                            (border_color[2] - 0.2).max(0.0),
-                            border_color[3]
-                        ];
-                        verts.extend(quad_vertices(wx + r, wy, ww - 2.0 * r, t, sw, sh, light_color));
-                        verts.extend(quad_vertices(wx, wy + r, t, wh - 2.0 * r, sw, sh, light_color));
-                        verts.extend(quad_vertices(wx + r, wy + wh - t, ww - 2.0 * r, t, sw, sh, dark_color));
-                        verts.extend(quad_vertices(wx + ww - t, wy + r, t, wh - 2.0 * r, sw, sh, dark_color));
+                        let slices = 5;
+                        let slice_w = t / slices as f32;
+                        for i in 0..slices {
+                            let u = i as f32 / (slices - 1).max(1) as f32;
+                            let col = interpolate_ramp_color(&self.bevel_ramp, u);
+                            let light_color = [
+                                (border_color[0] + 0.35 * col[0]).min(1.0),
+                                (border_color[1] + 0.35 * col[1]).min(1.0),
+                                (border_color[2] + 0.35 * col[2]).min(1.0),
+                                border_color[3]
+                            ];
+                            let dark_color = [
+                                (border_color[0] - 0.35 * col[0]).max(0.0),
+                                (border_color[1] - 0.35 * col[1]).max(0.0),
+                                (border_color[2] - 0.35 * col[2]).max(0.0),
+                                border_color[3]
+                            ];
+                            let offset = i as f32 * slice_w;
+                            let r_offset = (r - offset).max(0.0);
+                            verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, light_color));
+                            verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, light_color));
+                            verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
+                            verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
+                        }
                     }
                 } else {
                     if self.border_bevel {
-                        let light_color = [
-                            (border_color[0] + 0.2).min(1.0),
-                            (border_color[1] + 0.2).min(1.0),
-                            (border_color[2] + 0.2).min(1.0),
-                            border_color[3]
-                        ];
-                        let dark_color = [
-                            (border_color[0] - 0.2).max(0.0),
-                            (border_color[1] - 0.2).max(0.0),
-                            (border_color[2] - 0.2).max(0.0),
-                            border_color[3]
-                        ];
-                        verts.extend(quad_vertices(wx, wy, ww, t, sw, sh, light_color));
-                        verts.extend(quad_vertices(wx, wy, t, wh, sw, sh, light_color));
-                        verts.extend(quad_vertices(wx, wy + wh - t, ww, t, sw, sh, dark_color));
-                        verts.extend(quad_vertices(wx + ww - t, wy, t, wh, sw, sh, dark_color));
+                        let slices = 5;
+                        let slice_w = t / slices as f32;
+                        for i in 0..slices {
+                            let u = i as f32 / (slices - 1).max(1) as f32;
+                            let col = interpolate_ramp_color(&self.bevel_ramp, u);
+                            let light_color = [
+                                (border_color[0] + 0.35 * col[0]).min(1.0),
+                                (border_color[1] + 0.35 * col[1]).min(1.0),
+                                (border_color[2] + 0.35 * col[2]).min(1.0),
+                                border_color[3]
+                            ];
+                            let dark_color = [
+                                (border_color[0] - 0.35 * col[0]).max(0.0),
+                                (border_color[1] - 0.35 * col[1]).max(0.0),
+                                (border_color[2] - 0.35 * col[2]).max(0.0),
+                                border_color[3]
+                            ];
+                            let offset = i as f32 * slice_w;
+                            verts.extend(quad_vertices(wx + offset, wy + offset, ww - 2.0 * offset, slice_w, sw, sh, light_color));
+                            verts.extend(quad_vertices(wx + offset, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, light_color));
+                            verts.extend(quad_vertices(wx + offset, wy + wh - offset - slice_w, ww - 2.0 * offset, slice_w, sw, sh, dark_color));
+                            verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, dark_color));
+                        }
                     } else {
                         verts.extend(quad_vertices(wx, wy, ww, t, sw, sh, border_color));
                         verts.extend(quad_vertices(wx, wy + wh - t, ww, t, sw, sh, border_color));
@@ -834,8 +945,8 @@ cascades in cce."
             } else {
                 match index {
                     0..=2 | 45 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
-                    14..=29 | 38..=44 => current_page == Page::Windows,
+                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
+                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
                 }
@@ -1079,6 +1190,18 @@ cascades in cce."
 
     fn tick(&mut self, dt: f32) -> bool {
         let mut changed = false;
+        if !self.is_child {
+            let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
+            if let Ok(metadata) = std::fs::metadata(&path) {
+                if let Ok(mod_time) = metadata.modified() {
+                    if Some(mod_time) != self.last_ramp_mod {
+                        self.last_ramp_mod = Some(mod_time);
+                        self.bevel_ramp = load_bevel_ramp();
+                        changed = true;
+                    }
+                }
+            }
+        }
         if hover_animation::tick(dt) {
             changed = true;
         }
@@ -1097,8 +1220,8 @@ cascades in cce."
             } else {
                 match index {
                     0..=2 | 45 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
-                    14..=29 | 38..=44 => current_page == Page::Windows,
+                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
+                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
                 }
@@ -1108,6 +1231,11 @@ cascades in cce."
             if is_visible(i) {
                 if w.tick(dt, &mut self.ui_context) {
                     changed = true;
+                    if self.is_child && self.child_type.as_deref() == Some("ColorRamp") && i == 1 {
+                        if let Some(ramp) = w.as_any().downcast_ref::<ColorRamp>() {
+                            save_bevel_ramp(&ramp.keys);
+                        }
+                    }
                 }
             }
         }
@@ -1124,6 +1252,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let tgh = cce_ui::layout::toggle_height();
     let slh = cce_ui::layout::slider_height();
     let bh = cce_ui::layout::button_height();
+    let ddh = cce_ui::layout::dropdown_height();
 
     // Dynamic calculations for Controls page layout
     let mut ctrl_y = 60.0;
@@ -1134,10 +1263,11 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let ctrl_verify_layout_pos = (base_x + 300.0, ctrl_y, 140.0, bh);
     ctrl_y += bh + 20.0;
     
-    // Row 2: diagnostics & reset & ramp
+    // Row 2: diagnostics & reset & color ramp & ramp button
     let ctrl_diagnostics_pos = (base_x, ctrl_y, 140.0, bh);
     let ctrl_reset_pos = (base_x + 150.0, ctrl_y, 140.0, bh);
-    let ctrl_ramp_pos = (base_x + 300.0, ctrl_y, 140.0, bh);
+    let ctrl_color_ramp_btn_pos = (base_x + 300.0, ctrl_y, 140.0, bh);
+    let ctrl_ramp_btn_pos = (base_x + 450.0, ctrl_y, 140.0, bh);
     ctrl_y += bh + 20.0;
     
     // Row 3: checkbox, toggle, progress_bar
@@ -1151,6 +1281,10 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     let row4_h = sph.max(slh);
     let ctrl_slider_pos = (base_x, ctrl_y + (row4_h - slh)/2.0, 300.0, slh);
     let ctrl_spinbox_pos = (base_x + 330.0, ctrl_y + (row4_h - sph)/2.0, 120.0, sph);
+    ctrl_y += row4_h + 20.0;
+
+    // Row 5: Ramp widget
+    let ctrl_ramp_widget_pos = (base_x, ctrl_y, 400.0, 120.0);
 
     // Dynamic calculations for Windows page layout
     let mut left_y = 80.0;
@@ -1165,12 +1299,12 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     left_y += bh + 15.0; // 385.0
     
     // Window Type Dropdown
-    let type_dd_pos = (base_x, left_y, 360.0, 35.0);
-    left_y += 35.0 + 15.0; // 435.0
+    let type_dd_pos = (base_x, left_y, 240.0, ddh);
+    left_y += ddh + 15.0;
     
     // Window Shape Dropdown
-    let shape_dd_pos = (base_x, left_y, 360.0, 35.0);
-    left_y += 35.0 + 15.0; // 485.0
+    let shape_dd_pos = (base_x, left_y, 240.0, ddh);
+    left_y += ddh + 15.0;
     
     // Opacity Toggle & Slider
     let opacity_toggle_pos = (base_x, left_y, 110.0, 32.0);
@@ -1194,11 +1328,12 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     right_y += sph + 15.0;
     
     // Border Section Container
-    let border_sec_h = 28.0 + 32.0 + 10.0 + sph + 10.0;
+    let border_sec_h = 28.0 + 32.0 + 10.0 + sph + 10.0 + bh + 10.0;
     let border_sec_pos = (rx, right_y, rw, border_sec_h);
     let border_enable_pos = (rx + 10.0, right_y + 28.0 + 5.0, 110.0, 32.0);
     let bevel_toggle_pos = (rx + 130.0, right_y + 28.0 + 5.0, 110.0, 32.0);
     let border_width_pos = (rx + 10.0, right_y + 28.0 + 5.0 + 32.0 + 10.0, rw - 20.0, sph);
+    let bevel_shape_pos = (rx + 10.0, right_y + 28.0 + 5.0 + 32.0 + 10.0 + sph + 10.0, rw - 20.0, bh);
     right_y += border_sec_h + 15.0;
     
     // Window Elements Section Container
@@ -1262,8 +1397,11 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         bevel_toggle_pos,                     // 42 Toggle: Bevel
         border_width_pos,                     // 43 Spinbox: Border Width
         win_sec_pos,                          // 44 SectionContainer: Window Elements
-        (sw - 140.0, sh - 25.0, 120.0, 22.0),         // 45 Dropdown: Page selector
-        ctrl_ramp_pos,                        // 46 Button: Ramp Control
+        (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh), // 45 Dropdown: Page selector
+        ctrl_color_ramp_btn_pos,              // 46 Button: Color Ramp
+        bevel_shape_pos,                      // 47 Button: Bevel Shape
+        ctrl_ramp_widget_pos,                 // 48 Ramp: Controls page ramp
+        ctrl_ramp_btn_pos,                    // 49 Button: Ramp
     ]
 }
 
@@ -1275,7 +1413,7 @@ fn child_positions(
     use_statusbar: bool,
     child_type: Option<&str>,
 ) -> Vec<(f32, f32, f32, f32)> {
-    if child_type == Some("Ramp") {
+    if child_type == Some("Ramp") || child_type == Some("ColorRamp") {
         let bg_y = 0.0;
         let bg_h = sh;
         let ramp_pos = (10.0, 10.0, sw - 20.0, sh - 60.0);
@@ -1523,8 +1661,8 @@ impl PointerHandler for AppState {
                                 } else {
                                     match index {
                                         0..=2 | 45 => true,
-                                        3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
-                                        14..=29 | 38..=44 => current_page == Page::Windows,
+                                        3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
+                                        14..=29 | 38..=44 | 47 => current_page == Page::Windows,
                                         32..=35 => current_page == Page::Xdg,
                                         _ => false,
                                     }
@@ -1569,8 +1707,8 @@ impl PointerHandler for AppState {
                             } else {
                                 match index {
                                     0..=2 | 45 => true,
-                                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
-                                    14..=29 | 38..=44 => current_page == Page::Windows,
+                                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
+                                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
@@ -1651,8 +1789,8 @@ impl PointerHandler for AppState {
                             } else {
                                 match index {
                                     0..=2 | 45 => true,
-                                    3..=13 | 30 | 31 | 36 | 37 | 46 => current_page == Page::Controls,
-                                    14..=29 | 38..=44 => current_page == Page::Windows,
+                                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
+                                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
@@ -1720,6 +1858,19 @@ impl PointerHandler for AppState {
                                             let mut cmd = std::process::Command::new(exe);
                                             cmd.arg("--child")
                                                .arg("--type")
+                                               .arg("ColorRamp")
+                                               .arg("--width")
+                                               .arg("450")
+                                               .arg("--height")
+                                               .arg("200")
+                                               .arg("--backplate");
+                                            let _ = cmd.spawn();
+                                        }
+                                    } else if st.widgets[49].take_click() {
+                                        if let Ok(exe) = std::env::current_exe() {
+                                            let mut cmd = std::process::Command::new(exe);
+                                            cmd.arg("--child")
+                                               .arg("--type")
                                                .arg("Ramp")
                                                .arg("--width")
                                                .arg("450")
@@ -1775,6 +1926,19 @@ impl PointerHandler for AppState {
                                         create_window = true;
                                     } else if st.widgets[16].take_click() {
                                         tile_windows = true;
+                                    } else if st.widgets[47].take_click() {
+                                        if let Ok(exe) = std::env::current_exe() {
+                                            let mut cmd = std::process::Command::new(exe);
+                                            cmd.arg("--child")
+                                               .arg("--type")
+                                               .arg("ColorRamp")
+                                               .arg("--width")
+                                               .arg("450")
+                                               .arg("--height")
+                                               .arg("200")
+                                               .arg("--backplate");
+                                            let _ = cmd.spawn();
+                                        }
                                     } else {
                                         let mut dropdown_clicked = false;
                                         for i in [17, 19, 21, 22, 23, 25, 26, 38, 39, 40, 42, 43] {
