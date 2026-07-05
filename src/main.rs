@@ -822,7 +822,7 @@ cascades in cce."
             } else {
                 match index {
                     0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
                     14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
@@ -1168,7 +1168,7 @@ cascades in cce."
                 } else {
                     match index {
                         0..=2 | 46 => true,
-                        3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                        3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
                         14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                         32..=35 => current_page == Page::Xdg,
                         _ => false,
@@ -1214,7 +1214,7 @@ cascades in cce."
             } else {
                 match index {
                     0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
                     14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
@@ -1591,7 +1591,7 @@ full screen background.",
             } else {
                 match index {
                     0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
                     14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
@@ -1632,7 +1632,7 @@ full screen background.",
             } else {
                 match index {
                     0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
                     14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
