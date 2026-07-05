@@ -464,7 +464,7 @@ cascades in cce."
                     t.set_toggled(false);
                     t
                 }), // 42 Toggle: Bevel
-                Box::new(Spinbox::new(1, 1, 10, 1).with_label("Border Width")), // 43 Spinbox: Border Width
+                Box::new(Spinbox::new(1, 1, 20, 1).with_label("Border Width")), // 43 Spinbox: Border Width
                 Box::new(SectionContainer::new("Window Elements")), // 44 Section: Window Elements
                 Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true)), // 45 Dropdown: Page selector
                 Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Color Ramp...")), // 46 Button: Color Ramp
