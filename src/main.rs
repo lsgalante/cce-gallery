@@ -681,41 +681,70 @@ cascades in cce."
                             wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
                         );
                         if border_bevel {
-                            let light_color = [
-                                (border_color[0] + 0.2).min(1.0),
-                                (border_color[1] + 0.2).min(1.0),
-                                (border_color[2] + 0.2).min(1.0),
-                                border_color[3]
-                            ];
-                            let dark_color = [
-                                (border_color[0] - 0.2).max(0.0),
-                                (border_color[1] - 0.2).max(0.0),
-                                (border_color[2] - 0.2).max(0.0),
-                                border_color[3]
-                            ];
-                            verts.extend(quad_vertices(wx + r, wy, ww - 2.0 * r, t, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx, wy + r, t, wh - 2.0 * r, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx + r, wy + wh - t, ww - 2.0 * r, t, sw, sh, dark_color));
-                            verts.extend(quad_vertices(wx + ww - t, wy + r, t, wh - 2.0 * r, sw, sh, dark_color));
+                            let slices = 5;
+                            let slice_w = t / slices as f32;
+                            for idx in 0..slices {
+                                let u_curr = idx as f32 / slices as f32;
+                                let u_next = (idx + 1) as f32 / slices as f32;
+                                
+                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
+                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                                
+                                let d_h = h_inner - h_outer;
+                                let color_offset = d_h * 0.4;
+                                
+                                let light_color = [
+                                    (border_color[0] + color_offset).clamp(0.0, 1.0),
+                                    (border_color[1] + color_offset).clamp(0.0, 1.0),
+                                    (border_color[2] + color_offset).clamp(0.0, 1.0),
+                                    border_color[3]
+                                ];
+                                let dark_color = [
+                                    (border_color[0] - color_offset).clamp(0.0, 1.0),
+                                    (border_color[1] - color_offset).clamp(0.0, 1.0),
+                                    (border_color[2] - color_offset).clamp(0.0, 1.0),
+                                    border_color[3]
+                                ];
+                                let offset = idx as f32 * slice_w;
+                                let r_offset = (r - offset).max(0.0);
+                                verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, light_color));
+                                verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, light_color));
+                                verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
+                                verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
+                            }
                         }
                     } else {
                         if border_bevel {
-                            let light_color = [
-                                (border_color[0] + 0.2).min(1.0),
-                                (border_color[1] + 0.2).min(1.0),
-                                (border_color[2] + 0.2).min(1.0),
-                                border_color[3]
-                            ];
-                            let dark_color = [
-                                (border_color[0] - 0.2).max(0.0),
-                                (border_color[1] - 0.2).max(0.0),
-                                (border_color[2] - 0.2).max(0.0),
-                                border_color[3]
-                            ];
-                            verts.extend(quad_vertices(wx, wy, ww, t, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx, wy, t, wh, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx, wy + wh - t, ww, t, sw, sh, dark_color));
-                            verts.extend(quad_vertices(wx + ww - t, wy, t, wh, sw, sh, dark_color));
+                            let slices = 5;
+                            let slice_w = t / slices as f32;
+                            for idx in 0..slices {
+                                let u_curr = idx as f32 / slices as f32;
+                                let u_next = (idx + 1) as f32 / slices as f32;
+                                
+                                let h_outer = if idx == 0 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_curr) };
+                                let h_inner = if idx == slices - 1 { 0.5 } else { interpolate_ramp_value(&self.bevel_ramp, u_next) };
+                                
+                                let d_h = h_inner - h_outer;
+                                let color_offset = d_h * 0.4;
+                                
+                                let light_color = [
+                                    (border_color[0] + color_offset).clamp(0.0, 1.0),
+                                    (border_color[1] + color_offset).clamp(0.0, 1.0),
+                                    (border_color[2] + color_offset).clamp(0.0, 1.0),
+                                    border_color[3]
+                                ];
+                                let dark_color = [
+                                    (border_color[0] - color_offset).clamp(0.0, 1.0),
+                                    (border_color[1] - color_offset).clamp(0.0, 1.0),
+                                    (border_color[2] - color_offset).clamp(0.0, 1.0),
+                                    border_color[3]
+                                ];
+                                let offset = idx as f32 * slice_w;
+                                verts.extend(quad_vertices(wx + offset, wy + offset, ww - 2.0 * offset, slice_w, sw, sh, light_color));
+                                verts.extend(quad_vertices(wx + offset, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, light_color));
+                                verts.extend(quad_vertices(wx + offset, wy + wh - offset - slice_w, ww - 2.0 * offset, slice_w, sw, sh, dark_color));
+                                verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, dark_color));
+                            }
                         } else {
                             verts.extend(quad_vertices(wx, wy, ww, t, sw, sh, border_color));
                             verts.extend(quad_vertices(wx, wy + wh - t, ww, t, sw, sh, border_color));
