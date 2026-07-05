@@ -1751,116 +1751,106 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     vec[48] = (base_x + 420.0, 580.0, 140.0, bh); // 48 Button: Bevel Shape
     vec[51] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 51 ControlPanel
     
-    // Dynamically position Page 0 (Controls) elements
-    let available_w = (sw - base_x - 40.0).max(300.0);
-    let mut y = 60.0;
+    // Dynamically position Page 0 (Controls) elements using MosaicLayout style bin packing
+    let available_w = (sw - base_x - 290.0).max(300.0);
     
-    // Row 1: Diagnostics Buttons (Flow layout)
-    let button_w = 140.0;
-    let gap = 15.0;
-    let mut btn_x = base_x;
-    let mut btn_y = y;
-    for &idx in &[3, 4, 5, 7, 8] {
-        if btn_x + button_w > sw - 20.0 && btn_x > base_x {
-            btn_x = base_x;
-            btn_y += bh + gap;
-        }
-        vec[idx] = (btn_x, btn_y, button_w, bh);
-        btn_x += button_w + gap;
+    struct DemoPacker {
+        free_rects: Vec<(f32, f32, f32, f32)>,
+        max_w: f32,
+        max_h: f32,
+        gap: f32,
     }
-    vec[6] = (-1000.0, -1000.0, 0.0, 0.0); // 6 is spacer Label, keep hidden/out of sight
-    
-    y = btn_y + bh + 25.0;
-    
-    // Row 2: Progress Bar
-    vec[11] = (base_x, y, available_w, 24.0);
-    y += 24.0 + 25.0;
-    
-    // Row 3 and below: Columns of inputs
-    // Determine dynamic column count based on available space
-    let num_cols = if available_w > 720.0 {
-        3
-    } else if available_w > 480.0 {
-        2
-    } else {
-        1
-    };
-    
-    let col_w = ((available_w - (num_cols - 1) as f32 * 30.0) / num_cols as f32).max(220.0);
-    let mut columns: Vec<Vec<(usize, f32, f32)>> = vec![Vec::new(); num_cols];
-    
-    if num_cols == 3 {
-        // Col 0: checkbox (9), toggle (10), slider (12), spinbox (13), TextBox (36)
-        columns[0].push((9, 100.0, tgh));
-        columns[0].push((10, 100.0, tgh));
-        columns[0].push((12, col_w.min(200.0), slh));
-        columns[0].push((13, col_w.min(140.0), sph));
-        columns[0].push((36, col_w.min(200.0), ddh));
-        
-        // Col 1: RangeSlider (30), Trackpad (31), Plate (37)
-        columns[1].push((30, col_w.min(200.0), slh));
-        columns[1].push((31, col_w.min(200.0), 100.0));
-        columns[1].push((37, col_w.min(120.0), 120.0));
-        
-        // Col 2: Color Ramp Button (47), Ramp Button (50), Ramp widget (49)
-        columns[2].push((47, col_w.min(120.0), bh));
-        columns[2].push((50, col_w.min(120.0), bh));
-        columns[2].push((49, col_w.min(200.0), 120.0));
-    } else if num_cols == 2 {
-        // Col 0: checkbox, toggle, slider, spinbox, TextBox, Color Ramp, Ramp Button
-        columns[0].push((9, 100.0, tgh));
-        columns[0].push((10, 100.0, tgh));
-        columns[0].push((12, col_w.min(200.0), slh));
-        columns[0].push((13, col_w.min(140.0), sph));
-        columns[0].push((36, col_w.min(200.0), ddh));
-        columns[0].push((47, col_w.min(120.0), bh));
-        columns[0].push((50, col_w.min(120.0), bh));
-        
-        // Col 1: RangeSlider, Trackpad, Plate, Ramp widget
-        columns[1].push((30, col_w.min(200.0), slh));
-        columns[1].push((31, col_w.min(200.0), 100.0));
-        columns[1].push((37, col_w.min(120.0), 120.0));
-        columns[1].push((49, col_w.min(200.0), 120.0));
-    } else {
-        // Col 0: all of them in order
-        columns[0].push((9, 100.0, tgh));
-        columns[0].push((10, 100.0, tgh));
-        columns[0].push((12, col_w.min(200.0), slh));
-        columns[0].push((13, col_w.min(140.0), sph));
-        columns[0].push((36, col_w.min(200.0), ddh));
-        columns[0].push((30, col_w.min(200.0), slh));
-        columns[0].push((31, col_w.min(200.0), 100.0));
-        columns[0].push((37, col_w.min(120.0), 120.0));
-        columns[0].push((47, col_w.min(120.0), bh));
-        columns[0].push((50, col_w.min(120.0), bh));
-        columns[0].push((49, col_w.min(200.0), 120.0));
-    }
-    
-    for col_idx in 0..num_cols {
-        let cx = base_x + col_idx as f32 * (col_w + 30.0);
-        let mut cy = y;
-        let mut i_in_col = 0;
-        
-        while i_in_col < columns[col_idx].len() {
-            let (idx, w_item, h_item) = columns[col_idx][i_in_col];
-            
-            if idx == 9 && i_in_col + 1 < columns[col_idx].len() && columns[col_idx][i_in_col + 1].0 == 10 && col_w >= 220.0 {
-                vec[9] = (cx, cy, 100.0, tgh);
-                vec[10] = (cx + 110.0, cy, 100.0, tgh);
-                cy += tgh + 15.0;
-                i_in_col += 2;
-            } else if idx == 47 && i_in_col + 1 < columns[col_idx].len() && columns[col_idx][i_in_col + 1].0 == 50 && col_w >= 250.0 {
-                vec[47] = (cx, cy, 120.0, bh);
-                vec[50] = (cx + 130.0, cy, 120.0, bh);
-                cy += bh + 15.0;
-                i_in_col += 2;
-            } else {
-                vec[idx] = (cx, cy, w_item, h_item);
-                cy += h_item + 15.0;
-                i_in_col += 1;
+
+    impl DemoPacker {
+        fn new(start_x: f32, start_y: f32, max_width: f32, gap: f32) -> Self {
+            Self {
+                free_rects: vec![(start_x, start_y, max_width, 100000.0)],
+                max_w: max_width,
+                max_h: 0.0,
+                gap,
             }
         }
+
+        fn pack(&mut self, cw: f32, ch: f32) -> (f32, f32) {
+            let cw_clamped = cw.min(self.max_w);
+            
+            let mut best_idx = None;
+            let mut best_y = f32::MAX;
+            let mut best_x = f32::MAX;
+
+            for (idx, &(rx, ry, rw, rh)) in self.free_rects.iter().enumerate() {
+                if rw >= cw_clamped && rh >= ch {
+                    if ry < best_y || (ry == best_y && rx < best_x) {
+                        best_y = ry;
+                        best_x = rx;
+                        best_idx = Some(idx);
+                    }
+                }
+            }
+
+            let chosen_idx = match best_idx {
+                Some(idx) => idx,
+                None => {
+                    let new_y = self.max_h + self.gap;
+                    let new_rect = (self.free_rects[0].0, new_y, self.max_w, 100000.0);
+                    self.free_rects.push(new_rect);
+                    self.free_rects.len() - 1
+                }
+            };
+
+            let (fx, fy, fw, fh) = self.free_rects.remove(chosen_idx);
+            let px = fx;
+            let py = fy;
+
+            let rx = fx + cw_clamped + self.gap;
+            let rw = fw - cw_clamped - self.gap;
+            if rw > 0.0 && ch > 0.0 {
+                self.free_rects.push((rx, py, rw, ch));
+            }
+
+            let by = py + ch + self.gap;
+            let bh = fh - ch - self.gap;
+            if bh > 0.0 && fw > 0.0 {
+                self.free_rects.push((fx, by, fw, bh));
+            }
+
+            self.max_h = self.max_h.max(py + ch);
+
+            (px, py)
+        }
     }
+
+    let mut packer = DemoPacker::new(base_x, 60.0, available_w, 15.0);
+    
+    let items = vec![
+        // Diagnostics Buttons
+        (3, 140.0, bh),
+        (4, 140.0, bh),
+        (5, 140.0, bh),
+        (7, 140.0, bh),
+        (8, 140.0, bh),
+        // Progress Bar
+        (11, (available_w - 20.0).max(200.0), 24.0),
+        // Inputs
+        (9, 100.0, tgh),
+        (10, 100.0, tgh),
+        (12, 200.0, slh),
+        (13, 140.0, sph),
+        (36, 200.0, ddh),
+        (30, 200.0, slh),
+        (31, 200.0, 100.0),
+        (37, 120.0, 120.0),
+        (47, 120.0, bh),
+        (50, 120.0, bh),
+        (49, 200.0, 120.0),
+    ];
+    
+    for (idx, w_item, h_item) in items {
+        let (px, py) = packer.pack(w_item, h_item);
+        vec[idx] = (px, py, w_item.min(available_w), h_item);
+    }
+    
+    vec[6] = (-1000.0, -1000.0, 0.0, 0.0); // 6 is spacer Label, keep hidden/out of sight
     
     vec
 }
