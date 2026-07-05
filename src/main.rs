@@ -255,6 +255,7 @@ impl State {
         border_width: f32,
         border_bevel: bool,
     ) -> Self {
+        cce_ui::scale::set_scale_factor(scale as f32);
         let lw = pw as f32 / scale as f32;
         let lh = ph as f32 / scale as f32;
         let sw = lw;
@@ -387,7 +388,9 @@ impl State {
         } else {
             make_text_buffer(&mut font_system, "Clear Test Interface - Controls", 16.0)
         };
-        let status_buffer = make_text_buffer(&mut font_system, "Select a test case to begin verification.", 12.0);
+        let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
+        let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
+        let status_buffer = make_text_buffer(&mut font_system, "Select a test case to begin verification.", status_size);
 
         let widgets: Vec<Box<dyn Element>> = if is_child {
             let desc_label = match child_type.as_deref() {
@@ -624,7 +627,6 @@ cascades in cce."
             }
         }
 
-        cce_ui::scale::set_scale_factor(scale as f32);
         state.apply_layout();
         state.upload_vertices();
         state
