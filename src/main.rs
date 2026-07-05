@@ -239,6 +239,13 @@ impl State {
     }
 
     fn apply_layout(&mut self) {
+        let sh = self.height;
+        let limit_y = if self.is_child {
+            sh
+        } else {
+            sh - 24.0
+        };
+
         for i in 0..self.positions.len() {
             let visible = self.is_widget_visible(i);
             let pos = self.positions[i];
@@ -261,7 +268,13 @@ impl State {
                 
                 if visible {
                     let (x, y, w, h) = pos;
-                    widget.set_rect(x, y, w, h);
+                    let mut final_h = h;
+                    if i != 0 && i != 1 && i != 2 && i != 51 {
+                        if y + h > limit_y {
+                            final_h = (limit_y - y).max(0.0);
+                        }
+                    }
+                    widget.set_rect(x, y, w, final_h);
                 } else {
                     widget.set_rect(-1000.0, -1000.0, 0.0, 0.0);
                 }
