@@ -637,6 +637,9 @@ cascades in cce."
             if i == 50 {
                 continue;
             }
+            if is_control_panel_child(i) {
+                continue;
+            }
             
             let (wx, wy, ww, wh) = w.rect();
             let has_rounded = w.rounded_corners() != (false, false, false, false);
@@ -969,6 +972,9 @@ cascades in cce."
             if !self.is_widget_visible(i) {
                 continue;
             }
+            if is_control_panel_child(i) {
+                continue;
+            }
             if w.popover_rect().is_some() {
                 w.render_popover(&mut popover_pc);
             }
@@ -1082,6 +1088,9 @@ cascades in cce."
             if !is_visible(i) {
                 continue;
             }
+            if is_control_panel_child(i) {
+                continue;
+            }
             let widget_font_opt = w.widget_font();
             for (label, font, bounds) in w.text_labels_with_font_and_bounds(&self.ui_context) {
                 let active_font = font.or_else(|| widget_font_opt.clone());
@@ -1127,6 +1136,9 @@ cascades in cce."
         let mut popover_pc = cce_ui::layout::PopoverCollector::new();
         for (i, w) in self.widgets.iter().enumerate() {
             if !is_visible(i) {
+                continue;
+            }
+            if is_control_panel_child(i) {
                 continue;
             }
             if w.popover_rect().is_some() {
@@ -1307,6 +1319,9 @@ cascades in cce."
         };
         for (i, w) in self.widgets.iter_mut().enumerate() {
             if is_visible(i) {
+                if is_control_panel_child(i) {
+                    continue;
+                }
                 if w.tick(dt, &mut self.ui_context) {
                     changed = true;
                     if self.is_child && self.child_type.as_deref() == Some("Ramp") && i == 1 {
@@ -1712,6 +1727,9 @@ impl PointerHandler for AppState {
                                 if !is_visible(i) {
                                     continue;
                                 }
+                                if is_control_panel_child(i) {
+                                    continue;
+                                }
                                 if w.cursor_moved(state.cursor_x, state.cursor_y, &mut state.ui_context) {
                                     changed = true;
                                 }
@@ -1757,6 +1775,9 @@ impl PointerHandler for AppState {
                         let mut clicked_idx = None;
                         for i in (0..st.widgets.len()).rev() {
                             if !is_visible(i) {
+                                continue;
+                            }
+                            if is_control_panel_child(i) {
                                 continue;
                             }
                             if st.widgets[i].hit_test(st.cursor_x, st.cursor_y, &st.ui_context) {
@@ -1838,6 +1859,9 @@ impl PointerHandler for AppState {
                         };
                         for (i, w) in st.widgets.iter_mut().enumerate() {
                             if !is_visible(i) {
+                                continue;
+                            }
+                            if is_control_panel_child(i) {
                                 continue;
                             }
                             if w.mouse_input(btn, cce_ui::widget::ElementState::Released, st.cursor_x, st.cursor_y, &mut st.ui_context) {
@@ -2141,7 +2165,10 @@ full screen background.",
                         let v_scroll = vertical.absolute as f32;
                         let delta = cce_ui::widget::MouseScrollDelta::LineDelta(-h_scroll / 10.0, -v_scroll / 10.0);
                         let mut changed = false;
-                        for w in &mut st.widgets {
+                        for (i, w) in st.widgets.iter_mut().enumerate() {
+                            if is_control_panel_child(i) {
+                                continue;
+                            }
                             if w.mouse_wheel(&delta, st.cursor_x, st.cursor_y, &mut st.ui_context) {
                                 changed = true;
                             }
@@ -2570,6 +2597,13 @@ fn save_file_dialog_portal(sender: calloop::channel::Sender<String>) {
         let _ = sender.send(format!("Saved to: {}", path.display()));
     } else {
         let _ = sender.send("Save dialog cancelled by user".to_string());
+    }
+}
+
+fn is_control_panel_child(index: usize) -> bool {
+    match index {
+        15..=26 | 38..=44 | 47 => true,
+        _ => false,
     }
 }
 
