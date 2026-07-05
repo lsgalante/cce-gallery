@@ -723,16 +723,21 @@ cascades in cce."
                 let r = cce_ui::color::backplate_corner_radius();
                 let status_h = if statusbar_enabled { 24.0 } else { 0.0 };
 
+                let bg_color = if backplate_enabled {
+                    let mut col = cce_ui::color::page_low_color();
+                    col[3] = transparency_val;
+                    col
+                } else {
+                    [0.12, 0.12, 0.15, transparency_val]
+                };
+
                 // Draw background
                 if backplate_enabled {
-                    let mut bg_color = cce_ui::color::page_low_color();
-                    bg_color[3] = transparency_val;
                     let radii = CornerRadii::new(r, r, r, r);
                     push_rounded_rect_vertices_corners(
                         wx, wy, ww, wh, radii, sw, sh, bg_color, [0.0, 0.0, 0.0], None, &mut verts
                     );
                 } else {
-                    let bg_color = [0.12, 0.12, 0.15, transparency_val];
                     verts.extend(quad_vertices(wx, wy, ww, wh, sw, sh, bg_color));
                 }
 
@@ -809,10 +814,10 @@ cascades in cce."
                                  let c_offset = |factor: f32| -> [f32; 4] {
                                      let o = factor * color_offset;
                                      [
-                                         (border_color[0] + o).clamp(0.0, 1.0),
-                                         (border_color[1] + o).clamp(0.0, 1.0),
-                                         (border_color[2] + o).clamp(0.0, 1.0),
-                                         border_color[3]
+                                         (bg_color[0] + o).clamp(0.0, 1.0),
+                                         (bg_color[1] + o).clamp(0.0, 1.0),
+                                         (bg_color[2] + o).clamp(0.0, 1.0),
+                                         bg_color[3]
                                      ]
                                  };
                                  
@@ -831,7 +836,7 @@ cascades in cce."
                                 push_bevel_slice_corners(
                                     wx, wy, ww, wh,
                                     r, r_offset, slice_w,
-                                    sw, sh, border_color, color_offset,
+                                    sw, sh, bg_color, color_offset,
                                     &mut verts
                                 );
                             }
@@ -968,6 +973,7 @@ cascades in cce."
                 let backplate_enabled = self.use_backplate;
                 
                 if backplate_enabled {
+                    let bg_color = self.widgets[0].color();
                     let radii = CornerRadii::new(r, r, r, r);
                     cce_ui::backend::window_runner::push_plate_solid_border_vertices(
                         wx, wy, ww, wh, radii, t, sw, sh, border_color, [0.0, 0.0, -1.0], &mut verts
@@ -993,10 +999,10 @@ cascades in cce."
                              let c_offset = |factor: f32| -> [f32; 4] {
                                  let o = factor * color_offset;
                                  [
-                                     (border_color[0] + o).clamp(0.0, 1.0),
-                                     (border_color[1] + o).clamp(0.0, 1.0),
-                                     (border_color[2] + o).clamp(0.0, 1.0),
-                                     border_color[3]
+                                     (bg_color[0] + o).clamp(0.0, 1.0),
+                                     (bg_color[1] + o).clamp(0.0, 1.0),
+                                     (bg_color[2] + o).clamp(0.0, 1.0),
+                                     bg_color[3]
                                  ]
                              };
                              
@@ -1015,7 +1021,7 @@ cascades in cce."
                                 push_bevel_slice_corners(
                                     wx, wy, ww, wh,
                                     r, r_offset, slice_w,
-                                    sw, sh, border_color, color_offset,
+                                    sw, sh, bg_color, color_offset,
                                     &mut verts
                                 );
                         }
