@@ -198,7 +198,7 @@ fn push_bevel_slice_corners(
             let theta2 = start_angle + ((j + 1) as f32) * (end_angle - start_angle) / (segments as f32);
             let theta_mid = 0.5 * (theta1 + theta2);
 
-            let factor = -(theta_mid.cos() + theta_mid.sin());
+            let factor = -(theta_mid.cos() + theta_mid.sin()).clamp(-1.0, 1.0);
             let offset = factor * color_offset;
 
             let segment_color = [
