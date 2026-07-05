@@ -290,14 +290,26 @@ impl State {
                 Page::Xdg => "Clear Test Interface - XDG Portal".to_string(),
             }
         };
-        let label_buf = make_text_buffer(&mut self.font_system, &label_text, 16.0);
-        self.text_items.push(TextItem {
-            buffer: label_buf,
-            x: 20.0,
-            y: 12.0,
-            color: glyphon::Color::rgb(255, 255, 255),
-            bounds: None,
-        });
+        // Update all MenuBar widgets in the interface with the new title
+        let mut has_menu_bar = false;
+        for w in &mut self.widgets {
+            if let Some(menu_bar) = w.as_any_mut().downcast_mut::<MenuBar>() {
+                menu_bar.title = label_text.clone();
+                has_menu_bar = true;
+            }
+        }
+
+        // If there is no MenuBar, fall back to rendering a free-floating TextItem
+        if !has_menu_bar {
+            let label_buf = make_text_buffer(&mut self.font_system, &label_text, 16.0);
+            self.text_items.push(TextItem {
+                buffer: label_buf,
+                x: 20.0,
+                y: 12.0,
+                color: glyphon::Color::rgb(255, 255, 255),
+                bounds: None,
+            });
+        }
 
         let mut popover_rects = Vec::new();
         for (i, w) in self.widgets.iter().enumerate() {
@@ -506,7 +518,8 @@ impl cce_ui::engine::Application for State {
             } else {
                 let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
                     .with_item("File", &["New", "Open", "Save", "Exit"])
-                    .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"]);
+                    .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"])
+                    .with_right_aligned_title(true);
 
                 vec![
                     bg,
@@ -520,7 +533,8 @@ impl cce_ui::engine::Application for State {
             let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
                 .with_item("File", &["Exit"])
                 .with_item("Edit", &["Settings"])
-                .with_item("Help", &["About"]);
+                .with_item("Help", &["About"])
+                .with_right_aligned_title(true);
             vec![
                 Box::new(menu_bar), // 0
                 {
