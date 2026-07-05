@@ -1180,9 +1180,9 @@ cascades in cce."
                 }
             } else {
                 match index {
-                    0..=2 | 45 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
+                    0..=2 | 46 => true,
+                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
                 }
@@ -1485,9 +1485,9 @@ cascades in cce."
                 }
             } else {
                 match index {
-                    0..=2 | 45 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
+                    0..=2 | 46 => true,
+                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
                 }
@@ -1630,13 +1630,14 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         (-1000.0, -1000.0, 0.0, 0.0),         // 41 SectionContainer: Border (placed by ControlPanel)
         (-1000.0, -1000.0, 0.0, 0.0),         // 42 Toggle: Bevel (placed by ControlPanel)
         (-1000.0, -1000.0, 0.0, 0.0),         // 43 Spinbox: Border Width (placed by ControlPanel)
-        (-1000.0, -1000.0, 0.0, 0.0),         // 44 SectionContainer: Window Elements (placed by ControlPanel)
-        (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh), // 45 Dropdown: Page selector
-        ctrl_color_ramp_btn_pos,              // 46 Button: Color Ramp
-        (-1000.0, -1000.0, 0.0, 0.0),         // 47 Button: Bevel Shape (placed by ControlPanel)
-        ctrl_ramp_widget_pos,                 // 48 Ramp: Controls page ramp
-        ctrl_ramp_btn_pos,                    // 49 Button: Ramp
-        control_panel_pos,                    // 50 ControlPanel
+        (-1000.0, -1000.0, 0.0, 0.0),         // 44 Spinbox: Bevel Depth (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 45 SectionContainer: Window Elements (placed by ControlPanel)
+        (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh), // 46 Dropdown: Page selector
+        ctrl_color_ramp_btn_pos,              // 47 Button: Color Ramp
+        (-1000.0, -1000.0, 0.0, 0.0),         // 48 Button: Bevel Shape (placed by ControlPanel)
+        ctrl_ramp_widget_pos,                 // 49 Ramp: Controls page ramp
+        ctrl_ramp_btn_pos,                    // 50 Button: Ramp
+        control_panel_pos,                    // 51 ControlPanel
     ]
 }
 
@@ -1895,9 +1896,9 @@ impl PointerHandler for AppState {
                                     }
                                 } else {
                                     match index {
-                                        0..=2 | 45 => true,
-                                        3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                                        14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
+                                         0..=2 | 46 => true,
+                                         3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                                         14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                                         32..=35 => current_page == Page::Xdg,
                                         _ => false,
                                     }
@@ -1944,9 +1945,9 @@ impl PointerHandler for AppState {
                                 }
                             } else {
                                 match index {
-                                    0..=2 | 45 => true,
-                                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
+                                    0..=2 | 46 => true,
+                                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
@@ -2029,9 +2030,9 @@ impl PointerHandler for AppState {
                                 }
                             } else {
                                 match index {
-                                    0..=2 | 45 => true,
-                                    3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
+                                    0..=2 | 46 => true,
+                                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 => current_page == Page::Controls,
+                                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
@@ -2788,7 +2789,7 @@ fn save_file_dialog_portal(sender: calloop::channel::Sender<String>) {
 
 fn is_control_panel_child(index: usize) -> bool {
     match index {
-        15..=26 | 38..=44 | 47 => true,
+        15..=26 | 38..=45 | 48 => true,
         _ => false,
     }
 }
