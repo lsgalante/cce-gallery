@@ -185,6 +185,11 @@ fn push_bevel_slice_corners(
     }
     let segments = 32;
 
+    let light_angle = cce_ui::layout::light_source_position();
+    let rad = light_angle.to_radians();
+    let lx = rad.cos();
+    let ly = -rad.sin();
+
     let corners = [
         (wx + r, wy + r, std::f32::consts::PI, 1.5 * std::f32::consts::PI), // Top-Left
         (wx + ww - r, wy + r, 1.5 * std::f32::consts::PI, 2.0 * std::f32::consts::PI), // Top-Right
@@ -198,7 +203,7 @@ fn push_bevel_slice_corners(
             let theta2 = start_angle + ((j + 1) as f32) * (end_angle - start_angle) / (segments as f32);
             let theta_mid = 0.5 * (theta1 + theta2);
 
-            let factor = -(theta_mid.cos() + theta_mid.sin()).clamp(-1.0, 1.0);
+            let factor = (theta_mid.cos() * lx + theta_mid.sin() * ly).clamp(-1.0, 1.0);
             let offset = factor * color_offset;
 
             let segment_color = [
@@ -767,24 +772,32 @@ cascades in cce."
                                 let d_h = h_inner - h_outer;
                                 let color_offset = d_h * 0.4;
                                 
-                                let light_color = [
-                                    (border_color[0] + color_offset).clamp(0.0, 1.0),
-                                    (border_color[1] + color_offset).clamp(0.0, 1.0),
-                                    (border_color[2] + color_offset).clamp(0.0, 1.0),
-                                    border_color[3]
-                                ];
-                                let dark_color = [
-                                    (border_color[0] - color_offset).clamp(0.0, 1.0),
-                                    (border_color[1] - color_offset).clamp(0.0, 1.0),
-                                    (border_color[2] - color_offset).clamp(0.0, 1.0),
-                                    border_color[3]
-                                ];
-                                let offset = idx as f32 * slice_w;
-                                let r_offset = (r - offset).max(0.0);
-                                verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, light_color));
-                                verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, light_color));
-                                verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
-                                verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
+                                 let light_angle = cce_ui::layout::light_source_position();
+                                 let rad = light_angle.to_radians();
+                                 let lx = rad.cos();
+                                 let ly = -rad.sin();
+                                 
+                                 let c_offset = |factor: f32| -> [f32; 4] {
+                                     let o = factor * color_offset;
+                                     [
+                                         (border_color[0] + o).clamp(0.0, 1.0),
+                                         (border_color[1] + o).clamp(0.0, 1.0),
+                                         (border_color[2] + o).clamp(0.0, 1.0),
+                                         border_color[3]
+                                     ]
+                                 };
+                                 
+                                 let top_color = c_offset(-ly);
+                                 let left_color = c_offset(-lx);
+                                 let bottom_color = c_offset(ly);
+                                 let right_color = c_offset(lx);
+
+                                 let offset = idx as f32 * slice_w;
+                                 let r_offset = (r - offset).max(0.0);
+                                 verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, top_color));
+                                 verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, left_color));
+                                 verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, bottom_color));
+                                 verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, right_color));
 
                                 push_bevel_slice_corners(
                                     wx, wy, ww, wh,
@@ -808,23 +821,31 @@ cascades in cce."
                                 let d_h = h_inner - h_outer;
                                 let color_offset = d_h * 0.4;
                                 
-                                let light_color = [
-                                    (border_color[0] + color_offset).clamp(0.0, 1.0),
-                                    (border_color[1] + color_offset).clamp(0.0, 1.0),
-                                    (border_color[2] + color_offset).clamp(0.0, 1.0),
-                                    border_color[3]
-                                ];
-                                let dark_color = [
-                                    (border_color[0] - color_offset).clamp(0.0, 1.0),
-                                    (border_color[1] - color_offset).clamp(0.0, 1.0),
-                                    (border_color[2] - color_offset).clamp(0.0, 1.0),
-                                    border_color[3]
-                                ];
+                                 let light_angle = cce_ui::layout::light_source_position();
+                                 let rad = light_angle.to_radians();
+                                 let lx = rad.cos();
+                                 let ly = -rad.sin();
+                                 
+                                 let c_offset = |factor: f32| -> [f32; 4] {
+                                     let o = factor * color_offset;
+                                     [
+                                         (border_color[0] + o).clamp(0.0, 1.0),
+                                         (border_color[1] + o).clamp(0.0, 1.0),
+                                         (border_color[2] + o).clamp(0.0, 1.0),
+                                         border_color[3]
+                                     ]
+                                 };
+                                 
+                                 let top_color = c_offset(-ly);
+                                 let left_color = c_offset(-lx);
+                                 let bottom_color = c_offset(ly);
+                                 let right_color = c_offset(lx);
+                                 
                                 let offset = idx as f32 * slice_w;
-                                verts.extend(quad_vertices(wx + offset, wy + offset, ww - 2.0 * offset, slice_w, sw, sh, light_color));
-                                verts.extend(quad_vertices(wx + offset, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, light_color));
-                                verts.extend(quad_vertices(wx + offset, wy + wh - offset - slice_w, ww - 2.0 * offset, slice_w, sw, sh, dark_color));
-                                verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, dark_color));
+                                verts.extend(quad_vertices(wx + offset, wy + offset, ww - 2.0 * offset, slice_w, sw, sh, top_color));
+                                verts.extend(quad_vertices(wx + offset, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, left_color));
+                                verts.extend(quad_vertices(wx + offset, wy + wh - offset - slice_w, ww - 2.0 * offset, slice_w, sw, sh, bottom_color));
+                                verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, right_color));
                             }
                         } else {
                             verts.extend(quad_vertices(wx, wy, ww, t, sw, sh, border_color));
@@ -935,24 +956,32 @@ cascades in cce."
                             let d_h = h_inner - h_outer;
                             let color_offset = d_h * 0.4;
                             
-                            let light_color = [
-                                (border_color[0] + color_offset).clamp(0.0, 1.0),
-                                (border_color[1] + color_offset).clamp(0.0, 1.0),
-                                (border_color[2] + color_offset).clamp(0.0, 1.0),
-                                border_color[3]
-                            ];
-                            let dark_color = [
-                                (border_color[0] - color_offset).clamp(0.0, 1.0),
-                                (border_color[1] - color_offset).clamp(0.0, 1.0),
-                                (border_color[2] - color_offset).clamp(0.0, 1.0),
-                                border_color[3]
-                            ];
+                             let light_angle = cce_ui::layout::light_source_position();
+                             let rad = light_angle.to_radians();
+                             let lx = rad.cos();
+                             let ly = -rad.sin();
+                             
+                             let c_offset = |factor: f32| -> [f32; 4] {
+                                 let o = factor * color_offset;
+                                 [
+                                     (border_color[0] + o).clamp(0.0, 1.0),
+                                     (border_color[1] + o).clamp(0.0, 1.0),
+                                     (border_color[2] + o).clamp(0.0, 1.0),
+                                     border_color[3]
+                                 ]
+                             };
+                             
+                             let top_color = c_offset(-ly);
+                             let left_color = c_offset(-lx);
+                             let bottom_color = c_offset(ly);
+                             let right_color = c_offset(lx);
+                             
                             let offset = i as f32 * slice_w;
                             let r_offset = (r - offset).max(0.0);
-                            verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, dark_color));
-                            verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, dark_color));
+                            verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, top_color));
+                            verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, left_color));
+                            verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, bottom_color));
+                            verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, right_color));
 
                                 push_bevel_slice_corners(
                                     wx, wy, ww, wh,
@@ -976,23 +1005,31 @@ cascades in cce."
                             let d_h = h_inner - h_outer;
                             let color_offset = d_h * 0.4;
                             
-                            let light_color = [
-                                (border_color[0] + color_offset).clamp(0.0, 1.0),
-                                (border_color[1] + color_offset).clamp(0.0, 1.0),
-                                (border_color[2] + color_offset).clamp(0.0, 1.0),
-                                border_color[3]
-                            ];
-                            let dark_color = [
-                                (border_color[0] - color_offset).clamp(0.0, 1.0),
-                                (border_color[1] - color_offset).clamp(0.0, 1.0),
-                                (border_color[2] - color_offset).clamp(0.0, 1.0),
-                                border_color[3]
-                            ];
+                            let light_angle = cce_ui::layout::light_source_position();
+                            let rad = light_angle.to_radians();
+                            let lx = rad.cos();
+                            let ly = -rad.sin();
+                            
+                            let c_offset = |factor: f32| -> [f32; 4] {
+                                let o = factor * color_offset;
+                                [
+                                    (border_color[0] + o).clamp(0.0, 1.0),
+                                    (border_color[1] + o).clamp(0.0, 1.0),
+                                    (border_color[2] + o).clamp(0.0, 1.0),
+                                    border_color[3]
+                                ]
+                            };
+                            
+                            let top_color = c_offset(-ly);
+                            let left_color = c_offset(-lx);
+                            let bottom_color = c_offset(ly);
+                            let right_color = c_offset(lx);
+                            
                             let offset = i as f32 * slice_w;
-                            verts.extend(quad_vertices(wx + offset, wy + offset, ww - 2.0 * offset, slice_w, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx + offset, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, light_color));
-                            verts.extend(quad_vertices(wx + offset, wy + wh - offset - slice_w, ww - 2.0 * offset, slice_w, sw, sh, dark_color));
-                            verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, dark_color));
+                            verts.extend(quad_vertices(wx + offset, wy + offset, ww - 2.0 * offset, slice_w, sw, sh, top_color));
+                            verts.extend(quad_vertices(wx + offset, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, left_color));
+                            verts.extend(quad_vertices(wx + offset, wy + wh - offset - slice_w, ww - 2.0 * offset, slice_w, sw, sh, bottom_color));
+                            verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + offset, slice_w, wh - 2.0 * offset, sw, sh, right_color));
                         }
                     } else {
                         verts.extend(quad_vertices(wx, wy, ww, t, sw, sh, border_color));
