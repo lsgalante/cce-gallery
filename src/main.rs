@@ -1,7 +1,7 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     TextLabel, Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
-    Ramp, RampKey, ColorRamp,
+    Ramp, RampKey, ColorRamp, ControlPanel
 };
 use cce_ui::engine::{Vertex, quad_vertices, push_rounded_rect_vertices_corners};
 
@@ -471,6 +471,7 @@ cascades in cce."
                 Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Bevel Shape...")), // 47 Button: Bevel Shape
                 Box::new(Ramp::new()), // 48 Ramp: Controls page ramp
                 Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp...")), // 49 Button: Ramp
+                Box::new(ControlPanel::new().with_label("ControlPanel")), // 50 ControlPanel
             ]
         };
 
@@ -531,6 +532,12 @@ cascades in cce."
             last_ramp_mod: None,
         };
 
+        let cp_ptr = state.widgets[50].as_ptr_mut();
+        let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
+        for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 47] {
+            cp.add_child(state.widgets[idx].as_ptr_mut());
+        }
+
         cce_ui::scale::set_scale_factor(scale as f32);
         state.apply_layout();
         state.upload_vertices();
@@ -549,7 +556,7 @@ cascades in cce."
         match index {
             0..=2 | 45 => true,
             3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => self.current_page == Page::Controls,
-            14..=29 | 38..=44 | 47 => self.current_page == Page::Windows,
+            14..=29 | 38..=44 | 47 | 50 => self.current_page == Page::Windows,
             32..=35 => self.current_page == Page::Xdg,
             _ => false,
         }
@@ -572,6 +579,19 @@ cascades in cce."
                 if widget.is_dragging() {
                     continue;
                 }
+                
+                let is_cp_child = match i {
+                    15..=26 | 38..=44 | 47 => true,
+                    _ => false,
+                };
+                
+                if is_cp_child {
+                    if !visible {
+                        widget.set_rect(-1000.0, -1000.0, 0.0, 0.0);
+                    }
+                    continue;
+                }
+                
                 if visible {
                     let (x, y, w, h) = pos;
                     widget.set_rect(x, y, w, h);
@@ -598,8 +618,23 @@ cascades in cce."
             );
         }
         
+        // Draw ControlPanel first if visible so it is behind its children
+        if self.widgets.len() > 50 && self.is_widget_visible(50) {
+            let cp = &self.widgets[50];
+            let (cpx, cpy, cpw, cph) = cp.rect();
+            verts.extend(quad_vertices(cpx, cpy, cpw, cph, sw, sh, cp.color()));
+            let border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
+            verts.extend(quad_vertices(cpx, cpy, cpw, 1.0, sw, sh, border_color));
+            verts.extend(quad_vertices(cpx, cpy + cph - 1.0, cpw, 1.0, sw, sh, border_color));
+            verts.extend(quad_vertices(cpx, cpy, 1.0, cph, sw, sh, border_color));
+            verts.extend(quad_vertices(cpx + cpw - 1.0, cpy, 1.0, cph, sw, sh, border_color));
+        }
+
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
+                continue;
+            }
+            if i == 50 {
                 continue;
             }
             
@@ -989,7 +1024,7 @@ cascades in cce."
                 match index {
                     0..=2 | 45 => true,
                     3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
+                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
                 }
@@ -1264,7 +1299,7 @@ cascades in cce."
                 match index {
                     0..=2 | 45 => true,
                     3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
+                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
                     32..=35 => current_page == Page::Xdg,
                     _ => false,
                 }
@@ -1335,61 +1370,17 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     
     // Live Preview
     let preview_pos = (base_x, left_y, 360.0, 240.0);
-    left_y += 240.0 + 15.0; // 335.0
-    
-    // Buttons Row
-    let create_btn_pos = (base_x, left_y, 172.0, bh);
-    let tile_btn_pos = (base_x + 188.0, left_y, 172.0, bh);
-    left_y += bh + 15.0; // 385.0
-    
-    // Window Type Dropdown
-    let label_offset = 12.0 + cce_ui::layout::label_margin();
-    let type_dd_pos = (base_x, left_y, 240.0, ddh);
-    left_y += ddh + label_offset + 15.0;
-    
-    // Window Shape Dropdown
-    let shape_dd_pos = (base_x, left_y, 240.0, ddh);
-    left_y += ddh + label_offset + 15.0;
-    
-    // Opacity Toggle & Slider
-    left_y += 15.0; // Extra room for the slider label
-    let max_opacity_h = tgh.max(slh);
-    let opacity_toggle_pos = (base_x, left_y + (max_opacity_h - tgh) / 2.0, 110.0, tgh);
-    let slider_pos = (base_x + 125.0, left_y + (max_opacity_h - slh) / 2.0, 235.0, slh);
-    let slider_label_pos = (base_x + 125.0, left_y + (max_opacity_h - slh) / 2.0 - 15.0, 200.0, 12.0);
-
-    let mut right_y = 80.0;
-    let rx = base_x + 380.0;
-    let rw = 250.0;
+    left_y += 240.0 + 20.0;
     
     // Info Panel
-    let info_h = 170.0;
-    let info_bg_pos = (rx, right_y, rw, info_h);
-    let info_header_pos = (rx + 10.0, right_y + 12.0, rw - 20.0, 20.0);
-    let info_desc_pos = (rx + 10.0, right_y + 40.0, rw - 20.0, info_h - 50.0);
-    right_y += info_h + 15.0;
-    
-    // Size Spinboxes
-    let width_spin_pos = (rx, right_y, 120.0, sph);
-    let height_spin_pos = (rx + 130.0, right_y, 120.0, sph);
-    right_y += sph + 15.0;
-    
-    // Border Section Container
-    let label_offset = 12.0 + cce_ui::layout::label_margin();
-    let border_sec_h = 28.0 + tgh + 10.0 + sph + label_offset + 10.0 + bh + 10.0;
-    let border_sec_pos = (rx, right_y, rw, border_sec_h);
-    let border_enable_pos = (rx + 10.0, right_y + 28.0 + 5.0, 110.0, tgh);
-    let bevel_toggle_pos = (rx + 130.0, right_y + 28.0 + 5.0, 110.0, tgh);
-    let border_width_pos = (rx + 10.0, right_y + 28.0 + 5.0 + tgh + 10.0, rw - 20.0, sph);
-    let bevel_shape_pos = (rx + 10.0, right_y + 28.0 + 5.0 + tgh + 10.0 + sph + label_offset + 10.0, rw - 20.0, bh);
-    right_y += border_sec_h + 15.0;
-    
-    // Window Elements Section Container
-    let win_sec_h = 28.0 + tgh + 10.0;
-    let win_sec_pos = (rx, right_y, rw, win_sec_h);
-    let backplate_toggle_pos = (rx + 10.0, right_y + 28.0 + 5.0, 70.0, tgh);
-    let menubar_toggle_pos = (rx + 85.0, right_y + 28.0 + 5.0, 70.0, tgh);
-    let statusbar_toggle_pos = (rx + 160.0, right_y + 28.0 + 5.0, 70.0, tgh);
+    let info_h = 180.0;
+    let info_bg_pos = (base_x, left_y, 360.0, info_h);
+    let info_header_pos = (base_x + 10.0, left_y + 12.0, 340.0, 20.0);
+    let info_desc_pos = (base_x + 10.0, left_y + 40.0, 340.0, info_h - 50.0);
+
+    let rx = base_x + 380.0;
+    let rw = 280.0;
+    let control_panel_pos = (rx, 80.0, rw, sh - 120.0);
 
     vec![
         // Always visible
@@ -1412,18 +1403,18 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
 
         // "Windows" page only
         preview_pos,                          // 14 Panel (Window area)
-        create_btn_pos,                       // 15 Button: Create Window
-        tile_btn_pos,                         // 16 Button: Tile Windows
-        opacity_toggle_pos,                   // 17 Toggle: Opacity
+        (-1000.0, -1000.0, 0.0, 0.0),         // 15 Button: Create Window (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 16 Button: Tile Windows (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 17 Toggle: Opacity (placed by ControlPanel)
         (-1000.0, -1000.0, 0.0, 0.0),         // 18 Label: dummy
-        slider_pos,                           // 19 Slider: Transparency level
-        slider_label_pos,                     // 20 Label: "Transparency level"
-        type_dd_pos,                          // 21 Dropdown: Window type
-        shape_dd_pos,                         // 22 Dropdown: Window shape
-        border_enable_pos,                    // 23 Toggle: Enable
+        (-1000.0, -1000.0, 0.0, 0.0),         // 19 Slider: Transparency level (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 20 Label: "Transparency level" (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 21 Dropdown: Window type (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 22 Dropdown: Window shape (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 23 Toggle: Enable (placed by ControlPanel)
         (-1000.0, -1000.0, 0.0, 0.0),         // 24 Label: dummy
-        width_spin_pos,                       // 25 Spinbox: Width
-        height_spin_pos,                      // 26 Spinbox: Height
+        (-1000.0, -1000.0, 0.0, 0.0),         // 25 Spinbox: Width (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 26 Spinbox: Height (placed by ControlPanel)
         info_bg_pos,                          // 27 Panel: Info background
         info_header_pos,                      // 28 Label: Info header
         info_desc_pos,                        // 29 Label: Info description
@@ -1438,18 +1429,19 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
         // New widgets
         (-1000.0, -1000.0, 0.0, 0.0),         // 36 TextBox
         (-1000.0, -1000.0, 0.0, 0.0),         // 37 Plate
-        backplate_toggle_pos,                 // 38 Toggle: Backplate
-        menubar_toggle_pos,                   // 39 Toggle: MenuBar
-        statusbar_toggle_pos,                 // 40 Toggle: StatusBar
-        border_sec_pos,                       // 41 SectionContainer: Border
-        bevel_toggle_pos,                     // 42 Toggle: Bevel
-        border_width_pos,                     // 43 Spinbox: Border Width
-        win_sec_pos,                          // 44 SectionContainer: Window Elements
+        (-1000.0, -1000.0, 0.0, 0.0),         // 38 Toggle: Backplate (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 39 Toggle: MenuBar (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 40 Toggle: StatusBar (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 41 SectionContainer: Border (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 42 Toggle: Bevel (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 43 Spinbox: Border Width (placed by ControlPanel)
+        (-1000.0, -1000.0, 0.0, 0.0),         // 44 SectionContainer: Window Elements (placed by ControlPanel)
         (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh), // 45 Dropdown: Page selector
         ctrl_color_ramp_btn_pos,              // 46 Button: Color Ramp
-        bevel_shape_pos,                      // 47 Button: Bevel Shape
+        (-1000.0, -1000.0, 0.0, 0.0),         // 47 Button: Bevel Shape (placed by ControlPanel)
         ctrl_ramp_widget_pos,                 // 48 Ramp: Controls page ramp
         ctrl_ramp_btn_pos,                    // 49 Button: Ramp
+        control_panel_pos,                    // 50 ControlPanel
     ]
 }
 
@@ -1710,7 +1702,7 @@ impl PointerHandler for AppState {
                                     match index {
                                         0..=2 | 45 => true,
                                         3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                                        14..=29 | 38..=44 | 47 => current_page == Page::Windows,
+                                        14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
                                         32..=35 => current_page == Page::Xdg,
                                         _ => false,
                                     }
@@ -1756,7 +1748,7 @@ impl PointerHandler for AppState {
                                 match index {
                                     0..=2 | 45 => true,
                                     3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
+                                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
@@ -1838,7 +1830,7 @@ impl PointerHandler for AppState {
                                 match index {
                                     0..=2 | 45 => true,
                                     3..=13 | 30 | 31 | 36 | 37 | 46 | 48 | 49 => current_page == Page::Controls,
-                                    14..=29 | 38..=44 | 47 => current_page == Page::Windows,
+                                    14..=29 | 38..=44 | 47 | 50 => current_page == Page::Windows,
                                     32..=35 => current_page == Page::Xdg,
                                     _ => false,
                                 }
