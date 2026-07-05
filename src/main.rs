@@ -1277,17 +1277,18 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     ctrl_y += bh + 20.0;
     
     // Row 3: checkbox, toggle, progress_bar
+    let label_offset = 12.0 + cce_ui::layout::label_margin();
     let row3_h = tgh.max(24.0);
-    let ctrl_checkbox_pos = (base_x, ctrl_y + (row3_h - 24.0)/2.0, 24.0, 24.0);
-    let ctrl_toggle_pos = (base_x + 110.0, ctrl_y + (row3_h - tgh)/2.0, 48.0, tgh);
+    let ctrl_checkbox_pos = (base_x, ctrl_y + label_offset + (row3_h - 24.0)/2.0, 24.0, 24.0);
+    let ctrl_toggle_pos = (base_x + 110.0, ctrl_y + label_offset + (row3_h - tgh)/2.0, 48.0, tgh);
     let ctrl_progress_pos = (base_x + 230.0, ctrl_y + (row3_h - 24.0)/2.0, 160.0, 24.0);
-    ctrl_y += row3_h + 20.0;
+    ctrl_y += row3_h + label_offset + 20.0;
     
     // Row 4: slider & spinbox
     let row4_h = sph.max(slh);
     let ctrl_slider_pos = (base_x, ctrl_y + (row4_h - slh)/2.0, 300.0, slh);
     let ctrl_spinbox_pos = (base_x + 330.0, ctrl_y + (row4_h - sph)/2.0, 120.0, sph);
-    ctrl_y += row4_h + 20.0;
+    ctrl_y += row4_h + label_offset + 20.0;
 
     // Row 5: Ramp widget
     let ctrl_ramp_widget_pos = (base_x, ctrl_y, 400.0, 120.0);
@@ -1305,14 +1306,16 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     left_y += bh + 15.0; // 385.0
     
     // Window Type Dropdown
+    let label_offset = 12.0 + cce_ui::layout::label_margin();
     let type_dd_pos = (base_x, left_y, 240.0, ddh);
-    left_y += ddh + 15.0;
+    left_y += ddh + label_offset + 15.0;
     
     // Window Shape Dropdown
     let shape_dd_pos = (base_x, left_y, 240.0, ddh);
-    left_y += ddh + 15.0;
+    left_y += ddh + label_offset + 15.0;
     
     // Opacity Toggle & Slider
+    left_y += 15.0; // Extra room for the slider label
     let max_opacity_h = tgh.max(slh);
     let opacity_toggle_pos = (base_x, left_y + (max_opacity_h - tgh) / 2.0, 110.0, tgh);
     let slider_pos = (base_x + 125.0, left_y + (max_opacity_h - slh) / 2.0, 235.0, slh);
