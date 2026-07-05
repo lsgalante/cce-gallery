@@ -32,7 +32,7 @@ use smithay_client_toolkit::{
 };
 use wayland_client::{
     globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface, wl_callback},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
     Connection, QueueHandle, Proxy,
 };
 use calloop::EventLoop;
@@ -2546,20 +2546,7 @@ impl ProvidesRegistryState for AppState {
     ) {}
 }
 
-impl wayland_client::Dispatch<wl_callback::WlCallback, ()> for AppState {
-    fn event(
-        state: &mut Self,
-        _proxy: &wl_callback::WlCallback,
-        event: wl_callback::Event,
-        _data: &(),
-        _conn: &Connection,
-        _qh: &QueueHandle<Self>,
-    ) {
-        if let wl_callback::Event::Done { .. } = event {
-            state.frame_callback_pending = false;
-        }
-    }
-}
+cce_ui::delegate_wl_callback!(AppState);
 
 delegate_compositor!(AppState);
 delegate_xdg_shell!(AppState);
