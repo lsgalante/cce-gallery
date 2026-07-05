@@ -1907,7 +1907,7 @@ impl PointerHandler for AppState {
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
-                                               .arg("200")
+                                               .arg("300")
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
@@ -1920,7 +1920,7 @@ impl PointerHandler for AppState {
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
-                                               .arg("200")
+                                               .arg("300")
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
@@ -1980,7 +1980,7 @@ impl PointerHandler for AppState {
                                                .arg("--width")
                                                .arg("450")
                                                .arg("--height")
-                                               .arg("200")
+                                               .arg("300")
                                                .arg("--backplate");
                                             let _ = cmd.spawn();
                                         }
