@@ -1296,7 +1296,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32) -> Vec<(f32, f32, f32, f32)>
     ctrl_y += row4_h + label_offset + 20.0;
 
     // Row 5: Ramp widget
-    let ctrl_ramp_widget_pos = (base_x, ctrl_y, 400.0, 120.0);
+    let ctrl_ramp_widget_pos = (base_x, ctrl_y, 400.0, 140.0);
 
     // Dynamic calculations for Windows page layout
     let mut left_y = 80.0;
