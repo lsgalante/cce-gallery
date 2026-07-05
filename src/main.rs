@@ -1885,7 +1885,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize) -> Vec<(f
         (37, 120.0, 120.0),
         (47, 120.0, bh),
         (50, 120.0, bh),
-        (49, 200.0, 135.0),
+        (49, 240.0, 150.0),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
