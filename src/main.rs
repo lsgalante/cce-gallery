@@ -716,6 +716,7 @@ cascades in cce."
                 let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
                 let transparency_val = if opacity_enabled { self.widgets[19].value() as f32 / 100.0 } else { 1.0 };
                 let border_enabled = self.widgets[23].get_value_string() == Some("true".to_string());
+                let border_bevel = self.widgets[42].get_value_string() == Some("true".to_string());
                 let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
                 let menubar_enabled = self.widgets[39].get_value_string() == Some("true".to_string());
                 let statusbar_enabled = self.widgets[40].get_value_string() == Some("true".to_string());
@@ -733,10 +734,19 @@ cascades in cce."
 
                 // Draw background
                 if backplate_enabled {
-                    let radii = CornerRadii::new(r, r, r, r);
-                    push_rounded_rect_vertices_corners(
-                        wx, wy, ww, wh, radii, sw, sh, bg_color, [0.0, 0.0, 0.0], None, &mut verts
-                    );
+                    if border_bevel {
+                        let t = self.widgets[43].value() as f32;
+                        let r_inner = (r - t).max(0.0);
+                        let radii = CornerRadii::new(r_inner, r_inner, r_inner, r_inner);
+                        push_rounded_rect_vertices_corners(
+                            wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, radii, sw, sh, bg_color, [0.0, 0.0, 0.0], None, &mut verts
+                        );
+                    } else {
+                        let radii = CornerRadii::new(r, r, r, r);
+                        push_rounded_rect_vertices_corners(
+                            wx, wy, ww, wh, radii, sw, sh, bg_color, [0.0, 0.0, 0.0], None, &mut verts
+                        );
+                    }
                 } else {
                     verts.extend(quad_vertices(wx, wy, ww, wh, sw, sh, bg_color));
                 }
@@ -916,6 +926,12 @@ cascades in cce."
                 );
             } else {
                 for (qx, qy, qw, qh, qr, qc, qcorners) in w.all_rounded_quads(&self.ui_context) {
+                    let (qx, qy, qw, qh, qr) = if self.is_child && i == 0 && self.border_enabled && self.border_bevel {
+                        let t = self.border_width;
+                        (qx + t, qy + t, qw - 2.0 * t, qh - 2.0 * t, (qr - t).max(0.0))
+                    } else {
+                        (qx, qy, qw, qh, qr)
+                    };
                     if qr > 0.1 {
                         let radii = CornerRadii::new(
                             if qcorners.0 { qr } else { 0.0 },
