@@ -396,7 +396,9 @@ impl State {
     }
 
     fn update_status_text(&mut self, text: &str) {
-        self.status_buffer = make_text_buffer(&mut self.font_system, text, 12.0);
+        let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
+        let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
+        self.status_buffer = make_text_buffer(&mut self.font_system, text, status_size);
     }
 }
 
