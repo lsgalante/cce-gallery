@@ -45,8 +45,6 @@ struct State {
     use_menubar: bool,
     use_statusbar: bool,
     border_enabled: bool,
-    border_width: f32,
-    border_bevel: bool,
     child_type: Option<String>,
     ui_context: cce_ui::context::UiContext,
     bevel_ramp: Vec<RampKey>,
@@ -156,8 +154,7 @@ fn push_bevel_slice_corners(
     }
     let segments = 32;
 
-    let light_angle = cce_ui::layout::light_source_position();
-    let rad = light_angle.to_radians();
+    let rad = cce_ui::layout::light_source_position();
     let lx = rad.cos();
     let ly = -rad.sin();
 
@@ -714,8 +711,6 @@ cascades in cce."
             use_menubar,
             use_statusbar,
             border_enabled,
-            border_width,
-            border_bevel,
             child_type: child_type.clone(),
             ui_context: cce_ui::context::UiContext::new(),
             bevel_ramp: loaded_keys,
@@ -1067,8 +1062,7 @@ cascades in cce."
                                 let bevel_depth = self.widgets[44].value() as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
                                 
-                                 let light_angle = cce_ui::layout::light_source_position();
-                                 let rad = light_angle.to_radians();
+                                 let rad = cce_ui::layout::light_source_position();
                                  let lx = rad.cos();
                                  let ly = -rad.sin();
                                  
@@ -1522,12 +1516,12 @@ full screen background.",
                                 if statusbar_enabled {
                                     cmd.arg("--statusbar");
                                 }
-                                cmd.arg("--width")
-                                   .arg(custom_width.to_string())
-                                   .arg("--height")
-                                   .arg(custom_height.to_string());
-                                let _ = cmd.spawn();
-                            }
+                                 cmd.arg("--width")
+                                    .arg(custom_width.to_string())
+                                    .arg("--height")
+                                    .arg(custom_height.to_string());
+                                 let _ = cce_ui::process::spawn_tracked(cmd);
+                             }
                             changed = true;
                         } else if tile_windows {
                             self.update_status_text("Window Action: Tile active client windows");
@@ -1858,22 +1852,22 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: 
 
     let mut items: Vec<(usize, f32, f32, f32)> = vec![
         // Button
-        (3, 140.0, bh + label_off(3), bh),
+        (3, 200.0, bh + label_off(3), bh),
         // Progress Bar
-        (11, (available_w - 20.0).max(200.0), cce_ui::layout::progressbar_height() + label_off(11), cce_ui::layout::progressbar_height()),
+        (11, 415.0, cce_ui::layout::progressbar_height() + label_off(11), cce_ui::layout::progressbar_height()),
         // Inputs
         (52, 200.0, ddh + label_off(52), ddh),
-        (9, 100.0, tgh + label_off(9), tgh),
-        (10, 100.0, tgh + label_off(10), tgh),
+        (9, 200.0, tgh + label_off(9), tgh),
+        (10, 200.0, tgh + label_off(10), tgh),
         (12, 200.0, slh + label_off(12), slh),
-        (13, 140.0, sph + label_off(13), sph),
+        (13, 200.0, sph + label_off(13), sph),
         (36, 200.0, ddh + label_off(36), ddh),
         (30, 200.0, cce_ui::layout::rangeslider_height() + label_off(30), cce_ui::layout::rangeslider_height()),
         (31, 200.0, 100.0 + label_off(31), 100.0),
-        (37, 120.0, 120.0 + label_off(37), 120.0),
-        (47, 120.0, bh + label_off(47), bh),
-        (50, 120.0, bh + label_off(50), bh),
-        (49, 240.0, 150.0 + label_off(49), 150.0),
+        (37, 200.0, 120.0 + label_off(37), 120.0),
+        (47, 200.0, bh + label_off(47), bh),
+        (50, 200.0, bh + label_off(50), bh),
+        (49, 200.0, 150.0 + label_off(49), 150.0),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
