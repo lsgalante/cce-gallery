@@ -737,7 +737,7 @@ cascades in cce."
         } else {
             state.focused_widget = Some(1);
             let ramp = unsafe { &mut *(state.widgets[1].as_ptr_mut() as *mut Ramp) };
-            let preset_ptr = &mut ramp.preset_dropdown as *mut Dropdown as *mut (dyn Element + 'static);
+            let preset_ptr = ramp.preset_dropdown.as_ptr_mut();
             state.ui_context.set_focused_ptr(preset_ptr);
             unsafe {
                 (*preset_ptr).focus();
