@@ -1,14 +1,10 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
-    Ramp, RampKey, ColorRamp, ControlPanel, TextItem, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
+    Ramp, RampKey, ColorRamp, ControlPanel, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
 use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition};
 use wayland_client::QueueHandle;
-
-use glyphon::{
-    Buffer, FontSystem, TextArea, TextBounds,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -21,9 +17,7 @@ struct State {
     widgets: Vec<Box<dyn Element>>,
     positions: Vec<(f32, f32, f32, f32)>,
 
-    font_system: FontSystem,
     status_text: String,
-    status_buffer: Buffer,
 
     drag_widget: Option<usize>,
     focused_widget: Option<usize>,
@@ -53,7 +47,6 @@ struct State {
     child_shape: Option<String>,
 
     sender: calloop::channel::Sender<String>,
-    text_items: Vec<TextItem>,
     layout_idx: usize,
 }
 
@@ -211,10 +204,6 @@ fn save_file_dialog_portal(sender: calloop::channel::Sender<String>) {
     }
 }
 
-fn make_text_buffer(font_system: &mut FontSystem, text: &str, size: f32) -> Buffer {
-    let font_str = cce_ui::layout::statusbar_font();
-    cce_ui::backend::window_runner::get_text_buffer(font_system, text, size, Some(&font_str))
-}
 
 impl State {
     fn is_widget_visible(&self, index: usize) -> bool {
@@ -295,136 +284,8 @@ impl State {
         }
     }
 
-    fn rebuild_text_items(&mut self) {
-        self.text_items.clear();
-
-        let label_text = if self.is_child {
-            match self.child_type.as_deref() {
-                Some("Toplevel") => "Simulated Toplevel Window".to_string(),
-                Some("Popup") => "Simulated Popup Window".to_string(),
-                Some("LayerTop") => "Simulated Layer Shell (Top) Surface".to_string(),
-                Some("LayerOverlay") => "Simulated Layer Shell (Overlay) Surface".to_string(),
-                Some("LayerBackground") => "Simulated Layer Shell (Background) Surface".to_string(),
-                Some(other) => format!("Simulated {} Window", other),
-                None => "Simulated Window".to_string(),
-            }
-        } else {
-            match self.current_page {
-                Page::Controls => "Clear Test Interface - Controls".to_string(),
-                Page::Windows => "Clear Test Interface - Windows".to_string(),
-                Page::Xdg => "Clear Test Interface - XDG Portal".to_string(),
-            }
-        };
-        // Update all MenuBar widgets in the interface with the new title
-        let mut has_menu_bar = false;
-        for w in &mut self.widgets {
-            if let Some(menu_bar) = w.as_any_mut().downcast_mut::<MenuBar>() {
-                menu_bar.title = label_text.clone();
-                has_menu_bar = true;
-            }
-        }
-
-        // If there is no MenuBar, fall back to rendering a free-floating TextItem
-        if !has_menu_bar {
-            let label_buf = make_text_buffer(&mut self.font_system, &label_text, 16.0);
-            self.text_items.push(TextItem {
-                buffer: label_buf,
-                x: 20.0,
-                y: 12.0,
-                color: glyphon::Color::rgb(255, 255, 255),
-                bounds: None,
-            });
-        }
-
-        let mut popover_rects = Vec::new();
-        for (i, w) in self.widgets.iter().enumerate() {
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            if let Some(rect) = w.popover_rect() {
-                popover_rects.push(rect);
-            }
-        }
-
-        let in_any_popover = |lx: f32, ly: f32| -> bool {
-            for &(px, py, pw, ph) in &popover_rects {
-                if lx >= px - 5.0 && lx <= px + pw + 5.0 && ly >= py - 5.0 && ly <= py + ph + 5.0 {
-                    return true;
-                }
-            }
-            false
-        };
-
-        for (i, w) in self.widgets.iter().enumerate() {
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            if is_control_panel_child(i) {
-                continue;
-            }
-            let widget_font_opt = w.widget_font();
-            for (label, font, bounds) in w.text_labels_with_font_and_bounds(&self.ui_context) {
-                if in_any_popover(label.x, label.y) {
-                    continue;
-                }
-                let active_font = font.or_else(|| widget_font_opt.clone());
-                let buf = cce_ui::backend::window_runner::get_text_buffer(
-                    &mut self.font_system,
-                    &label.text,
-                    label.font_size,
-                    active_font.as_deref(),
-                );
-                
-                let b = bounds.map(|[l, t, r, b]| [l, t, r, b]);
-                self.text_items.push(TextItem {
-                    buffer: buf,
-                    x: label.x,
-                    y: label.y,
-                    color: glyphon::Color::rgb(label.color[0], label.color[1], label.color[2]),
-                    bounds: b,
-                });
-            }
-        }
-
-        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
-        for (i, w) in self.widgets.iter().enumerate() {
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            if is_control_panel_child(i) {
-                continue;
-            }
-            if w.popover_rect().is_some() {
-                w.render_popover(&mut popover_pc);
-            }
-        }
-        for (t, size, x, y, tc, font_opt, bounds) in popover_pc.texts {
-            let buf = cce_ui::backend::window_runner::get_text_buffer(
-                &mut self.font_system,
-                &t,
-                size,
-                font_opt.as_deref(),
-            );
-            let b = bounds.map(|[l, t, r, b]| [l, t, r, b]);
-            self.text_items.push(TextItem {
-                buffer: buf,
-                x,
-                y,
-                color: glyphon::Color::rgb(
-                    (tc[0] * 255.0) as u8,
-                    (tc[1] * 255.0) as u8,
-                    (tc[2] * 255.0) as u8,
-                ),
-                bounds: b,
-            });
-        }
-    }
-
     fn update_status_text(&mut self, text: &str) {
         self.status_text = text.to_string();
-        let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
-        let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
-        self.status_buffer = make_text_buffer(&mut self.font_system, text, status_size);
     }
 }
 
@@ -493,12 +354,7 @@ impl cce_ui::engine::Application for State {
 
         let is_ramp_child = is_child && (child_type.as_deref() == Some("Ramp") || child_type.as_deref() == Some("ColorRamp"));
         let opacity = opacity || is_ramp_child;
-
-        let mut font_system = cce_ui::create_font_system();
-        let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
-        let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
         let status_text = "Select a test case to begin verification.".to_string();
-        let status_buffer = make_text_buffer(&mut font_system, &status_text, status_size);
 
         let widgets: Vec<Box<dyn Element>> = if is_child {
             let desc_label = match child_type.as_deref() {
@@ -691,9 +547,7 @@ cascades in cce."
         let mut state = Self {
             widgets,
             positions,
-            font_system,
             status_text,
-            status_buffer,
             drag_widget: None,
             focused_widget: None,
             cursor_x: 0.0,
@@ -718,7 +572,6 @@ cascades in cce."
             last_ramp_mod: None,
             child_shape: child_shape.clone(),
             sender,
-            text_items: Vec::new(),
             layout_idx: 9,
         };
 
@@ -745,7 +598,6 @@ cascades in cce."
         }
 
         state.apply_layout();
-        state.rebuild_text_items();
         state
     }
 
@@ -800,7 +652,6 @@ cascades in cce."
         } else {
             self.update_status_text(&msg);
             *needs_rebuild = true;
-            self.rebuild_text_items();
         }
     }
 
@@ -866,11 +717,15 @@ cascades in cce."
         }
         if changed {
             *needs_rebuild = true;
-            self.rebuild_text_items();
         }
     }
 
-    fn view(&mut self, quads: &mut Vec<(f32, f32, f32, f32, [f32; 4])>, size: LogicalSize, scale: f64) {
+    fn display_list(&mut self, size: LogicalSize, scale: f64) -> Option<cce_ui::scene::paint::DisplayList> {
+        // Phase 6af single paint path: the whole frame — the legacy view_rounded_quads
+        // geometry, then the view() geometry (the wrapper's order), then every text
+        // label as a prim — is this one list, rebuilt fresh each frame (the old
+        // rebuild_text_items cache and its 14 invalidation call sites are gone).
+        use cce_ui::scene::layout::Rect;
         if (self.width - size.width as f32).abs() > 0.001 || (self.height - size.height as f32).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
             self.width = size.width as f32;
             self.height = size.height as f32;
@@ -888,62 +743,27 @@ cascades in cce."
             self.apply_layout();
             let text = self.status_text.clone();
             self.update_status_text(&text);
-            self.rebuild_text_items();
         }
 
-        for (i, w) in self.widgets.iter().enumerate() {
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            if is_control_panel_child(i) {
-                continue;
-            }
-            if !self.is_child && i == 14 {
-                let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
-                let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.widgets[19].value() as f32 / 100.0 } else { 1.0 };
-                let bg_color = if backplate_enabled {
-                    let mut col = cce_ui::color::page_low_color();
-                    col[3] = transparency_val;
-                    col
-                } else {
-                    [0.12, 0.12, 0.15, transparency_val]
-                };
-                let (wx, wy, ww, wh) = w.rect();
-                if !backplate_enabled {
-                    quads.push((wx, wy, ww, wh, bg_color));
-                }
-            } else {
-                quads.extend(w.all_quads(&self.ui_context));
-            }
-        }
+        let sw = self.width;
+        let sh = self.height;
+        let mut pc = cce_ui::scene::paint::PaintCtx::new();
 
-        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
-        for (i, w) in self.widgets.iter().enumerate() {
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            if is_control_panel_child(i) {
-                continue;
-            }
-            if w.popover_rect().is_some() {
-                w.render_popover(&mut popover_pc);
-            }
-        }
-        for (qc, qx, qy, qw, qh) in popover_pc.rects {
-            quads.push((qx, qy, qw, qh, qc));
-        }
-    }
-
-    fn view_rounded_quads(&mut self, quads: &mut Vec<(f32, f32, f32, f32, f32, [f32; 4], (bool, bool, bool, bool))>, size: LogicalSize, _scale: f64) {
-        let sw = size.width as f32;
-        let sh = size.height as f32;
-
+        // ── Rounded geometry (the legacy view_rounded_quads body) ──
         if !self.is_child && self.use_backplate {
             let r = cce_ui::color::backplate_corner_radius();
             let bg_color = cce_ui::color::page_low_color();
-            quads.push((0.0, 0.0, sw, sh, r, bg_color, (true, true, true, true)));
+            pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: sw, height: sh }, r, (true, true, true, true), bg_color);
         }
+
+        let push_rounded = |pc: &mut cce_ui::scene::paint::PaintCtx, qx: f32, qy: f32, qw: f32, qh: f32, qr: f32, qc: [f32; 4], qcorners: (bool, bool, bool, bool)| {
+            let rect = Rect { x: qx, y: qy, width: qw, height: qh };
+            if qr > 0.1 {
+                pc.rounded_rect(rect, qr, qcorners, qc);
+            } else {
+                pc.quad(rect, qc);
+            }
+        };
 
         for (i, w) in self.widgets.iter().enumerate() {
             if !self.is_widget_visible(i) {
@@ -971,9 +791,9 @@ cascades in cce."
                     if border_bevel {
                         let t = self.widgets[43].value() as f32;
                         let r_inner = (r - t).max(0.0);
-                        quads.push((wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true)));
+                        push_rounded(&mut pc, wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true));
                     } else {
-                        quads.push((wx, wy, ww, wh, r, bg_color, (true, true, true, true)));
+                        push_rounded(&mut pc, wx, wy, ww, wh, r, bg_color, (true, true, true, true));
                     }
                 }
 
@@ -982,9 +802,9 @@ cascades in cce."
                     let mut menu_color = cce_ui::color::backplate_menubar_color();
                     menu_color[3] = transparency_val;
                     if backplate_enabled {
-                        quads.push((wx, wy, ww, 30.0, r, menu_color, (true, true, false, false)));
+                        push_rounded(&mut pc, wx, wy, ww, 30.0, r, menu_color, (true, true, false, false));
                     } else {
-                        quads.push((wx, wy, ww, 30.0, 0.0, menu_color, (false, false, false, false)));
+                        push_rounded(&mut pc, wx, wy, ww, 30.0, 0.0, menu_color, (false, false, false, false));
                     }
                 }
 
@@ -993,9 +813,9 @@ cascades in cce."
                     let mut status_color = cce_ui::color::backplate_statusbar_color();
                     status_color[3] = transparency_val;
                     if backplate_enabled {
-                        quads.push((wx, wy + wh - 24.0, ww, 24.0, r, status_color, (false, false, true, true)));
+                        push_rounded(&mut pc, wx, wy + wh - 24.0, ww, 24.0, r, status_color, (false, false, true, true));
                     } else {
-                        quads.push((wx, wy + wh - 24.0, ww, 24.0, 0.0, status_color, (false, false, false, false)));
+                        push_rounded(&mut pc, wx, wy + wh - 24.0, ww, 24.0, 0.0, status_color, (false, false, false, false));
                     }
                 }
 
@@ -1006,11 +826,166 @@ cascades in cce."
                 let btn_y = wy + wh - status_h - 45.0;
                 let mut btn_color = cce_ui::color::button_background_color();
                 btn_color[3] = transparency_val;
-                quads.push((btn_x, btn_y, btn_w, btn_h, 4.0, btn_color, (true, true, true, true)));
+                push_rounded(&mut pc, btn_x, btn_y, btn_w, btn_h, 4.0, btn_color, (true, true, true, true));
             } else {
-                quads.extend(w.all_rounded_quads(&self.ui_context));
+                for (qx, qy, qw, qh, qr, qc, qcorners) in w.all_rounded_quads(&self.ui_context) {
+                    push_rounded(&mut pc, qx, qy, qw, qh, qr, qc, qcorners);
+                }
             }
         }
+
+        // ── Plain geometry (the legacy view() body) ──
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !self.is_widget_visible(i) {
+                continue;
+            }
+            if is_control_panel_child(i) {
+                continue;
+            }
+            if !self.is_child && i == 14 {
+                let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
+                let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.widgets[19].value() as f32 / 100.0 } else { 1.0 };
+                let bg_color = if backplate_enabled {
+                    let mut col = cce_ui::color::page_low_color();
+                    col[3] = transparency_val;
+                    col
+                } else {
+                    [0.12, 0.12, 0.15, transparency_val]
+                };
+                let (wx, wy, ww, wh) = w.rect();
+                if !backplate_enabled {
+                    pc.quad(Rect { x: wx, y: wy, width: ww, height: wh }, bg_color);
+                }
+            } else {
+                for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
+                    pc.quad(Rect { x: qx, y: qy, width: qw, height: qh }, qc);
+                }
+            }
+        }
+
+        // ── Popovers: geometry then labels, in-frame, on top of everything ──
+        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !self.is_widget_visible(i) {
+                continue;
+            }
+            if is_control_panel_child(i) {
+                continue;
+            }
+            if w.popover_rect().is_some() {
+                w.render_popover(&mut popover_pc);
+            }
+        }
+        for &(qc, qx, qy, qw, qh) in &popover_pc.rects {
+            pc.quad(Rect { x: qx, y: qy, width: qw, height: qh }, qc);
+        }
+
+        // ── Text, as prims (the legacy rebuild_text_items assembly, uncached) ──
+        let label_text = if self.is_child {
+            match self.child_type.as_deref() {
+                Some("Toplevel") => "Simulated Toplevel Window".to_string(),
+                Some("Popup") => "Simulated Popup Window".to_string(),
+                Some("LayerTop") => "Simulated Layer Shell (Top) Surface".to_string(),
+                Some("LayerOverlay") => "Simulated Layer Shell (Overlay) Surface".to_string(),
+                Some("LayerBackground") => "Simulated Layer Shell (Background) Surface".to_string(),
+                Some(other) => format!("Simulated {} Window", other),
+                None => "Simulated Window".to_string(),
+            }
+        } else {
+            match self.current_page {
+                Page::Controls => "Clear Test Interface - Controls".to_string(),
+                Page::Windows => "Clear Test Interface - Windows".to_string(),
+                Page::Xdg => "Clear Test Interface - XDG Portal".to_string(),
+            }
+        };
+        let mut has_menu_bar = false;
+        for w in &mut self.widgets {
+            if let Some(menu_bar) = w.as_any_mut().downcast_mut::<MenuBar>() {
+                menu_bar.title = label_text.clone();
+                has_menu_bar = true;
+            }
+        }
+        if !has_menu_bar {
+            pc.text_with(label_text, 20.0, 12.0, 16.0, [255, 255, 255], Some(cce_ui::layout::statusbar_font()), None);
+        }
+
+        let mut popover_rects = Vec::new();
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !self.is_widget_visible(i) {
+                continue;
+            }
+            if let Some(rect) = w.popover_rect() {
+                popover_rects.push(rect);
+            }
+        }
+        let in_any_popover = |lx: f32, ly: f32| -> bool {
+            for &(px, py, pw, ph) in &popover_rects {
+                if lx >= px - 5.0 && lx <= px + pw + 5.0 && ly >= py - 5.0 && ly <= py + ph + 5.0 {
+                    return true;
+                }
+            }
+            false
+        };
+
+        for (i, w) in self.widgets.iter().enumerate() {
+            if !self.is_widget_visible(i) {
+                continue;
+            }
+            if is_control_panel_child(i) {
+                continue;
+            }
+            let widget_font_opt = w.widget_font();
+            for (label, font, bounds) in w.text_labels_with_font_and_bounds(&self.ui_context) {
+                if in_any_popover(label.x, label.y) {
+                    continue;
+                }
+                let active_font = font.or_else(|| widget_font_opt.clone());
+                pc.text_with(label.text, label.x, label.y, label.font_size, label.color, active_font, bounds);
+            }
+        }
+
+        for (t, size, x, y, tc, font_opt, bounds) in popover_pc.texts {
+            pc.text_with(
+                t,
+                x,
+                y,
+                size,
+                [
+                    (tc[0] * 255.0) as u8,
+                    (tc[1] * 255.0) as u8,
+                    (tc[2] * 255.0) as u8,
+                ],
+                font_opt,
+                bounds,
+            );
+        }
+
+        // The status line the old text_areas() override appended.
+        if !self.is_child {
+            let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
+            let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
+            let scol = cce_ui::color::backplate_statusbar_text_color();
+            pc.text_with(
+                self.status_text.clone(),
+                12.0,
+                self.height - 24.0,
+                status_size,
+                [
+                    (scol[0] * 255.0) as u8,
+                    (scol[1] * 255.0) as u8,
+                    (scol[2] * 255.0) as u8,
+                ],
+                Some(cce_ui::layout::statusbar_font()),
+                None,
+            );
+        }
+
+        Some(pc.finish())
+    }
+
+    fn display_list_text(&self) -> bool {
+        true
     }
 
     fn custom_vertices(&mut self, verts: &mut Vec<Vertex>, size: LogicalSize, _scale: f64) {
@@ -1111,42 +1086,6 @@ cascades in cce."
         }
     }
 
-    fn text_items(&self) -> &[TextItem] {
-        &self.text_items
-    }
-
-    fn text_areas(&self, scale_f32: f32, bounds: TextBounds) -> Vec<TextArea<'_>> {
-        let mut areas = self.text_items().iter().map(|ti| TextArea {
-            buffer: &ti.buffer,
-            left: (ti.x * scale_f32).round(),
-            top: (ti.y * scale_f32).round(),
-            scale: 1.0,
-            bounds,
-            default_color: ti.color,
-            custom_glyphs: &[],
-        }).collect::<Vec<_>>();
-
-        if !self.is_child {
-            let scol = cce_ui::color::backplate_statusbar_text_color();
-            let text_color = glyphon::Color::rgb(
-                (scol[0] * 255.0) as u8,
-                (scol[1] * 255.0) as u8,
-                (scol[2] * 255.0) as u8,
-            );
-            areas.push(TextArea {
-                buffer: &self.status_buffer,
-                left: (12.0 * scale_f32).round(),
-                top: (self.height * scale_f32 - 24.0 * scale_f32).round(),
-                scale: 1.0,
-                bounds,
-                default_color: text_color,
-                custom_glyphs: &[],
-            });
-        }
-
-        areas
-    }
-
     fn clear_color(&self) -> [f32; 4] {
         let clear_alpha = if self.opacity || self.use_backplate {
             if self.use_backplate {
@@ -1220,7 +1159,6 @@ cascades in cce."
         }
         if changed {
             *needs_rebuild = true;
-            self.rebuild_text_items();
         }
     }
 
@@ -1325,15 +1263,12 @@ cascades in cce."
                     if page_changed {
                         if selected == 0 {
                             self.current_page = Page::Controls;
-                            self.rebuild_text_items();
                             self.update_status_text("Viewing Controls Page");
                         } else if selected == 1 {
                             self.current_page = Page::Windows;
-                            self.rebuild_text_items();
                             self.update_status_text("Viewing Windows Page");
                         } else {
                             self.current_page = Page::Xdg;
-                            self.rebuild_text_items();
                             self.update_status_text("Viewing XDG Page");
                         }
                         self.apply_layout();
@@ -1558,7 +1493,6 @@ full screen background.",
 
         if changed {
             *needs_rebuild = true;
-            self.rebuild_text_items();
         }
         None
     }
@@ -1601,7 +1535,6 @@ full screen background.",
         }
         if changed {
             *needs_rebuild = true;
-            self.rebuild_text_items();
         }
     }
 
@@ -1677,15 +1610,12 @@ full screen background.",
             if page_nav && !self.is_child {
                 if selected == 0 {
                     self.current_page = Page::Controls;
-                    self.rebuild_text_items();
                     self.update_status_text("Viewing Controls Page");
                 } else if selected == 1 {
                     self.current_page = Page::Windows;
-                    self.rebuild_text_items();
                     self.update_status_text("Viewing Windows Page");
                 } else {
                     self.current_page = Page::Xdg;
-                    self.rebuild_text_items();
                     self.update_status_text("Viewing XDG Page");
                 }
                 self.apply_layout();
@@ -1699,7 +1629,6 @@ full screen background.",
 
         if changed {
             *needs_rebuild = true;
-            self.rebuild_text_items();
         }
         None
     }
