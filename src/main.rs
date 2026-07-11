@@ -935,13 +935,24 @@ cascades in cce."
             if is_control_panel_child(i) {
                 continue;
             }
-            let widget_font_opt = w.widget_font();
-            for (label, font, bounds) in w.text_labels_with_font_and_bounds(&self.ui_context) {
-                if in_any_popover(label.x, label.y) {
-                    continue;
+            // Text via the paint walk (not the legacy getters): same labels with the
+            // widget's content font and clip bounds; the popover cull stays on the prim
+            // coordinates. ControlPanel children are covered by the panel's walk descent,
+            // and any widget with a ui-tree parent (the page selector under the status
+            // bar) is covered by that parent's descent — walking it here too would emit
+            // its text twice.
+            if w.parent(&self.ui_context).is_some() {
+                continue;
+            }
+            let mut scratch = cce_ui::scene::paint::PaintCtx::new();
+            cce_ui::scene::painter::append_widget_text(&self.ui_context, w.as_ref(), &mut scratch);
+            for item in scratch.finish().items {
+                if let cce_ui::scene::paint::Prim::Text { text, x, y, font_size, color, font, bounds, .. } = item.prim {
+                    if in_any_popover(x, y) {
+                        continue;
+                    }
+                    pc.text_with(text, x, y, font_size, color, font, bounds);
                 }
-                let active_font = font.or_else(|| widget_font_opt.clone());
-                pc.text_with(label.text, label.x, label.y, label.font_size, label.color, active_font, bounds);
             }
         }
 
