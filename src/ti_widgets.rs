@@ -4,7 +4,7 @@
 //! three as passive lookalikes replicating the legacy types' exact emission surfaces
 //! (color rules, corner radius/rounding, borders, separators, labels, hit shapes).
 //! Phase 6az: all four are on the narrow traits wrapped in `Adapted<W>`; the gallery
-//! roster keeps them as `Box<dyn Element>` and reaches the models through `as_any`.
+//! roster keeps them as `Box<dyn WidgetHost>` and reaches the models through `as_any`.
 
 use cce_ui::colors;
 use cce_ui::scene::layout::Rect;
@@ -17,9 +17,9 @@ pub struct ControlPanel {
     y: f32,
     w: f32,
     h: f32,
-    pub children: Vec<*mut (dyn Element + 'static)>,
+    pub children: Vec<*mut (dyn WidgetHost + 'static)>,
     pub scroll_box: ScrollBox,
-    pub active_drag_widget: Option<*mut (dyn Element + 'static)>,
+    pub active_drag_widget: Option<*mut (dyn WidgetHost + 'static)>,
 }
 
 impl ControlPanel {
@@ -38,7 +38,7 @@ impl ControlPanel {
         })
     }
 
-    pub fn add_child(&mut self, child: *mut (dyn Element + 'static)) {
+    pub fn add_child(&mut self, child: *mut (dyn WidgetHost + 'static)) {
         self.children.push(child);
     }
 
@@ -48,7 +48,7 @@ impl ControlPanel {
     }
 
     /// First open child popover, in scrolled (screen) coordinates — the old
-    /// `Element::popover_rect` override, verbatim (the temporary base-y shift reaches the
+    /// `WidgetHost::popover_rect` override, verbatim (the temporary base-y shift reaches the
     /// children through their raw pointers).
     fn popover_scan(&self) -> Option<(f32, f32, f32, f32)> {
         let scroll_y = self.scroll_box.scroll_y;
@@ -67,7 +67,7 @@ impl ControlPanel {
         None
     }
 
-    /// The subtree's rounded view (the old `Element::all_rounded_quads` override):
+    /// The subtree's rounded view (the old `WidgetHost::all_rounded_quads` override):
     /// background, borders, children with the scroll shift + viewport clamp + border
     /// inset, scrollbar. External readers get it through the adapter's reverse bridge.
     fn aggregate_rounded(&self, ctx: &UiContext) -> Vec<(f32, f32, f32, f32, f32, [f32; 4], (bool, bool, bool, bool))> {
@@ -168,7 +168,7 @@ impl ControlPanel {
         quads
     }
 
-    /// The subtree's plain view (the old `Element::extra_quads` override): children's
+    /// The subtree's plain view (the old `WidgetHost::extra_quads` override): children's
     /// decoration quads with the scroll shift + viewport clamp, plus the scrollbar.
     fn aggregate_plain(&self) -> Vec<(f32, f32, f32, f32, [f32; 4])> {
         let mut quads = Vec::new();
@@ -208,7 +208,7 @@ impl ControlPanel {
         quads
     }
 
-    /// The children's arcs with the scroll shift (the old `Element::extra_arcs` override).
+    /// The children's arcs with the scroll shift (the old `WidgetHost::extra_arcs` override).
     fn aggregate_arcs(&self) -> Vec<(f32, f32, f32, f32, f32, f32, [f32; 4])> {
         let mut arcs = Vec::new();
         let scroll_y = self.scroll_box.scroll_y;
@@ -280,7 +280,7 @@ impl cce_ui::widget::Layout for ControlPanel {
     // in a ColumnLayout, laid out UNSCROLLED; the scroll offset is an aggregate-time
     // transform. (The dummy-ctx child re-parenting onto the host adapter is gone,
     // 6bd: every effect of it was discarded with the dummy ctx.)
-    fn arrange_children(&mut self, rect: Rect, _host: *mut (dyn Element + 'static)) {
+    fn arrange_children(&mut self, rect: Rect, _host: *mut (dyn WidgetHost + 'static)) {
         let (x, y, w, h) = (rect.x, rect.y, rect.width, rect.height);
 
         self.scroll_box.set_rect(x, y, w, h);
@@ -291,26 +291,26 @@ impl cce_ui::widget::Layout for ControlPanel {
         let mut col = ColumnLayout::new(x, y, w - 12.0, gap, padding); // 12px reserved for scrollbar track
 
         unsafe {
-            let mut create_btn: Option<*mut dyn Element> = None;
-            let mut tile_btn: Option<*mut dyn Element> = None;
-            let mut opacity_toggle: Option<*mut dyn Element> = None;
-            let mut enable_toggle: Option<*mut dyn Element> = None;
-            let mut slider: Option<*mut dyn Element> = None;
-            let mut slider_label: Option<*mut dyn Element> = None;
-            let mut type_dd: Option<*mut dyn Element> = None;
-            let mut shape_dd: Option<*mut dyn Element> = None;
-            let mut border_style_dd: Option<*mut dyn Element> = None;
-            let mut width_spin: Option<*mut dyn Element> = None;
-            let mut height_spin: Option<*mut dyn Element> = None;
-            let mut backplate_toggle: Option<*mut dyn Element> = None;
-            let mut menubar_toggle: Option<*mut dyn Element> = None;
-            let mut statusbar_toggle: Option<*mut dyn Element> = None;
-            let mut border_sec: Option<*mut dyn Element> = None;
-            let mut bevel_toggle: Option<*mut dyn Element> = None;
-            let mut border_width_spin: Option<*mut dyn Element> = None;
-            let mut bevel_depth_spin: Option<*mut dyn Element> = None;
-            let mut win_sec: Option<*mut dyn Element> = None;
-            let mut bevel_shape_btn: Option<*mut dyn Element> = None;
+            let mut create_btn: Option<*mut dyn WidgetHost> = None;
+            let mut tile_btn: Option<*mut dyn WidgetHost> = None;
+            let mut opacity_toggle: Option<*mut dyn WidgetHost> = None;
+            let mut enable_toggle: Option<*mut dyn WidgetHost> = None;
+            let mut slider: Option<*mut dyn WidgetHost> = None;
+            let mut slider_label: Option<*mut dyn WidgetHost> = None;
+            let mut type_dd: Option<*mut dyn WidgetHost> = None;
+            let mut shape_dd: Option<*mut dyn WidgetHost> = None;
+            let mut border_style_dd: Option<*mut dyn WidgetHost> = None;
+            let mut width_spin: Option<*mut dyn WidgetHost> = None;
+            let mut height_spin: Option<*mut dyn WidgetHost> = None;
+            let mut backplate_toggle: Option<*mut dyn WidgetHost> = None;
+            let mut menubar_toggle: Option<*mut dyn WidgetHost> = None;
+            let mut statusbar_toggle: Option<*mut dyn WidgetHost> = None;
+            let mut border_sec: Option<*mut dyn WidgetHost> = None;
+            let mut bevel_toggle: Option<*mut dyn WidgetHost> = None;
+            let mut border_width_spin: Option<*mut dyn WidgetHost> = None;
+            let mut bevel_depth_spin: Option<*mut dyn WidgetHost> = None;
+            let mut win_sec: Option<*mut dyn WidgetHost> = None;
+            let mut bevel_shape_btn: Option<*mut dyn WidgetHost> = None;
 
             for &child_ptr in &self.children {
                 let child = &mut *child_ptr;
@@ -388,7 +388,7 @@ impl cce_ui::widget::Layout for ControlPanel {
                 col.add_widget(&mut *w_s, 20.0);
             }
             let toggles = [backplate_toggle, menubar_toggle, statusbar_toggle];
-            let active_toggles: Vec<*mut dyn Element> = toggles.iter().filter_map(|&t| t).collect();
+            let active_toggles: Vec<*mut dyn WidgetHost> = toggles.iter().filter_map(|&t| t).collect();
             if !active_toggles.is_empty() {
                 col.add_row(&active_toggles, 28.0, 10.0);
             }
@@ -429,7 +429,7 @@ impl cce_ui::widget::Paint for ControlPanel {
     }
 
     fn corner_style(&self, _rect: Rect) -> Option<(f32, (bool, bool, bool, bool))> {
-        // Legacy: rounded_corners all-true with the Element-default 12.0 radius.
+        // Legacy: rounded_corners all-true with the WidgetHost-default 12.0 radius.
         Some((12.0, (true, true, true, true)))
     }
 

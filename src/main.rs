@@ -1,6 +1,6 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    Toggle, Element, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar, 
+    Toggle, WidgetHost, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar, 
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
 mod ti_widgets;
@@ -18,7 +18,7 @@ enum Page {
 
 
 /// The gallery roster, concretely typed (Phase 6bb): 53 named slots replacing the erased
-/// `Vec<Box<dyn Element>>`. The historical numeric indexes (positions vec, dispatch loops,
+/// `Vec<Box<dyn WidgetHost>>`. The historical numeric indexes (positions vec, dispatch loops,
 /// page layouts) keep addressing the same slots through `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
     pub menu_bar: Adapted<MenuBar>,
@@ -79,7 +79,7 @@ pub struct GallerySlots {
 pub const GALLERY_COUNT: usize = 53;
 
 impl GallerySlots {
-    pub fn get_dyn(&self, idx: usize) -> &(dyn Element + 'static) {
+    pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match idx {
             0 => &self.menu_bar,
             1 => &self.paginator,
@@ -138,7 +138,7 @@ impl GallerySlots {
         }
     }
 
-    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn Element + 'static) {
+    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
         match idx {
             0 => &mut self.menu_bar,
             1 => &mut self.paginator,
@@ -232,7 +232,7 @@ pub struct ChildSlots {
 pub const CHILD_COUNT: usize = 5;
 
 impl ChildSlots {
-    pub fn get_dyn(&self, idx: usize) -> &(dyn Element + 'static) {
+    pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match idx {
             0 => match &self.bg {
                 ChildBg::Backplate(w) => w,
@@ -256,7 +256,7 @@ impl ChildSlots {
         }
     }
 
-    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn Element + 'static) {
+    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
         match idx {
             0 => match &mut self.bg {
                 ChildBg::Backplate(w) => w,
@@ -296,14 +296,14 @@ impl Roster {
         }
     }
 
-    pub fn get_dyn(&self, idx: usize) -> &(dyn Element + 'static) {
+    pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match self {
             Roster::Gallery(s) => s.get_dyn(idx),
             Roster::Child(s) => s.get_dyn(idx),
         }
     }
 
-    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn Element + 'static) {
+    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
         match self {
             Roster::Gallery(s) => s.get_dyn_mut(idx),
             Roster::Child(s) => s.get_dyn_mut(idx),
@@ -887,7 +887,7 @@ cascades in cce."
         };
 
         if !is_child {
-            let child_ptrs: Vec<*mut (dyn Element + 'static)> = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48]
+            let child_ptrs: Vec<*mut (dyn WidgetHost + 'static)> = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48]
                 .iter()
                 .map(|&idx| state.roster.get_dyn_mut(idx).as_ptr_mut())
                 .collect();
