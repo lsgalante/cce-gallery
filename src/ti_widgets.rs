@@ -55,14 +55,10 @@ impl ControlPanel {
         unsafe {
             for child_ptr in &self.children {
                 let child = &mut **child_ptr;
-                let old_y = child.base().map(|b| b.y).unwrap_or(0.0);
-                if let Some(b) = child.base_mut() {
-                    b.y = old_y - scroll_y;
-                }
+                let old_y = child.base().y;
+                child.base_mut().y = old_y - scroll_y;
                 let res = child.popover_rect();
-                if let Some(b) = child.base_mut() {
-                    b.y = old_y;
-                }
+                child.base_mut().y = old_y;
                 if res.is_some() {
                     return res;
                 }
@@ -318,7 +314,7 @@ impl cce_ui::widget::Layout for ControlPanel {
 
             for &child_ptr in &self.children {
                 let child = &mut *child_ptr;
-                let label = child.base().and_then(|b| b.label.as_ref()).map(|s| s.as_str()).unwrap_or("");
+                let label = child.base().label.as_ref().map(|s| s.as_str()).unwrap_or("");
                 match label {
                     "Create Window" => create_btn = Some(child_ptr),
                     "Tile Windows" => tile_btn = Some(child_ptr),
@@ -340,7 +336,7 @@ impl cce_ui::widget::Layout for ControlPanel {
                     "Bevel Depth" => bevel_depth_spin = Some(child_ptr),
                     "Bevel Shape..." => bevel_shape_btn = Some(child_ptr),
                     _ => {
-                        if child.base().is_some() && child.base().unwrap().label.is_none() {
+                        if child.base().label.is_none() {
                             slider = Some(child_ptr);
                         }
                     }
@@ -473,14 +469,10 @@ impl cce_ui::widget::Paint for ControlPanel {
             for child_ptr in &self.children {
                 if (**child_ptr).popover_rect().is_some() {
                     let child = &mut **child_ptr;
-                    let old_y = child.base().map(|b| b.y).unwrap_or(0.0);
-                    if let Some(b) = child.base_mut() {
-                        b.y = old_y - scroll_y;
-                    }
+                    let old_y = child.base().y;
+                    child.base_mut().y = old_y - scroll_y;
                     child.render_popover(pc);
-                    if let Some(b) = child.base_mut() {
-                        b.y = old_y;
-                    }
+                    child.base_mut().y = old_y;
                 }
             }
         }
