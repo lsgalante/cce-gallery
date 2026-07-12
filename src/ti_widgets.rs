@@ -40,7 +40,6 @@ impl ControlPanel {
 
     pub fn add_child(&mut self, child: *mut (dyn Element + 'static)) {
         self.children.push(child);
-        self.scroll_box.children.push(child);
     }
 
     /// The laid-out rect, mirrored from the adapter by `Layout::rect_assigned`.
