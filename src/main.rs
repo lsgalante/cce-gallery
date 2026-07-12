@@ -5,6 +5,7 @@ use cce_ui::widget::{
 };
 mod ti_widgets;
 use ti_widgets::{Backplate, ControlPanel, Plate, SectionContainer};
+use cce_ui::widget::Adapted;
 use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition};
 use wayland_client::QueueHandle;
 
@@ -15,8 +16,318 @@ enum Page {
     Xdg,
 }
 
+
+/// The gallery roster, concretely typed (Phase 6bb): 53 named slots replacing the erased
+/// `Vec<Box<dyn Element>>`. The historical numeric indexes (positions vec, dispatch loops,
+/// page layouts) keep addressing the same slots through `get_dyn`/`get_dyn_mut`.
+pub struct GallerySlots {
+    pub menu_bar: Adapted<MenuBar>,
+    pub paginator: Adapted<Paginator>,
+    pub status_bar: Adapted<StatusBar>,
+    pub button_demo: Adapted<Button>,
+    pub label4: Adapted<Label>,
+    pub label5: Adapted<Label>,
+    pub label6: Adapted<Label>,
+    pub label7: Adapted<Label>,
+    pub label8: Adapted<Label>,
+    pub checkbox_demo: Adapted<Checkbox>,
+    pub toggle_demo: Adapted<Toggle>,
+    pub progress_demo: Adapted<ProgressBar>,
+    pub slider_demo: Adapted<Slider>,
+    pub spinbox_demo: Adapted<Spinbox>,
+    pub panel_demo: Adapted<Panel>,
+    pub create_window_btn: Adapted<Button>,
+    pub tile_windows_btn: Adapted<Button>,
+    pub opacity_toggle: Adapted<Toggle>,
+    pub label18: Adapted<Label>,
+    pub transparency_slider: Adapted<Slider>,
+    pub transparency_label: Adapted<Label>,
+    pub window_type_dd: Adapted<Dropdown>,
+    pub window_shape_dd: Adapted<Dropdown>,
+    pub enable_toggle: Adapted<Toggle>,
+    pub label24: Adapted<Label>,
+    pub width_spin: Adapted<Spinbox>,
+    pub height_spin: Adapted<Spinbox>,
+    pub surface_plate: Adapted<Plate>,
+    pub surface_info_label: Adapted<Label>,
+    pub surface_desc_label: Adapted<Label>,
+    pub range_slider_demo: Adapted<RangeSlider>,
+    pub trackpad_demo: Adapted<Trackpad>,
+    pub portal_panel: Adapted<Panel>,
+    pub portal_label: Adapted<Label>,
+    pub open_dialog_btn: Adapted<Button>,
+    pub save_dialog_btn: Adapted<Button>,
+    pub textbox_demo: Adapted<TextBox>,
+    pub plate_demo: Adapted<Plate>,
+    pub backplate_toggle: Adapted<Toggle>,
+    pub menubar_toggle: Adapted<Toggle>,
+    pub statusbar_toggle: Adapted<Toggle>,
+    pub border_section: Adapted<SectionContainer>,
+    pub bevel_toggle: Adapted<Toggle>,
+    pub border_width_spin: Adapted<Spinbox>,
+    pub bevel_depth_spin: Adapted<Spinbox>,
+    pub elements_section: Adapted<SectionContainer>,
+    pub page_selector: Adapted<Dropdown>,
+    pub color_ramp_btn: Adapted<Button>,
+    pub bevel_shape_btn: Adapted<Button>,
+    pub bevel_ramp: Adapted<Ramp>,
+    pub ramp_btn: Adapted<Button>,
+    pub control_panel: Adapted<ControlPanel>,
+    pub layout_dd: Adapted<Dropdown>,
+}
+
+pub const GALLERY_COUNT: usize = 53;
+
+impl GallerySlots {
+    pub fn get_dyn(&self, idx: usize) -> &(dyn Element + 'static) {
+        match idx {
+            0 => &self.menu_bar,
+            1 => &self.paginator,
+            2 => &self.status_bar,
+            3 => &self.button_demo,
+            4 => &self.label4,
+            5 => &self.label5,
+            6 => &self.label6,
+            7 => &self.label7,
+            8 => &self.label8,
+            9 => &self.checkbox_demo,
+            10 => &self.toggle_demo,
+            11 => &self.progress_demo,
+            12 => &self.slider_demo,
+            13 => &self.spinbox_demo,
+            14 => &self.panel_demo,
+            15 => &self.create_window_btn,
+            16 => &self.tile_windows_btn,
+            17 => &self.opacity_toggle,
+            18 => &self.label18,
+            19 => &self.transparency_slider,
+            20 => &self.transparency_label,
+            21 => &self.window_type_dd,
+            22 => &self.window_shape_dd,
+            23 => &self.enable_toggle,
+            24 => &self.label24,
+            25 => &self.width_spin,
+            26 => &self.height_spin,
+            27 => &self.surface_plate,
+            28 => &self.surface_info_label,
+            29 => &self.surface_desc_label,
+            30 => &self.range_slider_demo,
+            31 => &self.trackpad_demo,
+            32 => &self.portal_panel,
+            33 => &self.portal_label,
+            34 => &self.open_dialog_btn,
+            35 => &self.save_dialog_btn,
+            36 => &self.textbox_demo,
+            37 => &self.plate_demo,
+            38 => &self.backplate_toggle,
+            39 => &self.menubar_toggle,
+            40 => &self.statusbar_toggle,
+            41 => &self.border_section,
+            42 => &self.bevel_toggle,
+            43 => &self.border_width_spin,
+            44 => &self.bevel_depth_spin,
+            45 => &self.elements_section,
+            46 => &self.page_selector,
+            47 => &self.color_ramp_btn,
+            48 => &self.bevel_shape_btn,
+            49 => &self.bevel_ramp,
+            50 => &self.ramp_btn,
+            51 => &self.control_panel,
+            52 => &self.layout_dd,
+            _ => panic!("gallery slot index out of range: {idx}"),
+        }
+    }
+
+    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn Element + 'static) {
+        match idx {
+            0 => &mut self.menu_bar,
+            1 => &mut self.paginator,
+            2 => &mut self.status_bar,
+            3 => &mut self.button_demo,
+            4 => &mut self.label4,
+            5 => &mut self.label5,
+            6 => &mut self.label6,
+            7 => &mut self.label7,
+            8 => &mut self.label8,
+            9 => &mut self.checkbox_demo,
+            10 => &mut self.toggle_demo,
+            11 => &mut self.progress_demo,
+            12 => &mut self.slider_demo,
+            13 => &mut self.spinbox_demo,
+            14 => &mut self.panel_demo,
+            15 => &mut self.create_window_btn,
+            16 => &mut self.tile_windows_btn,
+            17 => &mut self.opacity_toggle,
+            18 => &mut self.label18,
+            19 => &mut self.transparency_slider,
+            20 => &mut self.transparency_label,
+            21 => &mut self.window_type_dd,
+            22 => &mut self.window_shape_dd,
+            23 => &mut self.enable_toggle,
+            24 => &mut self.label24,
+            25 => &mut self.width_spin,
+            26 => &mut self.height_spin,
+            27 => &mut self.surface_plate,
+            28 => &mut self.surface_info_label,
+            29 => &mut self.surface_desc_label,
+            30 => &mut self.range_slider_demo,
+            31 => &mut self.trackpad_demo,
+            32 => &mut self.portal_panel,
+            33 => &mut self.portal_label,
+            34 => &mut self.open_dialog_btn,
+            35 => &mut self.save_dialog_btn,
+            36 => &mut self.textbox_demo,
+            37 => &mut self.plate_demo,
+            38 => &mut self.backplate_toggle,
+            39 => &mut self.menubar_toggle,
+            40 => &mut self.statusbar_toggle,
+            41 => &mut self.border_section,
+            42 => &mut self.bevel_toggle,
+            43 => &mut self.border_width_spin,
+            44 => &mut self.bevel_depth_spin,
+            45 => &mut self.elements_section,
+            46 => &mut self.page_selector,
+            47 => &mut self.color_ramp_btn,
+            48 => &mut self.bevel_shape_btn,
+            49 => &mut self.bevel_ramp,
+            50 => &mut self.ramp_btn,
+            51 => &mut self.control_panel,
+            52 => &mut self.layout_dd,
+            _ => panic!("gallery slot index out of range: {idx}"),
+        }
+    }
+}
+
+/// Child-window slots: the background and three of the five slots vary by runtime flags
+/// (`--type`, `--backplate`), so those are typed enums rather than fields.
+pub enum ChildBg {
+    Backplate(Adapted<Backplate>),
+    ContentBg(Adapted<ContentBg>),
+}
+
+pub enum ChildMain {
+    ColorRamp(Adapted<ColorRamp>),
+    Ramp(Adapted<Ramp>),
+    Desc(Adapted<Label>),
+}
+
+pub enum ChildAux3 {
+    Label(Adapted<Label>),
+    MenuBar(Adapted<MenuBar>),
+}
+
+pub enum ChildAux4 {
+    Label(Adapted<Label>),
+    StatusBar(Adapted<StatusBar>),
+}
+
+pub struct ChildSlots {
+    pub bg: ChildBg,
+    pub main: ChildMain,
+    pub close: Adapted<Button>,
+    pub aux3: ChildAux3,
+    pub aux4: ChildAux4,
+}
+
+pub const CHILD_COUNT: usize = 5;
+
+impl ChildSlots {
+    pub fn get_dyn(&self, idx: usize) -> &(dyn Element + 'static) {
+        match idx {
+            0 => match &self.bg {
+                ChildBg::Backplate(w) => w,
+                ChildBg::ContentBg(w) => w,
+            },
+            1 => match &self.main {
+                ChildMain::ColorRamp(w) => w,
+                ChildMain::Ramp(w) => w,
+                ChildMain::Desc(w) => w,
+            },
+            2 => &self.close,
+            3 => match &self.aux3 {
+                ChildAux3::Label(w) => w,
+                ChildAux3::MenuBar(w) => w,
+            },
+            4 => match &self.aux4 {
+                ChildAux4::Label(w) => w,
+                ChildAux4::StatusBar(w) => w,
+            },
+            _ => panic!("child slot index out of range: {idx}"),
+        }
+    }
+
+    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn Element + 'static) {
+        match idx {
+            0 => match &mut self.bg {
+                ChildBg::Backplate(w) => w,
+                ChildBg::ContentBg(w) => w,
+            },
+            1 => match &mut self.main {
+                ChildMain::ColorRamp(w) => w,
+                ChildMain::Ramp(w) => w,
+                ChildMain::Desc(w) => w,
+            },
+            2 => &mut self.close,
+            3 => match &mut self.aux3 {
+                ChildAux3::Label(w) => w,
+                ChildAux3::MenuBar(w) => w,
+            },
+            4 => match &mut self.aux4 {
+                ChildAux4::Label(w) => w,
+                ChildAux4::StatusBar(w) => w,
+            },
+            _ => panic!("child slot index out of range: {idx}"),
+        }
+    }
+}
+
+/// The two roster modes. Boxed slot structs keep registered widget pointers stable while
+/// the containing `State` moves.
+pub enum Roster {
+    Gallery(Box<GallerySlots>),
+    Child(Box<ChildSlots>),
+}
+
+impl Roster {
+    pub fn len(&self) -> usize {
+        match self {
+            Roster::Gallery(_) => GALLERY_COUNT,
+            Roster::Child(_) => CHILD_COUNT,
+        }
+    }
+
+    pub fn get_dyn(&self, idx: usize) -> &(dyn Element + 'static) {
+        match self {
+            Roster::Gallery(s) => s.get_dyn(idx),
+            Roster::Child(s) => s.get_dyn(idx),
+        }
+    }
+
+    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn Element + 'static) {
+        match self {
+            Roster::Gallery(s) => s.get_dyn_mut(idx),
+            Roster::Child(s) => s.get_dyn_mut(idx),
+        }
+    }
+
+    /// The gallery slots; panics in child mode (gallery-only paths assert their mode).
+    pub fn gallery(&self) -> &GallerySlots {
+        match self {
+            Roster::Gallery(s) => s,
+            Roster::Child(_) => panic!("gallery slots requested in child mode"),
+        }
+    }
+
+    pub fn gallery_mut(&mut self) -> &mut GallerySlots {
+        match self {
+            Roster::Gallery(s) => s,
+            Roster::Child(_) => panic!("gallery slots requested in child mode"),
+        }
+    }
+}
+
 struct State {
-    widgets: Vec<Box<dyn Element>>,
+    roster: Roster,
     positions: Vec<(f32, f32, f32, f32)>,
 
     status_text: String,
@@ -237,7 +548,8 @@ impl State {
         for i in 0..self.positions.len() {
             let visible = self.is_widget_visible(i);
             let pos = self.positions[i];
-            if let Some(widget) = self.widgets.get_mut(i) {
+            if i < self.roster.len() {
+                let widget = self.roster.get_dyn_mut(i);
                 if widget.is_dragging() {
                     continue;
                 }
@@ -271,16 +583,16 @@ impl State {
         
         if !self.is_child {
             let (x, y, w, h) = self.positions[51];
-            self.widgets[51].set_rect(x, y, w, h);
+            self.roster.get_dyn_mut(51).set_rect(x, y, w, h);
 
-            let sb_rect = self.widgets[2].rect();
+            let sb_rect = self.roster.get_dyn_mut(2).rect();
             let ddh = cce_ui::layout::dropdown_height();
             let pad_x = 10.0;
             let pad_y = (sb_rect.3 - ddh) / 2.0;
             let dw = 120.0;
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
-            self.widgets[46].set_rect(dx, dy, dw, ddh);
+            self.roster.get_dyn_mut(46).set_rect(dx, dy, dw, ddh);
         }
     }
 
@@ -356,7 +668,7 @@ impl cce_ui::engine::Application for State {
         let opacity = opacity || is_ramp_child;
         let status_text = "Select a test case to begin verification.".to_string();
 
-        let widgets: Vec<Box<dyn Element>> = if is_child {
+        let roster = if is_child {
             let desc_label = match child_type.as_deref() {
                 Some("Toplevel") => "This is an active simulated Toplevel window.".to_string(),
                 Some("Popup") => "This is an active simulated Popup window.".to_string(),
@@ -366,27 +678,24 @@ impl cce_ui::engine::Application for State {
                 Some(other) => format!("This is an active simulated {} window.", other),
                 None => "This is an active simulated window in the window manager.".to_string(),
             };
-            let bg: Box<dyn Element> = if use_backplate {
+            let bg = if use_backplate {
                 let mut bp = Backplate::new(0.0, 0.0, c_w, c_h);
                 if border_bevel {
                     bp.set_bevel(border_width);
                 }
-                Box::new(bp)
+                ChildBg::Backplate(bp)
             } else {
-                Box::new(ContentBg::new())
+                ChildBg::ContentBg(ContentBg::new())
             };
-            if child_type.as_deref() == Some("ColorRamp") {
-                vec![
-                    bg,
-                    Box::new(ColorRamp::new()),
-                    Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")),
-                    Box::new(Label::new("").with_font_size(12.0)),
-                    Box::new(Label::new("").with_font_size(12.0)),
-                ]
+            let (main, aux3, aux4) = if child_type.as_deref() == Some("ColorRamp") {
+                (
+                    ChildMain::ColorRamp(ColorRamp::new()),
+                    ChildAux3::Label(Label::new("").with_font_size(12.0)),
+                    ChildAux4::Label(Label::new("").with_font_size(12.0)),
+                )
             } else if child_type.as_deref() == Some("Ramp") {
-                vec![
-                    bg,
-                    Box::new({
+                (
+                    ChildMain::Ramp({
                         let mut ramp = Ramp::new();
                         let (loaded_keys, loaded_type) = load_bevel_ramp();
                         ramp.keys = loaded_keys;
@@ -396,79 +705,80 @@ impl cce_ui::engine::Application for State {
                         };
                         ramp
                     }),
-                    Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")),
-                    Box::new(Label::new("").with_font_size(12.0)),
-                    Box::new(Label::new("").with_font_size(12.0)),
-                ]
+                    ChildAux3::Label(Label::new("").with_font_size(12.0)),
+                    ChildAux4::Label(Label::new("").with_font_size(12.0)),
+                )
             } else {
                 let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
                     .with_item("File", &["New", "Open", "Save", "Exit"])
                     .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"])
                     .with_right_aligned_title(true);
-
-                vec![
-                    bg,
-                    Box::new(Label::new(&desc_label).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])),
-                    Box::new(Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close")),
-                    Box::new(menu_bar),
-                    Box::new(StatusBar::new()),
-                ]
-            }
+                (
+                    ChildMain::Desc(Label::new(&desc_label).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])),
+                    ChildAux3::MenuBar(menu_bar),
+                    ChildAux4::StatusBar(StatusBar::new()),
+                )
+            };
+            Roster::Child(Box::new(ChildSlots {
+                bg,
+                main,
+                close: Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close"),
+                aux3,
+                aux4,
+            }))
         } else {
             let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
                 .with_item("File", &["Exit"])
                 .with_item("Edit", &["Settings"])
                 .with_item("Help", &["About"])
                 .with_right_aligned_title(true);
-            vec![
-                Box::new(menu_bar), // 0
-                {
+            Roster::Gallery(Box::new(GallerySlots {
+                menu_bar: menu_bar,
+                paginator: {
                     let paginator = Paginator::new(vec![]);
-                    Box::new(paginator)
-                }, // 1
-                Box::new(StatusBar::new()), // 2
-                
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Button")), // 3
-                Box::new(Label::new("").with_font_size(12.0)), // 4
-                Box::new(Label::new("").with_font_size(12.0)), // 5
-                Box::new(Label::new("").with_font_size(12.0)), // 6
-                Box::new(Label::new("").with_font_size(12.0)), // 7
-                Box::new(Label::new("").with_font_size(12.0)), // 8
-                Box::new(Checkbox::new().with_label("Checkbox")), // 9
-                Box::new(Toggle::new().with_label("Toggle")), // 10
-                Box::new(ProgressBar::new(0.43).with_label("ProgressBar")), // 11
-                Box::new(Slider::new().with_label("Slider")), // 12
-                Box::new(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")), // 13
-
-                Box::new(Panel::new(0.0, 0.0, 400.0, 250.0)), // 14
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Create Window")), // 15
-                Box::new(Button::new(0.0, 0.0, 140.0, 40.0).with_label("Tile Windows")), // 16
-                Box::new(Toggle::new().with_label("Opacity")), // 17
-                Box::new(Label::new("").with_font_size(12.0)), // 18
-                Box::new(Slider::new()), // 19
-                Box::new(Label::new("Transparency Level").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 20
-                Box::new(Dropdown::new(vec![
+                    paginator
+                },
+                status_bar: StatusBar::new(),
+                button_demo: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Button"),
+                label4: Label::new("").with_font_size(12.0),
+                label5: Label::new("").with_font_size(12.0),
+                label6: Label::new("").with_font_size(12.0),
+                label7: Label::new("").with_font_size(12.0),
+                label8: Label::new("").with_font_size(12.0),
+                checkbox_demo: Checkbox::new().with_label("Checkbox"),
+                toggle_demo: Toggle::new().with_label("Toggle"),
+                progress_demo: ProgressBar::new(0.43).with_label("ProgressBar"),
+                slider_demo: Slider::new().with_label("Slider"),
+                spinbox_demo: Spinbox::new(10, 1, 100, 5).with_label("Spinbox"),
+                panel_demo: Panel::new(0.0, 0.0, 400.0, 250.0),
+                create_window_btn: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Create Window"),
+                tile_windows_btn: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Tile Windows"),
+                opacity_toggle: Toggle::new().with_label("Opacity"),
+                label18: Label::new("").with_font_size(12.0),
+                transparency_slider: Slider::new(),
+                transparency_label: Label::new("Transparency Level").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
+                window_type_dd: Dropdown::new(vec![
                     "Toplevel".to_string(),
                     "Popup".to_string(),
                     "Layer: Top".to_string(),
                     "Layer: Overlay".to_string(),
                     "Layer: Background".to_string(),
-                ], 0).with_label("Window Type")), // 21
-                Box::new(Dropdown::new(vec![
+                ], 0).with_label("Window Type"),
+                window_shape_dd: Dropdown::new(vec![
                     "Rectangular".to_string(),
                     "Circular".to_string(),
-                ], 0).with_label("Window Shape")), // 22
-                Box::new({
+                ], 0).with_label("Window Shape"),
+                enable_toggle: {
                     let mut t = Toggle::new().with_label("Enable");
                     t.set_toggled(true);
                     t
-                }), // 23
-                Box::new(Label::new("").with_font_size(12.0)), // 24
-                Box::new(Spinbox::new(400, 100, 2000, 10).with_label("Width")), // 25
-                Box::new(Spinbox::new(250, 100, 2000, 10).with_label("Height")), // 26
-                Box::new(Plate::new(0.0, 0.0, 190.0, 250.0, true)), // 27
-                Box::new(Label::new("Surface Info").with_font_size(12.0)), // 28
-                Box::new(Label::new(
+                },
+                label24: Label::new("").with_font_size(12.0),
+                width_spin: Spinbox::new(400, 100, 2000, 10).with_label("Width"),
+                height_spin: Spinbox::new(250, 100, 2000, 10).with_label("Height"),
+                surface_plate: Plate::new(0.0, 0.0, 190.0, 250.0, true),
+                surface_info_label: Label::new("Surface Info").with_font_size(12.0),
+                surface_desc_label: Label::new(
                     "A standard application\n\
 window (xdg_toplevel).\n\
 It supports tiling (cascade,\n\
@@ -476,50 +786,49 @@ split, grid), fullscreening,\n\
 dragging, and resizing.\n\n\
 Testing layout:\n\
 cascades in cce."
-                ).with_font_size(10.0)), // 29
-                Box::new(RangeSlider::new().with_label("RangeSlider")), // 30
-                Box::new(Trackpad::new().with_label("Trackpad")), // 31
-                Box::new(Panel::new(0.0, 0.0, 450.0, 200.0).with_label("XDG Desktop Portal FileChooser")), // 32
-                Box::new(Label::new("This page verifies the integration of the XDG Desktop Portal\nFile Chooser in the Clear environment.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])), // 33
-                Box::new(Button::new(0.0, 0.0, 180.0, 40.0).with_label("Open File Dialog")), // 34
-                Box::new(Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File Dialog")), // 35
-                
-                Box::new(TextBox::new("Interactive TextBox".to_string())), // 36
-                Box::new(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")), // 37
-                Box::new({
+                ).with_font_size(10.0),
+                range_slider_demo: RangeSlider::new().with_label("RangeSlider"),
+                trackpad_demo: Trackpad::new().with_label("Trackpad"),
+                portal_panel: Panel::new(0.0, 0.0, 450.0, 200.0).with_label("XDG Desktop Portal FileChooser"),
+                portal_label: Label::new("This page verifies the integration of the XDG Desktop Portal\nFile Chooser in the Clear environment.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
+                open_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Open File Dialog"),
+                save_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File Dialog"),
+                textbox_demo: TextBox::new("Interactive TextBox".to_string()),
+                plate_demo: Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate"),
+                backplate_toggle: {
                     let mut t = Toggle::new().with_label("Backplate");
                     t.set_toggled(true);
                     t
-                }), // 38
-                Box::new({
+                },
+                menubar_toggle: {
                     let mut t = Toggle::new().with_label("MenuBar");
                     t.set_toggled(false);
                     t
-                }), // 39
-                Box::new({
+                },
+                statusbar_toggle: {
                     let mut t = Toggle::new().with_label("StatusBar");
                     t.set_toggled(false);
                     t
-                }), // 40
-                Box::new(SectionContainer::new("Border")), // 41
-                Box::new({
+                },
+                border_section: SectionContainer::new("Border"),
+                bevel_toggle: {
                     let mut t = Toggle::new().with_label("Bevel");
                     t.set_toggled(false);
                     t
-                }), // 42
-                Box::new(Spinbox::new(1, 1, 20, 1).with_label("Border Width")), // 43
-                Box::new({
+                },
+                border_width_spin: Spinbox::new(1, 1, 20, 1).with_label("Border Width"),
+                bevel_depth_spin: {
                     let default_depth = (cce_ui::layout::bevel_depth() * 100.0) as i32;
                     Spinbox::new(default_depth, 0, 100, 1).with_label("Bevel Depth")
-                }), // 44
-                Box::new(SectionContainer::new("Window Elements")), // 45
-                Box::new(Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true)), // 46
-                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Color Ramp...")), // 47
-                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Bevel Shape...")), // 48
-                Box::new(Ramp::new()), // 49
-                Box::new(Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp...")), // 50
-                Box::new(ControlPanel::new().with_label("ControlPanel")), // 51
-                Box::new(Dropdown::new(vec![
+                },
+                elements_section: SectionContainer::new("Window Elements"),
+                page_selector: Dropdown::new(vec!["Controls".to_string(), "Windows".to_string(), "XDG".to_string()], 0).with_open_upward(true),
+                color_ramp_btn: Button::new(0.0, 0.0, 120.0, 28.0).with_label("Color Ramp..."),
+                bevel_shape_btn: Button::new(0.0, 0.0, 120.0, 28.0).with_label("Bevel Shape..."),
+                bevel_ramp: Ramp::new(),
+                ramp_btn: Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp..."),
+                control_panel: ControlPanel::new().with_label("ControlPanel"),
+                layout_dd: Dropdown::new(vec![
                     "Vertical".to_string(),
                     "Columns".to_string(),
                     "Grid".to_string(),
@@ -531,23 +840,23 @@ cascades in cce."
                     "Circular Pane".to_string(),
                     "Mosaic".to_string(),
                     "Reverse Mosaic".to_string(),
-                ], 9).with_label("Layout")), // 52
-            ]
+                ], 9).with_label("Layout"),
+            }))
         };
 
         let positions = if is_child {
             child_positions(c_w, c_h, use_backplate, use_menubar, use_statusbar, child_type.as_deref())
         } else {
             let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
-                widgets[1].as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
+                roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator"),
             );
-            demo_positions(c_w, c_h, sidebar_w, 9, &widgets)
+            demo_positions(c_w, c_h, sidebar_w, 9, roster.gallery())
         };
 
         let (loaded_keys, loaded_type) = load_bevel_ramp();
 
         let mut state = Self {
-            widgets,
+            roster,
             positions,
             status_text,
             drag_widget: None,
@@ -580,21 +889,21 @@ cascades in cce."
         if !is_child {
             let child_ptrs: Vec<*mut (dyn Element + 'static)> = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48]
                 .iter()
-                .map(|&idx| state.widgets[idx].as_ptr_mut())
+                .map(|&idx| state.roster.get_dyn_mut(idx).as_ptr_mut())
                 .collect();
-            let cp = state.widgets[51].as_any_mut().downcast_mut::<ControlPanel>().expect("widget 51 must be a ControlPanel");
+            let cp = state.roster.get_dyn_mut(51).as_any_mut().downcast_mut::<ControlPanel>().expect("widget 51 must be a ControlPanel");
             for ptr in child_ptrs {
                 cp.add_child(ptr);
             }
 
             // Set page selector (46) parent to StatusBar (2)
-            let statusbar_ptr = state.widgets[2].as_ptr_mut();
-            state.widgets[46].set_parent(Some(statusbar_ptr), &mut state.ui_context);
-            let dropdown_ptr = state.widgets[46].as_ptr_mut();
-            state.widgets[2].add_child(dropdown_ptr, &mut state.ui_context);
+            let statusbar_ptr = state.roster.get_dyn_mut(2).as_ptr_mut();
+            state.roster.get_dyn_mut(46).set_parent(Some(statusbar_ptr), &mut state.ui_context);
+            let dropdown_ptr = state.roster.get_dyn_mut(46).as_ptr_mut();
+            state.roster.get_dyn_mut(2).add_child(dropdown_ptr, &mut state.ui_context);
         } else {
             state.focused_widget = Some(1);
-            let ramp = state.widgets[1].as_any_mut().downcast_mut::<Ramp>().expect("child ramp widget");
+            let ramp = state.roster.get_dyn_mut(1).as_any_mut().downcast_mut::<Ramp>().expect("child ramp widget");
             let preset_ptr = ramp.preset_dropdown.as_ptr_mut();
             state.ui_context.set_focused_ptr(preset_ptr);
             unsafe {
@@ -701,7 +1010,8 @@ cascades in cce."
                 }
             }
         };
-        for (i, w) in self.widgets.iter_mut().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
             if is_visible(i) {
                 if is_control_panel_child(i) {
                     continue;
@@ -743,9 +1053,9 @@ cascades in cce."
                 child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
             } else {
                 let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
-                    self.widgets[1].as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
+                    self.roster.get_dyn_mut(1).as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
                 );
-                demo_positions(self.width, self.height, sidebar_w, self.layout_idx, &self.widgets)
+                demo_positions(self.width, self.height, sidebar_w, self.layout_idx, self.roster.gallery())
             };
             self.apply_layout();
             let text = self.status_text.clone();
@@ -772,7 +1082,8 @@ cascades in cce."
             }
         };
 
-        for (i, w) in self.widgets.iter().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -781,10 +1092,10 @@ cascades in cce."
             }
             if !self.is_child && i == 14 {
                 let r = cce_ui::color::backplate_corner_radius();
-                let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
-                let border_bevel = self.widgets[42].get_value_string() == Some("true".to_string());
-                let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.widgets[19].value() as f32 / 100.0 } else { 1.0 };
+                let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
+                let border_bevel = self.roster.get_dyn(42).get_value_string() == Some("true".to_string());
+                let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.roster.get_dyn(19).value() as f32 / 100.0 } else { 1.0 };
                 let bg_color = if backplate_enabled {
                     let mut col = cce_ui::color::page_low_color();
                     col[3] = transparency_val;
@@ -796,7 +1107,7 @@ cascades in cce."
                 let (wx, wy, ww, wh) = w.rect();
                 if backplate_enabled {
                     if border_bevel {
-                        let t = self.widgets[43].value() as f32;
+                        let t = self.roster.get_dyn(43).value() as f32;
                         let r_inner = (r - t).max(0.0);
                         push_rounded(&mut pc, wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true));
                     } else {
@@ -804,7 +1115,7 @@ cascades in cce."
                     }
                 }
 
-                let menubar_enabled = self.widgets[39].get_value_string() == Some("true".to_string());
+                let menubar_enabled = self.roster.get_dyn(39).get_value_string() == Some("true".to_string());
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::backplate_menubar_color();
                     menu_color[3] = transparency_val;
@@ -815,7 +1126,7 @@ cascades in cce."
                     }
                 }
 
-                let statusbar_enabled = self.widgets[40].get_value_string() == Some("true".to_string());
+                let statusbar_enabled = self.roster.get_dyn(40).get_value_string() == Some("true".to_string());
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::backplate_statusbar_color();
                     status_color[3] = transparency_val;
@@ -842,7 +1153,8 @@ cascades in cce."
         }
 
         // ── Plain geometry (the legacy view() body) ──
-        for (i, w) in self.widgets.iter().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -850,9 +1162,9 @@ cascades in cce."
                 continue;
             }
             if !self.is_child && i == 14 {
-                let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
-                let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.widgets[19].value() as f32 / 100.0 } else { 1.0 };
+                let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
+                let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.roster.get_dyn(19).value() as f32 / 100.0 } else { 1.0 };
                 let bg_color = if backplate_enabled {
                     let mut col = cce_ui::color::page_low_color();
                     col[3] = transparency_val;
@@ -873,7 +1185,8 @@ cascades in cce."
 
         // ── Popovers: geometry then labels, in-frame, on top of everything ──
         let mut popover_pc = cce_ui::layout::PopoverCollector::new();
-        for (i, w) in self.widgets.iter().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -907,7 +1220,8 @@ cascades in cce."
             }
         };
         let mut has_menu_bar = false;
-        for w in &mut self.widgets {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
             if let Some(menu_bar) = w.as_any_mut().downcast_mut::<MenuBar>() {
                 menu_bar.title = label_text.clone();
                 has_menu_bar = true;
@@ -918,7 +1232,8 @@ cascades in cce."
         }
 
         let mut popover_rects = Vec::new();
-        for (i, w) in self.widgets.iter().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -935,7 +1250,8 @@ cascades in cce."
             false
         };
 
-        for (i, w) in self.widgets.iter().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -952,7 +1268,7 @@ cascades in cce."
                 continue;
             }
             let mut scratch = cce_ui::scene::paint::PaintCtx::new();
-            cce_ui::scene::painter::append_widget_text(&self.ui_context, w.as_ref(), &mut scratch);
+            cce_ui::scene::painter::append_widget_text(&self.ui_context, w, &mut scratch);
             for item in scratch.finish().items {
                 if let cce_ui::scene::paint::Prim::Text { text, x, y, font_size, color, font, bounds, .. } = item.prim {
                     if in_any_popover(x, y) {
@@ -1010,7 +1326,8 @@ cascades in cce."
         let sw = size.width as f32;
         let sh = size.height as f32;
 
-        for (i, w) in self.widgets.iter().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -1019,11 +1336,11 @@ cascades in cce."
             }
 
             if !self.is_child && i == 14 {
-                let border_enabled = self.widgets[23].get_value_string() == Some("true".to_string());
+                let border_enabled = self.roster.get_dyn(23).get_value_string() == Some("true".to_string());
                 if border_enabled {
-                    let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
-                    let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
-                    let transparency_val = if opacity_enabled { self.widgets[19].value() as f32 / 100.0 } else { 1.0 };
+                    let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
+                    let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
+                    let transparency_val = if opacity_enabled { self.roster.get_dyn(19).value() as f32 / 100.0 } else { 1.0 };
                     let bg_color = if backplate_enabled {
                         let mut col = cce_ui::color::page_low_color();
                         col[3] = transparency_val;
@@ -1034,8 +1351,8 @@ cascades in cce."
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
-                    let t = self.widgets[43].value() as f32;
-                    let border_bevel = self.widgets[42].get_value_string() == Some("true".to_string());
+                    let t = self.roster.get_dyn(43).value() as f32;
+                    let border_bevel = self.roster.get_dyn(42).get_value_string() == Some("true".to_string());
                     let r = cce_ui::color::backplate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
                     
@@ -1052,7 +1369,7 @@ cascades in cce."
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
-                                let bevel_depth = self.widgets[44].value() as f32 / 100.0;
+                                let bevel_depth = self.roster.get_dyn(44).value() as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
                                 
                                  let rad = cce_ui::layout::light_source_position();
@@ -1136,7 +1453,7 @@ cascades in cce."
 
         let mut changed = false;
         if let Some(idx) = self.drag_widget {
-            if self.widgets[idx].drag_update(lx, ly) {
+            if self.roster.get_dyn_mut(idx).drag_update(lx, ly) {
                 changed = true;
             }
         }
@@ -1163,7 +1480,8 @@ cascades in cce."
                     }
                 }
             };
-            for (i, w) in self.widgets.iter_mut().enumerate() {
+            for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
                 if !is_visible(i) {
                     continue;
                 }
@@ -1211,14 +1529,14 @@ cascades in cce."
 
         if state == ElementState::Pressed {
             let mut clicked_idx = None;
-            for i in (0..self.widgets.len()).rev() {
+            for i in (0..self.roster.len()).rev() {
                 if !is_visible(i) {
                     continue;
                 }
                 if is_control_panel_child(i) {
                     continue;
                 }
-                if self.widgets[i].hit_test(lx, ly, &self.ui_context) {
+                if self.roster.get_dyn_mut(i).hit_test(lx, ly, &self.ui_context) {
                     clicked_idx = Some(i);
                     break;
                 }
@@ -1226,34 +1544,35 @@ cascades in cce."
             if button == MouseButton::Left {
                 if let Some(old) = self.focused_widget {
                     if Some(old) != clicked_idx {
-                        self.widgets[old].unfocus();
+                        self.roster.get_dyn_mut(old).unfocus();
                         self.focused_widget = None;
                     }
                 }
             }
             if let Some(i) = clicked_idx {
-                if self.widgets[i].mouse_input(button, state, lx, ly, &mut self.ui_context) {
+                if self.roster.get_dyn_mut(i).mouse_input(button, state, lx, ly, &mut self.ui_context) {
                     changed = true;
                 }
-                if button == MouseButton::Left && self.widgets[i].draggable() {
-                    self.widgets[i].drag_begin(lx, ly);
+                if button == MouseButton::Left && self.roster.get_dyn_mut(i).draggable() {
+                    self.roster.get_dyn_mut(i).drag_begin(lx, ly);
                     self.drag_widget = Some(i);
                 }
                 if button == MouseButton::Left {
-                    self.widgets[i].focus();
+                    self.roster.get_dyn_mut(i).focus();
                     self.focused_widget = Some(i);
                 }
             }
         } else {
             if button == MouseButton::Left {
                 if let Some(idx) = self.drag_widget {
-                    self.widgets[idx].drag_end();
+                    self.roster.get_dyn_mut(idx).drag_end();
                     self.drag_widget = None;
                     changed = true;
                 }
             }
 
-            for (i, w) in self.widgets.iter_mut().enumerate() {
+            for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
                 if !is_visible(i) {
                     continue;
                 }
@@ -1267,14 +1586,14 @@ cascades in cce."
 
             if button == MouseButton::Left {
                 if self.is_child {
-                    if self.widgets[2].take_click() {
+                    if self.roster.get_dyn_mut(2).take_click() {
                         return Some("exit".to_string());
                     }
                 } else {
                     let mut page_changed = false;
                     let mut selected = 0;
-                    if self.widgets[46].take_click() {
-                        selected = self.widgets[46].value();
+                    if self.roster.get_dyn_mut(46).take_click() {
+                        selected = self.roster.get_dyn(46).value();
                         page_changed = true;
                     }
                     
@@ -1291,15 +1610,15 @@ cascades in cce."
                         }
                         self.apply_layout();
                         changed = true;
-                    } else if self.widgets[52].take_click() {
-                        self.layout_idx = self.widgets[52].value() as usize;
-                        self.positions = demo_positions(self.width, self.height, cce_ui::widget::PageSelector::sidebar_w(self.widgets[1].as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator")), self.layout_idx, &self.widgets);
+                    } else if self.roster.get_dyn_mut(52).take_click() {
+                        self.layout_idx = self.roster.get_dyn(52).value() as usize;
+                        self.positions = demo_positions(self.width, self.height, cce_ui::widget::PageSelector::sidebar_w(self.roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator")), self.layout_idx, self.roster.gallery());
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
-                        if self.widgets[3].take_click() {
+                        if self.roster.get_dyn_mut(3).take_click() {
                             // Does nothing
-                        } else if self.widgets[47].take_click() {
+                        } else if self.roster.get_dyn_mut(47).take_click() {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -1312,7 +1631,7 @@ cascades in cce."
                                    .arg("--backplate");
                                 let _ = cmd.spawn();
                             }
-                        } else if self.widgets[50].take_click() {
+                        } else if self.roster.get_dyn_mut(50).take_click() {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -1327,7 +1646,7 @@ cascades in cce."
                             }
                         } else {
                             for i in [9, 10, 12, 13, 30, 31, 36, 37] {
-                                if self.widgets[i].take_click() {
+                                if self.roster.get_dyn_mut(i).take_click() {
                                     changed = true;
                                 }
                             }
@@ -1336,11 +1655,11 @@ cascades in cce."
                         let mut create_window = false;
                         let mut tile_windows = false;
                         
-                        if self.widgets[15].take_click() {
+                        if self.roster.get_dyn_mut(15).take_click() {
                             create_window = true;
-                        } else if self.widgets[16].take_click() {
+                        } else if self.roster.get_dyn_mut(16).take_click() {
                             tile_windows = true;
-                        } else if self.widgets[48].take_click() {
+                        } else if self.roster.get_dyn_mut(48).take_click() {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -1356,13 +1675,13 @@ cascades in cce."
                         } else {
                             let mut dropdown_clicked = false;
                             for i in [17, 19, 21, 22, 23, 25, 26, 38, 39, 40, 42, 43, 44] {
-                                if self.widgets[i].take_click() {
+                                if self.roster.get_dyn_mut(i).take_click() {
                                     changed = true;
                                     if i == 21 {
                                         dropdown_clicked = true;
                                     }
                                     if i == 44 {
-                                        let depth = self.widgets[44].value() as f32 / 100.0;
+                                        let depth = self.roster.get_dyn(44).value() as f32 / 100.0;
                                         if let Ok(mut registry) = cce_ui::layout::get_style_registry().write() {
                                             registry.set_float("bevel_depth", depth);
                                         }
@@ -1370,7 +1689,7 @@ cascades in cce."
                                 }
                             }
                             if dropdown_clicked {
-                                let desc = match self.widgets[21].value() {
+                                let desc = match self.roster.get_dyn(21).value() {
                                     0 => "A standard application\n\
 window (xdg_toplevel).\n\
 It supports tiling (cascade,\n\
@@ -1408,12 +1727,12 @@ Testing layout:\n\
 full screen background.",
                                     _ => "",
                                 };
-                                self.widgets[29].set_text(desc);
+                                self.roster.get_dyn_mut(29).set_text(desc);
                             }
                         }
                         
                         if create_window {
-                            let window_type = match self.widgets[21].value() {
+                            let window_type = match self.roster.get_dyn(21).value() {
                                 0 => "Toplevel",
                                 1 => "Popup",
                                 2 => "LayerTop",
@@ -1421,17 +1740,17 @@ full screen background.",
                                 4 => "LayerBackground",
                                 _ => "Toplevel",
                             };
-                            let shape = match self.widgets[22].value() {
+                            let shape = match self.roster.get_dyn(22).value() {
                                 0 => "rectangular",
                                 1 => "circular",
                                 _ => "rectangular",
                             };
-                            let opacity_enabled = self.widgets[17].get_value_string() == Some("true".to_string());
-                            let transparency_pct = self.widgets[19].value();
+                            let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
+                            let transparency_pct = self.roster.get_dyn(19).value();
                             let transparency_val = transparency_pct as f32 / 100.0;
-                            let border_enabled = self.widgets[23].get_value_string() == Some("true".to_string());
-                            let custom_width = self.widgets[25].value();
-                            let custom_height = self.widgets[26].value();
+                            let border_enabled = self.roster.get_dyn(23).get_value_string() == Some("true".to_string());
+                            let custom_width = self.roster.get_dyn(25).value();
+                            let custom_height = self.roster.get_dyn(26).value();
      
                             self.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
                             if let Ok(exe) = std::env::current_exe() {
@@ -1441,9 +1760,9 @@ full screen background.",
                                    .arg(window_type)
                                    .arg("--shape")
                                    .arg(shape);
-                                let backplate_enabled = self.widgets[38].get_value_string() == Some("true".to_string());
-                                let menubar_enabled = self.widgets[39].get_value_string() == Some("true".to_string());
-                                let statusbar_enabled = self.widgets[40].get_value_string() == Some("true".to_string());
+                                let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
+                                let menubar_enabled = self.roster.get_dyn(39).get_value_string() == Some("true".to_string());
+                                let statusbar_enabled = self.roster.get_dyn(40).get_value_string() == Some("true".to_string());
                                 if opacity_enabled {
                                     cmd.arg("--opacity")
                                        .arg("--transparency")
@@ -1452,8 +1771,8 @@ full screen background.",
                                 if !border_enabled {
                                     cmd.arg("--no-border");
                                 } else {
-                                    let border_width = self.widgets[43].value() as f32;
-                                    let border_bevel = self.widgets[42].get_value_string() == Some("true".to_string());
+                                    let border_width = self.roster.get_dyn(43).value() as f32;
+                                    let border_bevel = self.roster.get_dyn(42).get_value_string() == Some("true".to_string());
                                     cmd.arg("--border-width")
                                        .arg(border_width.to_string());
                                     if border_bevel {
@@ -1483,9 +1802,9 @@ full screen background.",
                     } else if self.current_page == Page::Xdg {
                         let mut open_file = false;
                         let mut save_file = false;
-                        if self.widgets[34].take_click() {
+                        if self.roster.get_dyn_mut(34).take_click() {
                             open_file = true;
-                        } else if self.widgets[35].take_click() {
+                        } else if self.roster.get_dyn_mut(35).take_click() {
                             save_file = true;
                         }
  
@@ -1540,7 +1859,8 @@ full screen background.",
                 }
             }
         };
-        for (i, w) in self.widgets.iter_mut().enumerate() {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
             if !is_visible(i) {
                 continue;
             }
@@ -1582,14 +1902,15 @@ full screen background.",
         };
         let mut handled = false;
         if let Some(focused) = self.focused_widget {
-            if self.widgets[focused].keyboard_input(event, &mut self.ui_context) {
+            if self.roster.get_dyn_mut(focused).keyboard_input(event, &mut self.ui_context) {
                 changed = true;
                 handled = true;
             }
         }
 
         if !handled {
-            for (i, w) in self.widgets.iter_mut().enumerate() {
+            for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
                 if Some(i) == self.focused_widget {
                     continue;
                 }
@@ -1661,7 +1982,7 @@ full screen background.",
     }
 }
 
-fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: &[Box<dyn Element>]) -> Vec<(f32, f32, f32, f32)> {
+fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &GallerySlots) -> Vec<(f32, f32, f32, f32)> {
     let base_x = sidebar_w + 20.0;
     let sph = cce_ui::layout::spinbox_height();
     let tgh = cce_ui::layout::toggle_height();
@@ -1794,7 +2115,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, widgets: 
     }
 
     let label_off = |idx: usize| -> f32 {
-        cce_ui::widget::label_offset(widgets[idx].as_ref())
+        cce_ui::widget::label_offset(slots.get_dyn(idx))
     };
 
     let mut items: Vec<(usize, f32, f32, f32)> = vec![
