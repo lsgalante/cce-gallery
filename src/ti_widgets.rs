@@ -108,10 +108,11 @@ impl ControlPanel {
                         let visible_bottom = cy_bottom.min(y_end);
                         let visible_h = visible_bottom - visible_top;
                         if visible_h > 0.0 {
+                            let (child_r, child_corners) = child.corner_style();
                             let radii_adjusted = if visible_top > cy_top || visible_bottom < cy_bottom {
                                 0.0
                             } else {
-                                child.corner_radius()
+                                child_r
                             };
                             quads.push((
                                 cx,
@@ -120,7 +121,7 @@ impl ControlPanel {
                                 visible_h,
                                 radii_adjusted,
                                 b_color,
-                                child.rounded_corners(),
+                                child_corners,
                             ));
                         }
                     }
@@ -185,7 +186,7 @@ impl ControlPanel {
             for child_ptr in &self.children {
                 let child = &**child_ptr;
                 let (cx, cy, cw, ch) = child.rect();
-                let has_rounded = child.rounded_corners() != (false, false, false, false);
+                let has_rounded = child.corner_style().1 != (false, false, false, false);
                 let has_bg = child.color()[3].abs() > 0.001;
 
                 for (qx, qy, qw, qh, qc) in child.all_quads(&ctx_dummy) {
