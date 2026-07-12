@@ -282,15 +282,13 @@ impl cce_ui::widget::Layout for ControlPanel {
 
     // The old `set_rect` override's arrangement: children keep their label-matched slots
     // in a ColumnLayout, laid out UNSCROLLED; the scroll offset is an aggregate-time
-    // transform. `host` (the adapter) becomes the children's parent, as the legacy panel
-    // set itself.
-    fn arrange_children(&mut self, rect: Rect, host: *mut (dyn Element + 'static)) {
+    // transform. (The dummy-ctx child re-parenting onto the host adapter is gone,
+    // 6bd: every effect of it was discarded with the dummy ctx.)
+    fn arrange_children(&mut self, rect: Rect, _host: *mut (dyn Element + 'static)) {
         let (x, y, w, h) = (rect.x, rect.y, rect.width, rect.height);
 
         self.scroll_box.set_rect(x, y, w, h);
 
-        let mut dummy = cce_ui::context::UiContext::new();
-        let self_ptr_option = Some(host);
 
         let padding = cce_ui::layout::control_panel_padding();
         let gap = cce_ui::layout::control_panel_gap();
@@ -320,7 +318,6 @@ impl cce_ui::widget::Layout for ControlPanel {
 
             for &child_ptr in &self.children {
                 let child = &mut *child_ptr;
-                child.set_parent(self_ptr_option, &mut dummy);
                 let label = child.base().and_then(|b| b.label.as_ref()).map(|s| s.as_str()).unwrap_or("");
                 match label {
                     "Create Window" => create_btn = Some(child_ptr),

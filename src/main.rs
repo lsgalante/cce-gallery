@@ -896,11 +896,17 @@ cascades in cce."
                 cp.add_child(ptr);
             }
 
-            // Set page selector (46) parent to StatusBar (2)
+            // Link page selector (46) under StatusBar (2) — the old set_parent + add_child
+            // pair as the one tree link it always was (6bd batch 4).
             let statusbar_ptr = state.roster.get_dyn_mut(2).as_ptr_mut();
-            state.roster.get_dyn_mut(46).set_parent(Some(statusbar_ptr), &mut state.ui_context);
             let dropdown_ptr = state.roster.get_dyn_mut(46).as_ptr_mut();
-            state.roster.get_dyn_mut(2).add_child(dropdown_ptr, &mut state.ui_context);
+            unsafe {
+                cce_ui::widget::focus::link_parent_child(
+                    &mut *statusbar_ptr,
+                    &mut *dropdown_ptr,
+                    &mut state.ui_context,
+                );
+            }
         } else {
             state.focused_widget = Some(1);
             let ramp = state.roster.get_dyn_mut(1).as_any_mut().downcast_mut::<Ramp>().expect("child ramp widget");
