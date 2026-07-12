@@ -589,7 +589,7 @@ cascades in cce."
             state.widgets[2].add_child(dropdown_ptr, &mut state.ui_context);
         } else {
             state.focused_widget = Some(1);
-            let ramp = unsafe { &mut *(state.widgets[1].as_ptr_mut() as *mut Ramp) };
+            let ramp = state.widgets[1].as_any_mut().downcast_mut::<Ramp>().expect("child ramp widget");
             let preset_ptr = ramp.preset_dropdown.as_ptr_mut();
             state.ui_context.set_focused_ptr(preset_ptr);
             unsafe {
