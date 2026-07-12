@@ -1,8 +1,10 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    Toggle, Element, Trackpad, hover_animation, TextBox, Plate, CornerRadii, Backplate, MenuBar, SectionContainer,
-    Ramp, RampKey, ColorRamp, ControlPanel, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
+    Toggle, Element, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar, 
+    Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
+mod ti_widgets;
+use ti_widgets::{Backplate, ControlPanel, Plate, SectionContainer};
 use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition};
 use wayland_client::QueueHandle;
 
