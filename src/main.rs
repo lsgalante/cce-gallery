@@ -540,7 +540,9 @@ cascades in cce."
         let positions = if is_child {
             child_positions(c_w, c_h, use_backplate, use_menubar, use_statusbar, child_type.as_deref())
         } else {
-            let sidebar_w = widgets[1].as_page_selector().unwrap().sidebar_w();
+            let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
+                widgets[1].as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
+            );
             demo_positions(c_w, c_h, sidebar_w, 9, &widgets)
         };
 
@@ -739,7 +741,9 @@ cascades in cce."
             self.positions = if self.is_child {
                 child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
             } else {
-                let sidebar_w = self.widgets[1].as_page_selector().unwrap().sidebar_w();
+                let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
+                    self.widgets[1].as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
+                );
                 demo_positions(self.width, self.height, sidebar_w, self.layout_idx, &self.widgets)
             };
             self.apply_layout();
@@ -1288,7 +1292,7 @@ cascades in cce."
                         changed = true;
                     } else if self.widgets[52].take_click() {
                         self.layout_idx = self.widgets[52].value() as usize;
-                        self.positions = demo_positions(self.width, self.height, self.widgets[1].as_page_selector().unwrap().sidebar_w(), self.layout_idx, &self.widgets);
+                        self.positions = demo_positions(self.width, self.height, cce_ui::widget::PageSelector::sidebar_w(self.widgets[1].as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator")), self.layout_idx, &self.widgets);
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
