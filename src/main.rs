@@ -270,10 +270,8 @@ impl State {
         }
         
         if !self.is_child {
-            let cp_ptr = self.widgets[51].as_ptr_mut();
-            let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
             let (x, y, w, h) = self.positions[51];
-            cp.set_rect(x, y, w, h);
+            self.widgets[51].set_rect(x, y, w, h);
 
             let sb_rect = self.widgets[2].rect();
             let ddh = cce_ui::layout::dropdown_height();
@@ -369,9 +367,9 @@ impl cce_ui::engine::Application for State {
                 None => "This is an active simulated window in the window manager.".to_string(),
             };
             let bg: Box<dyn Element> = if use_backplate {
-                let mut bp = Backplate::new(0.0, 0.0, c_w, c_h).with_movable(false);
+                let mut bp = Backplate::new(0.0, 0.0, c_w, c_h);
                 if border_bevel {
-                    bp = bp.with_bevel(true, border_width);
+                    bp.set_bevel(border_width);
                 }
                 Box::new(bp)
             } else {
@@ -468,7 +466,7 @@ impl cce_ui::engine::Application for State {
                 Box::new(Label::new("").with_font_size(12.0)), // 24
                 Box::new(Spinbox::new(400, 100, 2000, 10).with_label("Width")), // 25
                 Box::new(Spinbox::new(250, 100, 2000, 10).with_label("Height")), // 26
-                Box::new(Plate::new(0.0, 0.0, 190.0, 250.0).with_blur(true)), // 27
+                Box::new(Plate::new(0.0, 0.0, 190.0, 250.0, true)), // 27
                 Box::new(Label::new("Surface Info").with_font_size(12.0)), // 28
                 Box::new(Label::new(
                     "A standard application\n\
@@ -487,7 +485,7 @@ cascades in cce."
                 Box::new(Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File Dialog")), // 35
                 
                 Box::new(TextBox::new("Interactive TextBox".to_string())), // 36
-                Box::new(Plate::new(0.0, 0.0, 120.0, 120.0).with_label("Plate").with_blur(true)), // 37
+                Box::new(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")), // 37
                 Box::new({
                     let mut t = Toggle::new().with_label("Backplate");
                     t.set_toggled(true);
@@ -580,10 +578,13 @@ cascades in cce."
         };
 
         if !is_child {
-            let cp_ptr = state.widgets[51].as_ptr_mut();
-            let cp = unsafe { &mut *(cp_ptr as *mut ControlPanel) };
-            for idx in [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48] {
-                cp.add_child(state.widgets[idx].as_ptr_mut());
+            let child_ptrs: Vec<*mut (dyn Element + 'static)> = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48]
+                .iter()
+                .map(|&idx| state.widgets[idx].as_ptr_mut())
+                .collect();
+            let cp = state.widgets[51].as_any_mut().downcast_mut::<ControlPanel>().expect("widget 51 must be a ControlPanel");
+            for ptr in child_ptrs {
+                cp.add_child(ptr);
             }
 
             // Set page selector (46) parent to StatusBar (2)
