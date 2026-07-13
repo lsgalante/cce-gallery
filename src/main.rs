@@ -324,6 +324,87 @@ impl Roster {
             Roster::Child(_) => panic!("gallery slots requested in child mode"),
         }
     }
+
+    // --- App-local value drains (6bd value shrink): the `WidgetHost` polling block
+    // (`take_click`/`value`/`get_value_string`/`set_text`) went concrete-slot — these
+    // route a gallery index to its concrete slot's inherent `Adapted` method. Arms exist
+    // only for the slots the page logic actually drains; a new drain site adds its arm.
+
+    pub fn take_click(&mut self, idx: usize) -> bool {
+        let s = self.gallery_mut();
+        match idx {
+            2 => s.status_bar.take_click(),
+            3 => s.button_demo.take_click(),
+            9 => s.checkbox_demo.take_click(),
+            10 => s.toggle_demo.take_click(),
+            12 => s.slider_demo.take_click(),
+            13 => s.spinbox_demo.take_click(),
+            15 => s.create_window_btn.take_click(),
+            16 => s.tile_windows_btn.take_click(),
+            17 => s.opacity_toggle.take_click(),
+            19 => s.transparency_slider.take_click(),
+            21 => s.window_type_dd.take_click(),
+            22 => s.window_shape_dd.take_click(),
+            23 => s.enable_toggle.take_click(),
+            25 => s.width_spin.take_click(),
+            26 => s.height_spin.take_click(),
+            30 => s.range_slider_demo.take_click(),
+            31 => s.trackpad_demo.take_click(),
+            34 => s.open_dialog_btn.take_click(),
+            35 => s.save_dialog_btn.take_click(),
+            36 => s.textbox_demo.take_click(),
+            37 => s.plate_demo.take_click(),
+            38 => s.backplate_toggle.take_click(),
+            39 => s.menubar_toggle.take_click(),
+            40 => s.statusbar_toggle.take_click(),
+            42 => s.bevel_toggle.take_click(),
+            43 => s.border_width_spin.take_click(),
+            44 => s.bevel_depth_spin.take_click(),
+            46 => s.page_selector.take_click(),
+            47 => s.color_ramp_btn.take_click(),
+            48 => s.bevel_shape_btn.take_click(),
+            50 => s.ramp_btn.take_click(),
+            52 => s.layout_dd.take_click(),
+            _ => panic!("take_click: unwired gallery slot {idx}"),
+        }
+    }
+
+    pub fn value(&self, idx: usize) -> i32 {
+        let s = self.gallery();
+        match idx {
+            19 => s.transparency_slider.value(),
+            21 => s.window_type_dd.value(),
+            22 => s.window_shape_dd.value(),
+            25 => s.width_spin.value(),
+            26 => s.height_spin.value(),
+            43 => s.border_width_spin.value(),
+            44 => s.bevel_depth_spin.value(),
+            46 => s.page_selector.value(),
+            52 => s.layout_dd.value(),
+            _ => panic!("value: unwired gallery slot {idx}"),
+        }
+    }
+
+    pub fn get_value_string(&self, idx: usize) -> Option<String> {
+        let s = self.gallery();
+        match idx {
+            17 => s.opacity_toggle.get_value_string(),
+            23 => s.enable_toggle.get_value_string(),
+            38 => s.backplate_toggle.get_value_string(),
+            39 => s.menubar_toggle.get_value_string(),
+            40 => s.statusbar_toggle.get_value_string(),
+            42 => s.bevel_toggle.get_value_string(),
+            _ => panic!("get_value_string: unwired gallery slot {idx}"),
+        }
+    }
+
+    pub fn set_text(&mut self, idx: usize, text: &str) {
+        let s = self.gallery_mut();
+        match idx {
+            29 => s.surface_desc_label.set_text(text),
+            _ => panic!("set_text: unwired gallery slot {idx}"),
+        }
+    }
 }
 
 struct State {
@@ -1096,10 +1177,10 @@ cascades in cce."
             }
             if !self.is_child && i == 14 {
                 let r = cce_ui::color::backplate_corner_radius();
-                let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
-                let border_bevel = self.roster.get_dyn(42).get_value_string() == Some("true".to_string());
-                let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.roster.get_dyn(19).value() as f32 / 100.0 } else { 1.0 };
+                let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
+                let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
+                let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.roster.value(19) as f32 / 100.0 } else { 1.0 };
                 let bg_color = if backplate_enabled {
                     let mut col = cce_ui::color::page_low_color();
                     col[3] = transparency_val;
@@ -1111,7 +1192,7 @@ cascades in cce."
                 let (wx, wy, ww, wh) = w.rect();
                 if backplate_enabled {
                     if border_bevel {
-                        let t = self.roster.get_dyn(43).value() as f32;
+                        let t = self.roster.value(43) as f32;
                         let r_inner = (r - t).max(0.0);
                         push_rounded(&mut pc, wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true));
                     } else {
@@ -1119,7 +1200,7 @@ cascades in cce."
                     }
                 }
 
-                let menubar_enabled = self.roster.get_dyn(39).get_value_string() == Some("true".to_string());
+                let menubar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::backplate_menubar_color();
                     menu_color[3] = transparency_val;
@@ -1130,7 +1211,7 @@ cascades in cce."
                     }
                 }
 
-                let statusbar_enabled = self.roster.get_dyn(40).get_value_string() == Some("true".to_string());
+                let statusbar_enabled = self.roster.get_value_string(40) == Some("true".to_string());
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::backplate_statusbar_color();
                     status_color[3] = transparency_val;
@@ -1166,9 +1247,9 @@ cascades in cce."
                 continue;
             }
             if !self.is_child && i == 14 {
-                let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
-                let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.roster.get_dyn(19).value() as f32 / 100.0 } else { 1.0 };
+                let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
+                let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.roster.value(19) as f32 / 100.0 } else { 1.0 };
                 let bg_color = if backplate_enabled {
                     let mut col = cce_ui::color::page_low_color();
                     col[3] = transparency_val;
@@ -1340,11 +1421,11 @@ cascades in cce."
             }
 
             if !self.is_child && i == 14 {
-                let border_enabled = self.roster.get_dyn(23).get_value_string() == Some("true".to_string());
+                let border_enabled = self.roster.get_value_string(23) == Some("true".to_string());
                 if border_enabled {
-                    let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
-                    let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
-                    let transparency_val = if opacity_enabled { self.roster.get_dyn(19).value() as f32 / 100.0 } else { 1.0 };
+                    let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
+                    let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
+                    let transparency_val = if opacity_enabled { self.roster.value(19) as f32 / 100.0 } else { 1.0 };
                     let bg_color = if backplate_enabled {
                         let mut col = cce_ui::color::page_low_color();
                         col[3] = transparency_val;
@@ -1355,8 +1436,8 @@ cascades in cce."
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
-                    let t = self.roster.get_dyn(43).value() as f32;
-                    let border_bevel = self.roster.get_dyn(42).get_value_string() == Some("true".to_string());
+                    let t = self.roster.value(43) as f32;
+                    let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
                     let r = cce_ui::color::backplate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
                     
@@ -1373,7 +1454,7 @@ cascades in cce."
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
-                                let bevel_depth = self.roster.get_dyn(44).value() as f32 / 100.0;
+                                let bevel_depth = self.roster.value(44) as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
                                 
                                  let rad = cce_ui::layout::light_source_position();
@@ -1597,14 +1678,14 @@ cascades in cce."
 
             if button == MouseButton::Left {
                 if self.is_child {
-                    if self.roster.get_dyn_mut(2).take_click() {
+                    if self.roster.take_click(2) {
                         return Some("exit".to_string());
                     }
                 } else {
                     let mut page_changed = false;
                     let mut selected = 0;
-                    if self.roster.get_dyn_mut(46).take_click() {
-                        selected = self.roster.get_dyn(46).value();
+                    if self.roster.take_click(46) {
+                        selected = self.roster.value(46);
                         page_changed = true;
                     }
                     
@@ -1621,15 +1702,15 @@ cascades in cce."
                         }
                         self.apply_layout();
                         changed = true;
-                    } else if self.roster.get_dyn_mut(52).take_click() {
-                        self.layout_idx = self.roster.get_dyn(52).value() as usize;
+                    } else if self.roster.take_click(52) {
+                        self.layout_idx = self.roster.value(52) as usize;
                         self.positions = demo_positions(self.width, self.height, cce_ui::widget::PageSelector::sidebar_w(self.roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator")), self.layout_idx, self.roster.gallery());
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
-                        if self.roster.get_dyn_mut(3).take_click() {
+                        if self.roster.take_click(3) {
                             // Does nothing
-                        } else if self.roster.get_dyn_mut(47).take_click() {
+                        } else if self.roster.take_click(47) {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -1642,7 +1723,7 @@ cascades in cce."
                                    .arg("--backplate");
                                 let _ = cmd.spawn();
                             }
-                        } else if self.roster.get_dyn_mut(50).take_click() {
+                        } else if self.roster.take_click(50) {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -1657,7 +1738,7 @@ cascades in cce."
                             }
                         } else {
                             for i in [9, 10, 12, 13, 30, 31, 36, 37] {
-                                if self.roster.get_dyn_mut(i).take_click() {
+                                if self.roster.take_click(i) {
                                     changed = true;
                                 }
                             }
@@ -1666,11 +1747,11 @@ cascades in cce."
                         let mut create_window = false;
                         let mut tile_windows = false;
                         
-                        if self.roster.get_dyn_mut(15).take_click() {
+                        if self.roster.take_click(15) {
                             create_window = true;
-                        } else if self.roster.get_dyn_mut(16).take_click() {
+                        } else if self.roster.take_click(16) {
                             tile_windows = true;
-                        } else if self.roster.get_dyn_mut(48).take_click() {
+                        } else if self.roster.take_click(48) {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -1686,13 +1767,13 @@ cascades in cce."
                         } else {
                             let mut dropdown_clicked = false;
                             for i in [17, 19, 21, 22, 23, 25, 26, 38, 39, 40, 42, 43, 44] {
-                                if self.roster.get_dyn_mut(i).take_click() {
+                                if self.roster.take_click(i) {
                                     changed = true;
                                     if i == 21 {
                                         dropdown_clicked = true;
                                     }
                                     if i == 44 {
-                                        let depth = self.roster.get_dyn(44).value() as f32 / 100.0;
+                                        let depth = self.roster.value(44) as f32 / 100.0;
                                         if let Ok(mut registry) = cce_ui::layout::get_style_registry().write() {
                                             registry.set_float("bevel_depth", depth);
                                         }
@@ -1700,7 +1781,7 @@ cascades in cce."
                                 }
                             }
                             if dropdown_clicked {
-                                let desc = match self.roster.get_dyn(21).value() {
+                                let desc = match self.roster.value(21) {
                                     0 => "A standard application\n\
 window (xdg_toplevel).\n\
 It supports tiling (cascade,\n\
@@ -1738,12 +1819,12 @@ Testing layout:\n\
 full screen background.",
                                     _ => "",
                                 };
-                                self.roster.get_dyn_mut(29).set_text(desc);
+                                self.roster.set_text(29, desc);
                             }
                         }
                         
                         if create_window {
-                            let window_type = match self.roster.get_dyn(21).value() {
+                            let window_type = match self.roster.value(21) {
                                 0 => "Toplevel",
                                 1 => "Popup",
                                 2 => "LayerTop",
@@ -1751,17 +1832,17 @@ full screen background.",
                                 4 => "LayerBackground",
                                 _ => "Toplevel",
                             };
-                            let shape = match self.roster.get_dyn(22).value() {
+                            let shape = match self.roster.value(22) {
                                 0 => "rectangular",
                                 1 => "circular",
                                 _ => "rectangular",
                             };
-                            let opacity_enabled = self.roster.get_dyn(17).get_value_string() == Some("true".to_string());
-                            let transparency_pct = self.roster.get_dyn(19).value();
+                            let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
+                            let transparency_pct = self.roster.value(19);
                             let transparency_val = transparency_pct as f32 / 100.0;
-                            let border_enabled = self.roster.get_dyn(23).get_value_string() == Some("true".to_string());
-                            let custom_width = self.roster.get_dyn(25).value();
-                            let custom_height = self.roster.get_dyn(26).value();
+                            let border_enabled = self.roster.get_value_string(23) == Some("true".to_string());
+                            let custom_width = self.roster.value(25);
+                            let custom_height = self.roster.value(26);
      
                             self.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
                             if let Ok(exe) = std::env::current_exe() {
@@ -1771,9 +1852,9 @@ full screen background.",
                                    .arg(window_type)
                                    .arg("--shape")
                                    .arg(shape);
-                                let backplate_enabled = self.roster.get_dyn(38).get_value_string() == Some("true".to_string());
-                                let menubar_enabled = self.roster.get_dyn(39).get_value_string() == Some("true".to_string());
-                                let statusbar_enabled = self.roster.get_dyn(40).get_value_string() == Some("true".to_string());
+                                let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
+                                let menubar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
+                                let statusbar_enabled = self.roster.get_value_string(40) == Some("true".to_string());
                                 if opacity_enabled {
                                     cmd.arg("--opacity")
                                        .arg("--transparency")
@@ -1782,8 +1863,8 @@ full screen background.",
                                 if !border_enabled {
                                     cmd.arg("--no-border");
                                 } else {
-                                    let border_width = self.roster.get_dyn(43).value() as f32;
-                                    let border_bevel = self.roster.get_dyn(42).get_value_string() == Some("true".to_string());
+                                    let border_width = self.roster.value(43) as f32;
+                                    let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
                                     cmd.arg("--border-width")
                                        .arg(border_width.to_string());
                                     if border_bevel {
@@ -1813,9 +1894,9 @@ full screen background.",
                     } else if self.current_page == Page::Xdg {
                         let mut open_file = false;
                         let mut save_file = false;
-                        if self.roster.get_dyn_mut(34).take_click() {
+                        if self.roster.take_click(34) {
                             open_file = true;
-                        } else if self.roster.get_dyn_mut(35).take_click() {
+                        } else if self.roster.take_click(35) {
                             save_file = true;
                         }
  
