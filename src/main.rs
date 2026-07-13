@@ -1363,7 +1363,7 @@ cascades in cce."
             // and any widget with a ui-tree parent (the page selector under the status
             // bar) is covered by that parent's descent — walking it here too would emit
             // its text twice.
-            if w.parent(&self.ui_context).is_some() {
+            if self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
                 continue;
             }
             let mut scratch = cce_ui::scene::paint::PaintCtx::new();
