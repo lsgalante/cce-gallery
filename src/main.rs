@@ -617,6 +617,19 @@ impl State {
         }
     }
 
+    /// Register every roster widget in the ui_context (idempotent — `register` is
+    /// id-keyed and the boxed slots keep pointers stable). The id-rooted router
+    /// (`propagate_event(event, WidgetId)`) resolves roots through this registry;
+    /// TI's custom paint loop never goes through `render_widget`, which is where
+    /// other apps pick registration up as a side effect.
+    fn register_roster(&mut self) {
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn_mut(i);
+            let (id, ptr) = (w.base().id(), w.as_ptr_mut());
+            self.ui_context.register_widget(id, ptr);
+        }
+    }
+
     fn apply_layout(&mut self) {
         let sh = self.height;
         let limit_y = if self.is_child {
@@ -1126,6 +1139,7 @@ cascades in cce."
         // label as a prim — is this one list, rebuilt fresh each frame (the old
         // rebuild_text_items cache and its 14 invalidation call sites are gone).
         use cce_ui::scene::layout::Rect;
+        self.register_roster();
         if (self.width - size.width as f32).abs() > 0.001 || (self.height - size.height as f32).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
             self.width = size.width as f32;
             self.height = size.height as f32;
@@ -1571,8 +1585,8 @@ cascades in cce."
                 if is_control_panel_child(i) {
                     continue;
                 }
-                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
-                if self.ui_context.propagate_event(&mv, ptr) {
+                let root = self.roster.get_dyn(i).base().id();
+                if self.ui_context.propagate_event(&mv, root) {
                     changed = true;
                 }
             }
@@ -1642,8 +1656,8 @@ cascades in cce."
                 // drag_begin). Legacy also armed drags whose press handler returned
                 // false — preserve that by recording the target explicitly.
                 let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
-                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
-                let press_handled = self.ui_context.propagate_event(&ev, ptr);
+                let root = self.roster.get_dyn(i).base().id();
+                let press_handled = self.ui_context.propagate_event(&ev, root);
                 if press_handled {
                     changed = true;
                 }
@@ -1670,8 +1684,8 @@ cascades in cce."
                 if is_control_panel_child(i) {
                     continue;
                 }
-                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
-                if self.ui_context.propagate_event(&ev, ptr) {
+                let root = self.roster.get_dyn(i).base().id();
+                if self.ui_context.propagate_event(&ev, root) {
                     changed = true;
                 }
             }
@@ -1959,8 +1973,8 @@ full screen background.",
             if is_control_panel_child(i) {
                 continue;
             }
-            let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
-            if self.ui_context.propagate_event(&ev, ptr) {
+            let root = self.roster.get_dyn(i).base().id();
+            if self.ui_context.propagate_event(&ev, root) {
                 changed = true;
             }
         }
@@ -1996,8 +2010,8 @@ full screen background.",
         let mut handled = false;
         let key_ev = cce_ui::widget::Event::KeyInput(event.clone());
         if let Some(focused) = self.focused_widget {
-            let ptr = self.roster.get_dyn_mut(focused).as_ptr_mut();
-            if self.ui_context.propagate_event(&key_ev, ptr) {
+            let root = self.roster.get_dyn(focused).base().id();
+            if self.ui_context.propagate_event(&key_ev, root) {
                 changed = true;
                 handled = true;
             }
@@ -2014,8 +2028,8 @@ full screen background.",
                 if is_control_panel_child(i) {
                     continue;
                 }
-                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
-                if self.ui_context.propagate_event(&key_ev, ptr) {
+                let root = self.roster.get_dyn(i).base().id();
+                if self.ui_context.propagate_event(&key_ev, root) {
                     changed = true;
                 }
             }
