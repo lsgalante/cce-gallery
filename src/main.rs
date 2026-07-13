@@ -79,6 +79,127 @@ pub struct GallerySlots {
 pub const GALLERY_COUNT: usize = 53;
 
 impl GallerySlots {
+
+    // Per-slot drag queries (the ControlPanel endgame took `draggable`/`is_dragging`
+    // off `WidgetHost`).
+    pub fn draggable(&self, idx: usize) -> bool {
+        match idx {
+            0 => self.menu_bar.draggable(),
+            1 => self.paginator.draggable(),
+            2 => self.status_bar.draggable(),
+            3 => self.button_demo.draggable(),
+            4 => self.label4.draggable(),
+            5 => self.label5.draggable(),
+            6 => self.label6.draggable(),
+            7 => self.label7.draggable(),
+            8 => self.label8.draggable(),
+            9 => self.checkbox_demo.draggable(),
+            10 => self.toggle_demo.draggable(),
+            11 => self.progress_demo.draggable(),
+            12 => self.slider_demo.draggable(),
+            13 => self.spinbox_demo.draggable(),
+            14 => self.panel_demo.draggable(),
+            15 => self.create_window_btn.draggable(),
+            16 => self.tile_windows_btn.draggable(),
+            17 => self.opacity_toggle.draggable(),
+            18 => self.label18.draggable(),
+            19 => self.transparency_slider.draggable(),
+            20 => self.transparency_label.draggable(),
+            21 => self.window_type_dd.draggable(),
+            22 => self.window_shape_dd.draggable(),
+            23 => self.enable_toggle.draggable(),
+            24 => self.label24.draggable(),
+            25 => self.width_spin.draggable(),
+            26 => self.height_spin.draggable(),
+            27 => self.surface_plate.draggable(),
+            28 => self.surface_info_label.draggable(),
+            29 => self.surface_desc_label.draggable(),
+            30 => self.range_slider_demo.draggable(),
+            31 => self.trackpad_demo.draggable(),
+            32 => self.portal_panel.draggable(),
+            33 => self.portal_label.draggable(),
+            34 => self.open_dialog_btn.draggable(),
+            35 => self.save_dialog_btn.draggable(),
+            36 => self.textbox_demo.draggable(),
+            37 => self.plate_demo.draggable(),
+            38 => self.backplate_toggle.draggable(),
+            39 => self.menubar_toggle.draggable(),
+            40 => self.statusbar_toggle.draggable(),
+            41 => self.border_section.draggable(),
+            42 => self.bevel_toggle.draggable(),
+            43 => self.border_width_spin.draggable(),
+            44 => self.bevel_depth_spin.draggable(),
+            45 => self.elements_section.draggable(),
+            46 => self.page_selector.draggable(),
+            47 => self.color_ramp_btn.draggable(),
+            48 => self.bevel_shape_btn.draggable(),
+            49 => self.bevel_ramp.draggable(),
+            50 => self.ramp_btn.draggable(),
+            51 => self.control_panel.draggable(),
+            52 => self.layout_dd.draggable(),
+            _ => panic!("gallery slot index out of range: {idx}"),
+        }
+    }
+
+    pub fn is_dragging(&self, idx: usize) -> bool {
+        match idx {
+            0 => self.menu_bar.is_dragging(),
+            1 => self.paginator.is_dragging(),
+            2 => self.status_bar.is_dragging(),
+            3 => self.button_demo.is_dragging(),
+            4 => self.label4.is_dragging(),
+            5 => self.label5.is_dragging(),
+            6 => self.label6.is_dragging(),
+            7 => self.label7.is_dragging(),
+            8 => self.label8.is_dragging(),
+            9 => self.checkbox_demo.is_dragging(),
+            10 => self.toggle_demo.is_dragging(),
+            11 => self.progress_demo.is_dragging(),
+            12 => self.slider_demo.is_dragging(),
+            13 => self.spinbox_demo.is_dragging(),
+            14 => self.panel_demo.is_dragging(),
+            15 => self.create_window_btn.is_dragging(),
+            16 => self.tile_windows_btn.is_dragging(),
+            17 => self.opacity_toggle.is_dragging(),
+            18 => self.label18.is_dragging(),
+            19 => self.transparency_slider.is_dragging(),
+            20 => self.transparency_label.is_dragging(),
+            21 => self.window_type_dd.is_dragging(),
+            22 => self.window_shape_dd.is_dragging(),
+            23 => self.enable_toggle.is_dragging(),
+            24 => self.label24.is_dragging(),
+            25 => self.width_spin.is_dragging(),
+            26 => self.height_spin.is_dragging(),
+            27 => self.surface_plate.is_dragging(),
+            28 => self.surface_info_label.is_dragging(),
+            29 => self.surface_desc_label.is_dragging(),
+            30 => self.range_slider_demo.is_dragging(),
+            31 => self.trackpad_demo.is_dragging(),
+            32 => self.portal_panel.is_dragging(),
+            33 => self.portal_label.is_dragging(),
+            34 => self.open_dialog_btn.is_dragging(),
+            35 => self.save_dialog_btn.is_dragging(),
+            36 => self.textbox_demo.is_dragging(),
+            37 => self.plate_demo.is_dragging(),
+            38 => self.backplate_toggle.is_dragging(),
+            39 => self.menubar_toggle.is_dragging(),
+            40 => self.statusbar_toggle.is_dragging(),
+            41 => self.border_section.is_dragging(),
+            42 => self.bevel_toggle.is_dragging(),
+            43 => self.border_width_spin.is_dragging(),
+            44 => self.bevel_depth_spin.is_dragging(),
+            45 => self.elements_section.is_dragging(),
+            46 => self.page_selector.is_dragging(),
+            47 => self.color_ramp_btn.is_dragging(),
+            48 => self.bevel_shape_btn.is_dragging(),
+            49 => self.bevel_ramp.is_dragging(),
+            50 => self.ramp_btn.is_dragging(),
+            51 => self.control_panel.is_dragging(),
+            52 => self.layout_dd.is_dragging(),
+            _ => panic!("gallery slot index out of range: {idx}"),
+        }
+    }
+
     pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match idx {
             0 => &self.menu_bar,
@@ -232,6 +353,55 @@ pub struct ChildSlots {
 pub const CHILD_COUNT: usize = 5;
 
 impl ChildSlots {
+
+    pub fn draggable(&self, idx: usize) -> bool {
+        match idx {
+            0 => match &self.bg {
+                ChildBg::Backplate(w) => w.draggable(),
+                ChildBg::ContentBg(w) => w.draggable(),
+            },
+            1 => match &self.main {
+                ChildMain::ColorRamp(w) => w.draggable(),
+                ChildMain::Ramp(w) => w.draggable(),
+                ChildMain::Desc(w) => w.draggable(),
+            },
+            2 => self.close.draggable(),
+            3 => match &self.aux3 {
+                ChildAux3::Label(w) => w.draggable(),
+                ChildAux3::MenuBar(w) => w.draggable(),
+            },
+            4 => match &self.aux4 {
+                ChildAux4::Label(w) => w.draggable(),
+                ChildAux4::StatusBar(w) => w.draggable(),
+            },
+            _ => panic!("child slot index out of range: {idx}"),
+        }
+    }
+
+    pub fn is_dragging(&self, idx: usize) -> bool {
+        match idx {
+            0 => match &self.bg {
+                ChildBg::Backplate(w) => w.is_dragging(),
+                ChildBg::ContentBg(w) => w.is_dragging(),
+            },
+            1 => match &self.main {
+                ChildMain::ColorRamp(w) => w.is_dragging(),
+                ChildMain::Ramp(w) => w.is_dragging(),
+                ChildMain::Desc(w) => w.is_dragging(),
+            },
+            2 => self.close.is_dragging(),
+            3 => match &self.aux3 {
+                ChildAux3::Label(w) => w.is_dragging(),
+                ChildAux3::MenuBar(w) => w.is_dragging(),
+            },
+            4 => match &self.aux4 {
+                ChildAux4::Label(w) => w.is_dragging(),
+                ChildAux4::StatusBar(w) => w.is_dragging(),
+            },
+            _ => panic!("child slot index out of range: {idx}"),
+        }
+    }
+
     pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match idx {
             0 => match &self.bg {
@@ -300,6 +470,20 @@ impl Roster {
         match self {
             Roster::Gallery(s) => s.get_dyn(idx),
             Roster::Child(s) => s.get_dyn(idx),
+        }
+    }
+
+    pub fn draggable(&self, idx: usize) -> bool {
+        match self {
+            Roster::Gallery(s) => s.draggable(idx),
+            Roster::Child(s) => s.draggable(idx),
+        }
+    }
+
+    pub fn is_dragging(&self, idx: usize) -> bool {
+        match self {
+            Roster::Gallery(s) => s.is_dragging(idx),
+            Roster::Child(s) => s.is_dragging(idx),
         }
     }
 
@@ -581,6 +765,33 @@ fn is_control_panel_child(i: usize) -> bool {
     matches!(i, 15..=26 | 38..=45 | 48)
 }
 
+/// The panel's child slots in the legacy arrangement/aggregation order (the ControlPanel
+/// endgame: the panel no longer stores pointers to them — the app lays them out, emits
+/// them clamped to the panel viewport, and dispatches them as ordinary routed roots).
+const CP_CHILDREN: [usize; 19] = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48];
+
+impl State {
+    /// The dissolved panel's hit gate: pointer events reach the panel's children only
+    /// inside the panel rect or an open child popover (the legacy `ControlPanel::hit` +
+    /// viewport-Y forwarding rule). Children sit at real screen rects now — without this
+    /// gate, slots clipped BELOW the visible fold would take clicks meant for the chrome
+    /// beneath them.
+    fn cp_gate(&self, x: f32, y: f32) -> bool {
+        let (px, py, pw, ph) = self.roster.gallery().control_panel.rect();
+        if x >= px && x <= px + pw && y >= py && y <= py + ph {
+            return true;
+        }
+        for &ci in CP_CHILDREN.iter() {
+            if let Some((rx, ry, rw, rh)) = self.roster.get_dyn(ci).popover_rect() {
+                if x >= rx && x <= rx + rw && y >= ry && y <= ry + rh {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
 fn open_file_dialog_portal(sender: calloop::channel::Sender<String>) {
     if let Some(path) = cce_ui::file_dialog::pick_file("Open File Dialog", &[]) {
         let _ = sender.send(format!("Selected: {}", path.display()));
@@ -642,20 +853,18 @@ impl State {
             let visible = self.is_widget_visible(i);
             let pos = self.positions[i];
             if i < self.roster.len() {
-                let widget = self.roster.get_dyn_mut(i);
-                if widget.is_dragging() {
+                if self.roster.is_dragging(i) {
                     continue;
                 }
+                let widget = self.roster.get_dyn_mut(i);
                 
                 if !self.is_child && i == 46 {
                     continue;
                 }
 
-                let is_cp_child = is_control_panel_child(i);
-                if is_cp_child {
-                    if !visible {
-                        widget.set_rect(-1000.0, -1000.0, 0.0, 0.0);
-                    }
+                if is_control_panel_child(i) {
+                    // Laid out by arrange_control_panel after this loop (real screen
+                    // coordinates; every consumer gates on page visibility).
                     continue;
                 }
                 
@@ -686,6 +895,59 @@ impl State {
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
             self.roster.get_dyn_mut(46).set_rect(dx, dy, dw, ddh);
+
+            self.arrange_control_panel();
+        }
+    }
+
+    /// Lay the panel's child slots out at SCREEN coordinates (the ControlPanel endgame).
+    /// The legacy panel arranged them in content space and shifted at aggregate time;
+    /// applying the scroll offset at layout time means hit-testing, dispatch, text, and
+    /// popovers all see real positions. Runs from apply_layout — every rebuild — which is
+    /// also what re-arranges after a scroll (the wheel handler sets needs_rebuild).
+    fn arrange_control_panel(&mut self) {
+        let s = self.roster.gallery_mut();
+        let (x, y, w, h) = s.control_panel.rect();
+        let padding = cce_ui::layout::control_panel_padding();
+        let gap = cce_ui::layout::control_panel_gap();
+        // 12px reserved for the scrollbar track, like the legacy arrangement.
+        let mut col = cce_ui::widget::ColumnLayout::new(x, y, w - 12.0, gap, padding);
+
+        let create_p: *mut (dyn WidgetHost + 'static) = &mut s.create_window_btn;
+        let tile_p: *mut (dyn WidgetHost + 'static) = &mut s.tile_windows_btn;
+        col.add_row(&[create_p, tile_p], 28.0, 12.0);
+        let width_p: *mut (dyn WidgetHost + 'static) = &mut s.width_spin;
+        let height_p: *mut (dyn WidgetHost + 'static) = &mut s.height_spin;
+        col.add_row(&[width_p, height_p], 42.0, 12.0);
+        col.add_widget(&mut s.window_type_dd, 44.0);
+        col.add_widget(&mut s.window_shape_dd, 44.0);
+        col.add_widget(&mut s.opacity_toggle, 28.0);
+        col.add_widget(&mut s.enable_toggle, 28.0);
+        col.add_widget(&mut s.transparency_label, 12.0);
+        col.add_widget(&mut s.transparency_slider, 20.0);
+        col.add_widget(&mut s.elements_section, 20.0);
+        let bp_p: *mut (dyn WidgetHost + 'static) = &mut s.backplate_toggle;
+        let mb_p: *mut (dyn WidgetHost + 'static) = &mut s.menubar_toggle;
+        let sb_p: *mut (dyn WidgetHost + 'static) = &mut s.statusbar_toggle;
+        col.add_row(&[bp_p, mb_p, sb_p], 28.0, 10.0);
+        col.add_widget(&mut s.border_section, 20.0);
+        col.add_widget(&mut s.bevel_toggle, 28.0);
+        let bw_p: *mut (dyn WidgetHost + 'static) = &mut s.border_width_spin;
+        let bd_p: *mut (dyn WidgetHost + 'static) = &mut s.bevel_depth_spin;
+        col.add_row(&[bw_p, bd_p], 42.0, 12.0);
+        col.add_widget(&mut s.bevel_shape_btn, 28.0);
+
+        let total_h = col.current_y();
+        s.control_panel.scroll_box.update_bounds(total_h, y, h);
+
+        // Content coordinates -> screen coordinates.
+        let scroll_y = s.control_panel.scroll_box.scroll_y;
+        if scroll_y != 0.0 {
+            for &ci in CP_CHILDREN.iter() {
+                let w = self.roster.get_dyn_mut(ci);
+                let (cx, cy, cw, ch) = w.rect();
+                w.set_rect(cx, cy - scroll_y, cw, ch);
+            }
         }
     }
 
@@ -979,15 +1241,6 @@ cascades in cce."
         };
 
         if !is_child {
-            let child_ptrs: Vec<*mut (dyn WidgetHost + 'static)> = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48]
-                .iter()
-                .map(|&idx| state.roster.get_dyn_mut(idx) as *mut (dyn WidgetHost + 'static))
-                .collect();
-            let cp = state.roster.get_dyn_mut(51).as_any_mut().downcast_mut::<ControlPanel>().expect("widget 51 must be a ControlPanel");
-            for ptr in child_ptrs {
-                cp.add_child(ptr);
-            }
-
             // Link page selector (46) under StatusBar (2) — the old set_parent + add_child
             // pair as the one tree link it always was (6bd batch 4).
             let statusbar_ptr = state.roster.get_dyn_mut(2) as *mut (dyn WidgetHost + 'static);
@@ -1111,9 +1364,6 @@ cascades in cce."
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn_mut(i);
             if is_visible(i) {
-                if is_control_panel_child(i) {
-                    continue;
-                }
                 if w.tick(dt, &mut self.ui_context) {
                     changed = true;
                     if self.is_child && self.child_type.as_deref() == Some("Ramp") && i == 1 {
@@ -1140,6 +1390,12 @@ cascades in cce."
         // rebuild_text_items cache and its 14 invalidation call sites are gone).
         use cce_ui::scene::layout::Rect;
         self.register_roster();
+        // Panel children follow the scroll offset at LAYOUT time (the dissolved panel
+        // shifted at aggregate time): re-arrange every frame so a wheel scroll moves the
+        // content on the frame it repaints. Idempotent and cheap (~20 set_rects).
+        if !self.is_child {
+            self.arrange_control_panel();
+        }
         if (self.width - size.width as f32).abs() > 0.001 || (self.height - size.height as f32).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
             self.width = size.width as f32;
             self.height = size.height as f32;
@@ -1251,6 +1507,78 @@ cascades in cce."
             }
         }
 
+        // ── ControlPanel children (the dissolved panel's aggregate, app-side): the slots
+        // are at real screen coordinates now; the legacy clamp-to-viewport, partial-clip
+        // radius zeroing, and solid-border synthesis/inset rules apply verbatim, and the
+        // scrollbar draws last, over the children, like the aggregate did. ──
+        if !self.is_child && self.current_page == Page::Windows {
+            let (panel_x, panel_y, panel_w, panel_h) = self.roster.gallery().control_panel.rect();
+            let _ = (panel_x, panel_w);
+            let y_start = panel_y;
+            let y_end = panel_y + panel_h;
+            for &ci in CP_CHILDREN.iter() {
+                let w = self.roster.get_dyn(ci);
+                let solid_border_opt = if w.type_name() == "Toggle" { None } else { w.solid_border() };
+                let (cx, cy, cw, ch) = w.rect();
+
+                if let Some((b_color, _thickness)) = solid_border_opt {
+                    let cy_top = cy;
+                    let cy_bottom = cy + ch;
+                    if cy_bottom > y_start && cy_top < y_end {
+                        let visible_top = cy_top.max(y_start);
+                        let visible_bottom = cy_bottom.min(y_end);
+                        let visible_h = visible_bottom - visible_top;
+                        if visible_h > 0.0 {
+                            let (child_r, child_corners) = w.corner_style();
+                            let radii_adjusted = if visible_top > cy_top || visible_bottom < cy_bottom {
+                                0.0
+                            } else {
+                                child_r
+                            };
+                            push_rounded(&mut pc, cx, visible_top, cw, visible_h, radii_adjusted, b_color, child_corners);
+                        }
+                    }
+                }
+
+                for (qx, qy, qw, qh, qr, qc, qcorners) in w.all_rounded_quads(&self.ui_context) {
+                    let mut rx = qx;
+                    let mut ry = qy;
+                    let mut rw = qw;
+                    let mut rh = qh;
+                    let mut rqr = qr;
+
+                    if let Some((_, thickness)) = solid_border_opt {
+                        if (qx - cx).abs() < 0.1 && (qy - cy).abs() < 0.1 && (qw - cw).abs() < 0.1 && (qh - ch).abs() < 0.1 {
+                            rx += thickness;
+                            ry += thickness;
+                            rw -= 2.0 * thickness;
+                            rh -= 2.0 * thickness;
+                            rqr = (qr - thickness).max(0.0);
+                        }
+                    }
+
+                    let qy_top = ry;
+                    let qy_bottom = ry + rh;
+                    if qy_bottom > y_start && qy_top < y_end {
+                        let visible_top = qy_top.max(y_start);
+                        let visible_bottom = qy_bottom.min(y_end);
+                        let visible_h = visible_bottom - visible_top;
+                        if visible_h > 0.0 {
+                            let radii_adjusted = if visible_top > qy_top || visible_bottom < qy_bottom {
+                                0.0
+                            } else {
+                                rqr
+                            };
+                            push_rounded(&mut pc, rx, visible_top, rw, visible_h, radii_adjusted, qc, qcorners);
+                        }
+                    }
+                }
+            }
+            for (sx, sy, sw, sh, sc) in self.roster.gallery().control_panel.scroll_box.extra_quads() {
+                push_rounded(&mut pc, sx, sy, sw, sh, 0.0, sc, (false, false, false, false));
+            }
+        }
+
         // ── Plain geometry (the legacy view() body) ──
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn(i);
@@ -1282,14 +1610,41 @@ cascades in cce."
             }
         }
 
+        // ── ControlPanel children, plain decorations (the dissolved aggregate_plain):
+        // the child's own rounded background is skipped like the legacy rule, the rest
+        // clamps to the panel viewport. ──
+        if !self.is_child && self.current_page == Page::Windows {
+            let (_panel_x, panel_y, _panel_w, panel_h) = self.roster.gallery().control_panel.rect();
+            let y_start = panel_y;
+            let y_end = panel_y + panel_h;
+            for &ci in CP_CHILDREN.iter() {
+                let w = self.roster.get_dyn(ci);
+                let (cx, cy, cw, ch) = w.rect();
+                let has_rounded = w.corner_style().1 != (false, false, false, false);
+                let has_bg = w.color()[3].abs() > 0.001;
+                for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
+                    if has_rounded && has_bg && (qx - cx).abs() < 0.1 && (qy - cy).abs() < 0.1 && (qw - cw).abs() < 0.1 && (qh - ch).abs() < 0.1 {
+                        continue;
+                    }
+                    let qy_top = qy;
+                    let qy_bottom = qy + qh;
+                    if qy_bottom > y_start && qy_top < y_end {
+                        let visible_top = qy_top.max(y_start);
+                        let visible_bottom = qy_bottom.min(y_end);
+                        let visible_h = visible_bottom - visible_top;
+                        if visible_h > 0.0 {
+                            pc.quad(Rect { x: qx, y: visible_top, width: qw, height: visible_h }, qc);
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Popovers: geometry then labels, in-frame, on top of everything ──
         let mut popover_pc = cce_ui::layout::PopoverCollector::new();
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
-                continue;
-            }
-            if is_control_panel_child(i) {
                 continue;
             }
             if w.popover_rect().is_some() {
@@ -1354,18 +1709,22 @@ cascades in cce."
             if !self.is_widget_visible(i) {
                 continue;
             }
-            if is_control_panel_child(i) {
-                continue;
-            }
             // Text via the paint walk (not the legacy getters): same labels with the
             // widget's content font and clip bounds; the popover cull stays on the prim
-            // coordinates. ControlPanel children are covered by the panel's walk descent,
-            // and any widget with a ui-tree parent (the page selector under the status
-            // bar) is covered by that parent's descent — walking it here too would emit
-            // its text twice.
+            // coordinates. Any widget with a ui-tree parent (the page selector under the
+            // status bar) is covered by that parent's descent — walking it here too would
+            // emit its text twice. ControlPanel children clamp their bounds to the panel
+            // viewport (the dissolved scrolled_child_labels rule, minus the shift — the
+            // slots sit at real screen coordinates now).
             if self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
                 continue;
             }
+            let cp_clip = if is_control_panel_child(i) {
+                let (px_, py_, pw_, ph_) = self.roster.gallery().control_panel.rect();
+                Some([px_, py_, px_ + pw_, py_ + ph_])
+            } else {
+                None
+            };
             let mut scratch = cce_ui::scene::paint::PaintCtx::new();
             cce_ui::scene::painter::append_widget_text(&self.ui_context, w, &mut scratch);
             for item in scratch.finish().items {
@@ -1373,6 +1732,13 @@ cascades in cce."
                     if in_any_popover(x, y) {
                         continue;
                     }
+                    let bounds = match (bounds, cp_clip) {
+                        (Some([l, t, r, b]), Some([pl, pt, pr, pb])) => {
+                            Some([l.max(pl), t.max(pt), r.min(pr), b.min(pb)])
+                        }
+                        (None, Some(clip)) => Some(clip),
+                        (b, None) => b,
+                    };
                     pc.text_with(text, x, y, font_size, color, font, bounds);
                 }
             }
@@ -1582,9 +1948,6 @@ cascades in cce."
                 if !is_visible(i) {
                     continue;
                 }
-                if is_control_panel_child(i) {
-                    continue;
-                }
                 let root = self.roster.get_dyn(i).base().id();
                 if self.ui_context.propagate_event(&mv, root) {
                     changed = true;
@@ -1630,16 +1993,29 @@ cascades in cce."
 
         if state == ElementState::Pressed {
             let mut clicked_idx = None;
-            for i in (0..self.roster.len()).rev() {
-                if !is_visible(i) {
-                    continue;
+            // Panel children first: they sit inside the panel's rect, so the plain
+            // reverse scan below (where the panel's higher index wins) must only see
+            // the panel when no child claims the point.
+            if !self.is_child && self.current_page == Page::Windows && self.cp_gate(lx, ly) {
+                for &ci in CP_CHILDREN.iter() {
+                    if self.roster.get_dyn_mut(ci).hit_test(lx, ly, &self.ui_context) {
+                        clicked_idx = Some(ci);
+                        break;
+                    }
                 }
-                if is_control_panel_child(i) {
-                    continue;
-                }
-                if self.roster.get_dyn_mut(i).hit_test(lx, ly, &self.ui_context) {
-                    clicked_idx = Some(i);
-                    break;
+            }
+            if clicked_idx.is_none() {
+                for i in (0..self.roster.len()).rev() {
+                    if !is_visible(i) {
+                        continue;
+                    }
+                    if is_control_panel_child(i) {
+                        continue;
+                    }
+                    if self.roster.get_dyn_mut(i).hit_test(lx, ly, &self.ui_context) {
+                        clicked_idx = Some(i);
+                        break;
+                    }
                 }
             }
             if button == MouseButton::Left {
@@ -1661,7 +2037,7 @@ cascades in cce."
                 if press_handled {
                     changed = true;
                 }
-                if button == MouseButton::Left && !press_handled && self.roster.get_dyn(i).draggable() {
+                if button == MouseButton::Left && !press_handled && self.roster.draggable(i) {
                     let id = self.roster.get_dyn(i).base().id();
                     self.ui_context.drag_target = Some(id);
                 }
@@ -1677,11 +2053,12 @@ cascades in cce."
                 changed = true;
             }
             let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
+            let cp_release_ok = !self.is_child && self.cp_gate(lx, ly);
             for i in 0..self.roster.len() {
                 if !is_visible(i) {
                     continue;
                 }
-                if is_control_panel_child(i) {
+                if is_control_panel_child(i) && !cp_release_ok {
                     continue;
                 }
                 let root = self.roster.get_dyn(i).base().id();
@@ -1966,11 +2343,25 @@ full screen background.",
             }
         };
         let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: lx, y: ly, local_x: lx, local_y: ly };
+        // Panel scroll first (legacy: the panel's scroll frame consumed the wheel before
+        // its children saw it); a consumed wheel never reaches the panel's children.
+        let mut cp_took_wheel = false;
+        if !self.is_child && is_visible(51) {
+            let root = self.roster.get_dyn(51).base().id();
+            if self.ui_context.propagate_event(&ev, root) {
+                changed = true;
+                cp_took_wheel = true;
+            }
+        }
+        let cp_wheel_ok = !self.is_child && self.cp_gate(lx, ly);
         for i in 0..self.roster.len() {
+            if i == 51 {
+                continue;
+            }
             if !is_visible(i) {
                 continue;
             }
-            if is_control_panel_child(i) {
+            if is_control_panel_child(i) && (cp_took_wheel || !cp_wheel_ok) {
                 continue;
             }
             let root = self.roster.get_dyn(i).base().id();
@@ -2025,6 +2416,8 @@ full screen background.",
                 if !is_visible(i) {
                     continue;
                 }
+                // Panel children take keys only through the focused path above (the
+                // legacy panel never forwarded keys).
                 if is_control_panel_child(i) {
                     continue;
                 }

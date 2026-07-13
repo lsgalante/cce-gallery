@@ -17,11 +17,16 @@ pub struct ControlPanel {
     y: f32,
     w: f32,
     h: f32,
-    pub children: Vec<*mut (dyn WidgetHost + 'static)>,
     pub scroll_box: ScrollBox,
-    pub active_drag_widget: Option<*mut (dyn WidgetHost + 'static)>,
 }
 
+/// The panel is scroll chrome only (the ControlPanel endgame): background, borders, and
+/// the ScrollBox machinery. Its former stored child pointers, label-matched arrangement,
+/// aggregate views, and dyn event/tick/drag forwarding are DISSOLVED into the app —
+/// main.rs lays the child slots out at SCREEN (scrolled) coordinates
+/// (`arrange_control_panel`), emits their geometry/text clamped to the panel viewport in
+/// `display_list`, and dispatches them as ordinary routed roots. No `*mut dyn` storage,
+/// no dummy contexts, no scroll-translated coordinates anywhere.
 impl ControlPanel {
     pub fn new() -> Adapted<ControlPanel> {
         let mut sb = ScrollBox::new();
@@ -32,233 +37,13 @@ impl ControlPanel {
             y: 0.0,
             w: 0.0,
             h: 0.0,
-            children: Vec::new(),
             scroll_box: sb,
-            active_drag_widget: None,
         })
     }
 
-    pub fn add_child(&mut self, child: *mut (dyn WidgetHost + 'static)) {
-        self.children.push(child);
-    }
-
     /// The laid-out rect, mirrored from the adapter by `Layout::rect_assigned`.
-    fn rect(&self) -> (f32, f32, f32, f32) {
+    pub fn rect(&self) -> (f32, f32, f32, f32) {
         (self.x, self.y, self.w, self.h)
-    }
-
-    /// First open child popover, in scrolled (screen) coordinates — the old
-    /// `WidgetHost::popover_rect` override, verbatim (the temporary base-y shift reaches the
-    /// children through their raw pointers).
-    fn popover_scan(&self) -> Option<(f32, f32, f32, f32)> {
-        let scroll_y = self.scroll_box.scroll_y;
-        unsafe {
-            for child_ptr in &self.children {
-                let child = &mut **child_ptr;
-                let old_y = child.base().y;
-                child.base_mut().y = old_y - scroll_y;
-                let res = child.popover_rect();
-                child.base_mut().y = old_y;
-                if res.is_some() {
-                    return res;
-                }
-            }
-        }
-        None
-    }
-
-    /// The subtree's rounded view (the old `WidgetHost::all_rounded_quads` override):
-    /// background, borders, children with the scroll shift + viewport clamp + border
-    /// inset, scrollbar. External readers get it through the adapter's reverse bridge.
-    fn aggregate_rounded(&self, ctx: &UiContext) -> Vec<(f32, f32, f32, f32, f32, [f32; 4], (bool, bool, bool, bool))> {
-        let mut quads = Vec::new();
-        let (x, y, w, h) = self.rect();
-
-        // 1. Background
-        quads.push((x, y, w, h, 0.0, colors::control_panel_color(), (false, false, false, false)));
-
-        // 2. Borders
-        let border_color = colors::control_panel_border_color();
-        quads.push((x, y, w, 1.0, 0.0, border_color, (false, false, false, false)));
-        quads.push((x, y + h - 1.0, w, 1.0, 0.0, border_color, (false, false, false, false)));
-        quads.push((x, y, 1.0, h, 0.0, border_color, (false, false, false, false)));
-        quads.push((x + w - 1.0, y, 1.0, h, 0.0, border_color, (false, false, false, false)));
-
-        // 3. Child elements clipped to viewport bounds
-        let scroll_y = self.scroll_box.scroll_y;
-        let y_start = y;
-        let y_end = y + h;
-
-        unsafe {
-            for child_ptr in &self.children {
-                let child = &**child_ptr;
-                let solid_border_opt = if child.type_name() == "Toggle" { None } else { child.solid_border() };
-                let (cx, cy, cw, ch) = child.rect();
-
-                if let Some((b_color, _thickness)) = solid_border_opt {
-                    let cy_shifted = cy - scroll_y;
-                    let cy_top = cy_shifted;
-                    let cy_bottom = cy_shifted + ch;
-                    if cy_bottom > y_start && cy_top < y_end {
-                        let visible_top = cy_top.max(y_start);
-                        let visible_bottom = cy_bottom.min(y_end);
-                        let visible_h = visible_bottom - visible_top;
-                        if visible_h > 0.0 {
-                            let (child_r, child_corners) = child.corner_style();
-                            let radii_adjusted = if visible_top > cy_top || visible_bottom < cy_bottom {
-                                0.0
-                            } else {
-                                child_r
-                            };
-                            quads.push((
-                                cx,
-                                visible_top,
-                                cw,
-                                visible_h,
-                                radii_adjusted,
-                                b_color,
-                                child_corners,
-                            ));
-                        }
-                    }
-                }
-
-                for (qx, qy, qw, qh, qr, qc, qcorners) in child.all_rounded_quads(ctx) {
-                    let mut rx = qx;
-                    let mut ry = qy;
-                    let mut rw = qw;
-                    let mut rh = qh;
-                    let mut rqr = qr;
-
-                    if let Some((_, thickness)) = solid_border_opt {
-                        if (qx - cx).abs() < 0.1 && (qy - cy).abs() < 0.1 && (qw - cw).abs() < 0.1 && (qh - ch).abs() < 0.1 {
-                            rx += thickness;
-                            ry += thickness;
-                            rw -= 2.0 * thickness;
-                            rh -= 2.0 * thickness;
-                            rqr = (qr - thickness).max(0.0);
-                        }
-                    }
-
-                    let qy_shifted = ry - scroll_y;
-                    let qy_top = qy_shifted;
-                    let qy_bottom = qy_shifted + rh;
-                    if qy_bottom > y_start && qy_top < y_end {
-                        let visible_top = qy_top.max(y_start);
-                        let visible_bottom = qy_bottom.min(y_end);
-                        let visible_h = visible_bottom - visible_top;
-                        if visible_h > 0.0 {
-                            let radii_adjusted = if visible_top > qy_top || visible_bottom < qy_bottom {
-                                0.0
-                            } else {
-                                rqr
-                            };
-                            quads.push((rx, visible_top, rw, visible_h, radii_adjusted, qc, qcorners));
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. Scrollbar
-        for (sx, sy, sw, sh, sc) in self.scroll_box.extra_quads() {
-            quads.push((sx, sy, sw, sh, 0.0, sc, (false, false, false, false)));
-        }
-
-        quads
-    }
-
-    /// The subtree's plain view (the old `WidgetHost::extra_quads` override): children's
-    /// decoration quads with the scroll shift + viewport clamp, plus the scrollbar.
-    fn aggregate_plain(&self) -> Vec<(f32, f32, f32, f32, [f32; 4])> {
-        let mut quads = Vec::new();
-        let (_x, y, _w, h) = self.rect();
-        let scroll_y = self.scroll_box.scroll_y;
-        let y_start = y;
-        let y_end = y + h;
-        let ctx_dummy = cce_ui::context::UiContext::new();
-
-        unsafe {
-            for child_ptr in &self.children {
-                let child = &**child_ptr;
-                let (cx, cy, cw, ch) = child.rect();
-                let has_rounded = child.corner_style().1 != (false, false, false, false);
-                let has_bg = child.color()[3].abs() > 0.001;
-
-                for (qx, qy, qw, qh, qc) in child.all_quads(&ctx_dummy) {
-                    if has_rounded && has_bg && (qx - cx).abs() < 0.1 && (qy - cy).abs() < 0.1 && (qw - cw).abs() < 0.1 && (qh - ch).abs() < 0.1 {
-                        continue;
-                    }
-                    let qy_shifted = qy - scroll_y;
-                    let qy_top = qy_shifted;
-                    let qy_bottom = qy_shifted + qh;
-                    if qy_bottom > y_start && qy_top < y_end {
-                        let visible_top = qy_top.max(y_start);
-                        let visible_bottom = qy_bottom.min(y_end);
-                        let visible_h = visible_bottom - visible_top;
-                        if visible_h > 0.0 {
-                            quads.push((qx, visible_top, qw, visible_h, qc));
-                        }
-                    }
-                }
-            }
-        }
-
-        quads.extend(self.scroll_box.extra_quads());
-        quads
-    }
-
-    /// The children's arcs with the scroll shift (the old `WidgetHost::extra_arcs` override).
-    fn aggregate_arcs(&self) -> Vec<(f32, f32, f32, f32, f32, f32, [f32; 4])> {
-        let mut arcs = Vec::new();
-        let scroll_y = self.scroll_box.scroll_y;
-        let y_start = self.y;
-        let y_end = self.y + self.h;
-
-        unsafe {
-            for child_ptr in &self.children {
-                let child = &**child_ptr;
-                for (cx, cy, r, t, start, end, color) in child.extra_arcs() {
-                    let cy_shifted = cy - scroll_y;
-                    if cy_shifted + r > y_start && cy_shifted - r < y_end {
-                        arcs.push((cx, cy_shifted, r, t, start, end, color));
-                    }
-                }
-            }
-        }
-        arcs
-    }
-
-    /// Children's walk text with the panel's scroll shift and viewport clamp — what the
-    /// deleted fonted getter served: children are laid out UNSCROLLED and the offset is
-    /// an aggregate-time transform.
-    pub(crate) fn scrolled_child_labels(&self, ctx: &UiContext) -> Vec<(TextLabel, Option<String>, Option<[f32; 4]>)> {
-        let scroll_y = self.scroll_box.scroll_y;
-        let (x, y, w, h) = self.rect();
-        let mut labels = Vec::new();
-        for &child_ptr in &self.children {
-            let mut scratch = cce_ui::scene::paint::PaintCtx::new();
-            cce_ui::scene::painter::append_widget_text(ctx, unsafe { &*child_ptr }, &mut scratch);
-            for item in scratch.finish().items {
-                if let cce_ui::scene::paint::Prim::Text { text, x: lx, y: ly, font_size, color, font, bounds, .. } = item.prim {
-                    let new_bounds = if let Some([l, t, r, b]) = bounds {
-                        let nl = l.max(x);
-                        let nt = (t - scroll_y).max(y);
-                        let nr = r.min(x + w);
-                        let nb = (b - scroll_y).min(y + h);
-                        Some([nl, nt, nr, nb])
-                    } else {
-                        Some([x, y, x + w, y + h])
-                    };
-                    labels.push((
-                        TextLabel { text, x: lx, y: ly - scroll_y, font_size, color },
-                        font,
-                        new_bounds,
-                    ));
-                }
-            }
-        }
-        labels
     }
 }
 
@@ -274,152 +59,7 @@ impl cce_ui::widget::Layout for ControlPanel {
         self.y = rect.y;
         self.w = rect.width;
         self.h = rect.height;
-    }
-
-    // The old `set_rect` override's arrangement: children keep their label-matched slots
-    // in a ColumnLayout, laid out UNSCROLLED; the scroll offset is an aggregate-time
-    // transform. (The dummy-ctx child re-parenting onto the host adapter is gone,
-    // 6bd: every effect of it was discarded with the dummy ctx.)
-    fn arrange_children(&mut self, rect: Rect, _host: *mut (dyn WidgetHost + 'static)) {
-        let (x, y, w, h) = (rect.x, rect.y, rect.width, rect.height);
-
-        self.scroll_box.set_rect(x, y, w, h);
-
-
-        let padding = cce_ui::layout::control_panel_padding();
-        let gap = cce_ui::layout::control_panel_gap();
-        let mut col = ColumnLayout::new(x, y, w - 12.0, gap, padding); // 12px reserved for scrollbar track
-
-        unsafe {
-            let mut create_btn: Option<*mut dyn WidgetHost> = None;
-            let mut tile_btn: Option<*mut dyn WidgetHost> = None;
-            let mut opacity_toggle: Option<*mut dyn WidgetHost> = None;
-            let mut enable_toggle: Option<*mut dyn WidgetHost> = None;
-            let mut slider: Option<*mut dyn WidgetHost> = None;
-            let mut slider_label: Option<*mut dyn WidgetHost> = None;
-            let mut type_dd: Option<*mut dyn WidgetHost> = None;
-            let mut shape_dd: Option<*mut dyn WidgetHost> = None;
-            let mut border_style_dd: Option<*mut dyn WidgetHost> = None;
-            let mut width_spin: Option<*mut dyn WidgetHost> = None;
-            let mut height_spin: Option<*mut dyn WidgetHost> = None;
-            let mut backplate_toggle: Option<*mut dyn WidgetHost> = None;
-            let mut menubar_toggle: Option<*mut dyn WidgetHost> = None;
-            let mut statusbar_toggle: Option<*mut dyn WidgetHost> = None;
-            let mut border_sec: Option<*mut dyn WidgetHost> = None;
-            let mut bevel_toggle: Option<*mut dyn WidgetHost> = None;
-            let mut border_width_spin: Option<*mut dyn WidgetHost> = None;
-            let mut bevel_depth_spin: Option<*mut dyn WidgetHost> = None;
-            let mut win_sec: Option<*mut dyn WidgetHost> = None;
-            let mut bevel_shape_btn: Option<*mut dyn WidgetHost> = None;
-
-            for &child_ptr in &self.children {
-                let child = &mut *child_ptr;
-                let label = child.base().label.as_ref().map(|s| s.as_str()).unwrap_or("");
-                match label {
-                    "Create Window" => create_btn = Some(child_ptr),
-                    "Tile Windows" => tile_btn = Some(child_ptr),
-                    "Opacity" => opacity_toggle = Some(child_ptr),
-                    "Enable" => enable_toggle = Some(child_ptr),
-                    "Transparency Level" => slider_label = Some(child_ptr),
-                    "Border" => border_sec = Some(child_ptr),
-                    "Window Elements" => win_sec = Some(child_ptr),
-                    "Window Type" => type_dd = Some(child_ptr),
-                    "Window Shape" => shape_dd = Some(child_ptr),
-                    "Border Style" => border_style_dd = Some(child_ptr),
-                    "Width" => width_spin = Some(child_ptr),
-                    "Height" => height_spin = Some(child_ptr),
-                    "Backplate" => backplate_toggle = Some(child_ptr),
-                    "MenuBar" => menubar_toggle = Some(child_ptr),
-                    "StatusBar" => statusbar_toggle = Some(child_ptr),
-                    "Bevel" => bevel_toggle = Some(child_ptr),
-                    "Border Width" => border_width_spin = Some(child_ptr),
-                    "Bevel Depth" => bevel_depth_spin = Some(child_ptr),
-                    "Bevel Shape..." => bevel_shape_btn = Some(child_ptr),
-                    _ => {
-                        if child.base().label.is_none() {
-                            slider = Some(child_ptr);
-                        }
-                    }
-                }
-            }
-
-            if let (Some(c), Some(t)) = (create_btn, tile_btn) {
-                col.add_row(&[c, t], 28.0, 12.0);
-            } else {
-                if let Some(c) = create_btn {
-                    col.add_widget(&mut *c, 28.0);
-                }
-                if let Some(t) = tile_btn {
-                    col.add_widget(&mut *t, 28.0);
-                }
-            }
-
-            if let (Some(w_sp), Some(h_sp)) = (width_spin, height_spin) {
-                col.add_row(&[w_sp, h_sp], 42.0, 12.0);
-            } else {
-                if let Some(w_sp) = width_spin {
-                    col.add_widget(&mut *w_sp, 42.0);
-                }
-                if let Some(h_sp) = height_spin {
-                    col.add_widget(&mut *h_sp, 42.0);
-                }
-            }
-
-            if let Some(t_dd) = type_dd {
-                col.add_widget(&mut *t_dd, 44.0);
-            }
-            if let Some(s_dd) = shape_dd {
-                col.add_widget(&mut *s_dd, 44.0);
-            }
-            if let Some(op_t) = opacity_toggle {
-                col.add_widget(&mut *op_t, 28.0);
-            }
-            if let Some(en_t) = enable_toggle {
-                col.add_widget(&mut *en_t, 28.0);
-            }
-            if let Some(sl_lbl) = slider_label {
-                col.add_widget(&mut *sl_lbl, 12.0);
-            }
-            if let Some(sl) = slider {
-                col.add_widget(&mut *sl, 20.0);
-            }
-
-            if let Some(w_s) = win_sec {
-                col.add_widget(&mut *w_s, 20.0);
-            }
-            let toggles = [backplate_toggle, menubar_toggle, statusbar_toggle];
-            let active_toggles: Vec<*mut dyn WidgetHost> = toggles.iter().filter_map(|&t| t).collect();
-            if !active_toggles.is_empty() {
-                col.add_row(&active_toggles, 28.0, 10.0);
-            }
-
-            if let Some(b_s) = border_sec {
-                col.add_widget(&mut *b_s, 20.0);
-            }
-            if let Some(bs_dd) = border_style_dd {
-                col.add_widget(&mut *bs_dd, 44.0);
-            }
-            if let Some(bev_t) = bevel_toggle {
-                col.add_widget(&mut *bev_t, 28.0);
-            }
-
-            if let (Some(bw_sp), Some(bd_sp)) = (border_width_spin, bevel_depth_spin) {
-                col.add_row(&[bw_sp, bd_sp], 42.0, 12.0);
-            } else {
-                if let Some(bw_sp) = border_width_spin {
-                    col.add_widget(&mut *bw_sp, 42.0);
-                }
-                if let Some(bd_sp) = bevel_depth_spin {
-                    col.add_widget(&mut *bd_sp, 42.0);
-                }
-            }
-            if let Some(bs_btn) = bevel_shape_btn {
-                col.add_widget(&mut *bs_btn, 28.0);
-            }
-
-            let total_h = col.current_y();
-            self.scroll_box.update_bounds(total_h, y, h);
-        }
+        self.scroll_box.set_rect(rect.x, rect.y, rect.width, rect.height);
     }
 }
 
@@ -433,162 +73,45 @@ impl cce_ui::widget::Paint for ControlPanel {
         Some((12.0, (true, true, true, true)))
     }
 
-    // ControlPanel is a legacy scroll frame: children are laid out UNSCROLLED and the
-    // scroll offset is applied at aggregate time. The walk must emit these aggregates
-    // and not descend — descending would paint the children unshifted, desyncing text
-    // from geometry as soon as the panel scrolls.
-    fn paints_own_subtree(&self) -> bool {
-        true
-    }
-
+    /// Background + borders, as radius-0 rounded prims so they ride the adapter's
+    /// rounded-tuple bridge exactly where the legacy aggregate emitted them (the app
+    /// emits the children and the scrollbar after these, in the legacy order).
     fn paint(&self, _rect: Rect, pc: &mut PaintCtx) {
-        // The children are Adapted widgets whose aggregate getters read nothing from the
-        // routing context; a fresh one stands in for the ctx `Paint::paint` doesn't carry.
-        let dummy = cce_ui::context::UiContext::new();
-        for (x, y, qw, qh, r, c, corners) in self.aggregate_rounded(&dummy) {
-            pc.rounded_rect(Rect { x, y, width: qw, height: qh }, r, corners, c);
-        }
-        for (x, y, qw, qh, c) in self.aggregate_plain() {
-            pc.quad(Rect { x, y, width: qw, height: qh }, c);
-        }
-        for (cx, cy, r, t, s, e, c) in self.aggregate_arcs() {
-            pc.arc(cx, cy, r, t, s, e, c);
-        }
-        for (tl, font, bounds) in self.scrolled_child_labels(&dummy) {
-            pc.text_with(tl.text, tl.x, tl.y, tl.font_size, tl.color, font, bounds);
-        }
-    }
-
-    fn popover(&self, _rect: Rect) -> Option<(f32, f32, f32, f32)> {
-        self.popover_scan()
-    }
-
-    fn draw_popover(&self, _rect: Rect, pc: &mut dyn cce_ui::layout::RenderTarget) {
-        let scroll_y = self.scroll_box.scroll_y;
-        unsafe {
-            for child_ptr in &self.children {
-                if (**child_ptr).popover_rect().is_some() {
-                    let child = &mut **child_ptr;
-                    let old_y = child.base().y;
-                    child.base_mut().y = old_y - scroll_y;
-                    child.render_popover(pc);
-                    child.base_mut().y = old_y;
-                }
-            }
-        }
+        let (x, y, w, h) = self.rect();
+        let none = (false, false, false, false);
+        pc.rounded_rect(Rect { x, y, width: w, height: h }, 0.0, none, colors::control_panel_color());
+        let border_color = colors::control_panel_border_color();
+        pc.rounded_rect(Rect { x, y, width: w, height: 1.0 }, 0.0, none, border_color);
+        pc.rounded_rect(Rect { x, y: y + h - 1.0, width: w, height: 1.0 }, 0.0, none, border_color);
+        pc.rounded_rect(Rect { x, y, width: 1.0, height: h }, 0.0, none, border_color);
+        pc.rounded_rect(Rect { x: x + w - 1.0, y, width: 1.0, height: h }, 0.0, none, border_color);
     }
 }
 
 impl cce_ui::widget::Input for ControlPanel {
-    /// The legacy hit shape: an open child popover (scrolled coordinates) or the panel rect.
-    fn hit(&self, rect: Rect, x: f32, y: f32) -> bool {
-        if let Some(pop_rect) = self.popover_scan() {
-            if x >= pop_rect.0 && x <= pop_rect.0 + pop_rect.2 && y >= pop_rect.1 && y <= pop_rect.1 + pop_rect.3 {
-                return true;
-            }
-        }
-        if rect.width <= 0.0 || rect.height <= 0.0 {
-            return false;
-        }
-        x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
-    }
-
-    // The legacy direct-dispatch broadcast reached mouse_input ungated: the panel resets
-    // its drag target on every press and lets children with open popovers see off-panel
-    // presses.
-    fn gates_presses(&self) -> bool {
-        false
-    }
-
     fn on_event(&mut self, event: &Event, ectx: &mut EventCtx) -> bool {
         let Some(ctx) = ectx.ui.as_deref_mut() else { return false };
         match event {
             Event::MouseButton { button, state, x: px, y: py, .. } => {
-                if *state == ElementState::Pressed {
-                    self.active_drag_widget = None;
-                }
-
-                if self.scroll_box.mouse_input(*button, *state, *px, *py, ctx) {
-                    return true;
-                }
-
-                let scroll_y = self.scroll_box.scroll_y;
-                let py_translated = *py + scroll_y;
-                let (_x, y, _w, h) = self.rect();
-
-                unsafe {
-                    for child_ptr in &self.children {
-                        let has_popover = (**child_ptr).popover_rect().is_some();
-                        // Only dispatch if the click Y is inside the viewport or the child has an active popover
-                        if has_popover || (*py >= y && *py <= y + h) {
-                            let ev = cce_ui::widget::Event::MouseButton { button: *button, state: *state, x: *px, y: py_translated, local_x: *px, local_y: py_translated };
-                            if (**child_ptr).handle_event(&ev, ctx) {
-                                if *state == ElementState::Pressed && (**child_ptr).draggable() {
-                                    self.active_drag_widget = Some(*child_ptr);
-                                }
-                                return true;
-                            }
-                        }
-                    }
-                }
-                false
+                self.scroll_box.mouse_input(*button, *state, *px, *py, ctx)
             }
             Event::PointerMove { x: px, y: py, .. } => {
-                let mut changed = self.scroll_box.cursor_moved(*px, *py, ctx);
-
-                let scroll_y = self.scroll_box.scroll_y;
-                let py_translated = *py + scroll_y;
-                unsafe {
-                    for child_ptr in &self.children {
-                        let ev = cce_ui::widget::Event::PointerMove { x: *px, y: py_translated, local_x: *px, local_y: py_translated };
-                        if (**child_ptr).handle_event(&ev, ctx) {
-                            changed = true;
-                        }
-                    }
-                }
-                changed
+                self.scroll_box.cursor_moved(*px, *py, ctx)
             }
             Event::MouseWheel { delta, x: px, y: py, .. } => {
-                if self.scroll_box.mouse_wheel(delta, *px, *py, ctx) {
-                    return true;
-                }
-
-                let scroll_y = self.scroll_box.scroll_y;
-                let py_translated = *py + scroll_y;
-                unsafe {
-                    for child_ptr in &self.children {
-                        let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: *px, y: py_translated, local_x: *px, local_y: py_translated };
-                        if (**child_ptr).handle_event(&ev, ctx) {
-                            return true;
-                        }
-                    }
-                }
-                false
+                self.scroll_box.mouse_wheel(delta, *px, *py, ctx)
             }
             _ => false,
         }
     }
 
     fn draggable(&self, _rect: Rect) -> bool {
-        self.scroll_box.draggable() || self.active_drag_widget.is_some()
+        self.scroll_box.draggable()
     }
 
     fn drag_begin(&mut self, px: f32, py: f32, _rect: Rect) {
         if self.scroll_box.hit_test_scrollbar(px, py) {
             self.scroll_box.drag_begin(px, py);
-            return;
-        }
-
-        let scroll_y = self.scroll_box.scroll_y;
-        let py_translated = py + scroll_y;
-        if let Some(child_ptr) = self.active_drag_widget {
-            // Dyn child: the Drag* events map onto the Input drag hooks in handle_event
-            // (6bd collapse); the ctx is unused on that path.
-            let mut dummy = cce_ui::context::UiContext::new();
-            let ev = cce_ui::widget::Event::DragStart { start_x: px, start_y: py_translated };
-            unsafe {
-                (*child_ptr).handle_event(&ev, &mut dummy);
-            }
         }
     }
 
@@ -596,41 +119,16 @@ impl cce_ui::widget::Input for ControlPanel {
         if self.scroll_box.draggable() {
             return self.scroll_box.drag_update(px, py);
         }
-
-        let scroll_y = self.scroll_box.scroll_y;
-        let py_translated = py + scroll_y;
-        if let Some(child_ptr) = self.active_drag_widget {
-            let mut dummy = cce_ui::context::UiContext::new();
-            let ev = cce_ui::widget::Event::DragUpdate { dx: 0.0, dy: 0.0, x: px, y: py_translated, local_x: px, local_y: py_translated };
-            unsafe {
-                return (*child_ptr).handle_event(&ev, &mut dummy);
-            }
-        }
         false
     }
 
     fn drag_end(&mut self) {
         self.scroll_box.drag_end();
-        if let Some(child_ptr) = self.active_drag_widget {
-            let mut dummy = cce_ui::context::UiContext::new();
-            unsafe {
-                (*child_ptr).handle_event(&cce_ui::widget::Event::DragEnd, &mut dummy);
-            }
-            self.active_drag_widget = None;
-        }
     }
 
     fn tick_ctx(&mut self, dt: f32, ectx: &mut EventCtx) -> bool {
         let Some(ctx) = ectx.ui.as_deref_mut() else { return false };
-        let mut changed = self.scroll_box.tick(dt, ctx);
-        unsafe {
-            for child_ptr in &self.children {
-                if (**child_ptr).tick(dt, ctx) {
-                    changed = true;
-                }
-            }
-        }
-        changed
+        self.scroll_box.tick(dt, ctx)
     }
 }
 
