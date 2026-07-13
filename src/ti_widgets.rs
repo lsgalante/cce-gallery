@@ -521,7 +521,8 @@ impl cce_ui::widget::Input for ControlPanel {
                         let has_popover = (**child_ptr).popover_rect().is_some();
                         // Only dispatch if the click Y is inside the viewport or the child has an active popover
                         if has_popover || (*py >= y && *py <= y + h) {
-                            if (**child_ptr).mouse_input(*button, *state, *px, py_translated, ctx) {
+                            let ev = cce_ui::widget::Event::MouseButton { button: *button, state: *state, x: *px, y: py_translated, local_x: *px, local_y: py_translated };
+                            if (**child_ptr).handle_event(&ev, ctx) {
                                 if *state == ElementState::Pressed && (**child_ptr).draggable() {
                                     self.active_drag_widget = Some(*child_ptr);
                                 }
@@ -539,7 +540,8 @@ impl cce_ui::widget::Input for ControlPanel {
                 let py_translated = *py + scroll_y;
                 unsafe {
                     for child_ptr in &self.children {
-                        if (**child_ptr).cursor_moved(*px, py_translated, ctx) {
+                        let ev = cce_ui::widget::Event::PointerMove { x: *px, y: py_translated, local_x: *px, local_y: py_translated };
+                        if (**child_ptr).handle_event(&ev, ctx) {
                             changed = true;
                         }
                     }
@@ -555,7 +557,8 @@ impl cce_ui::widget::Input for ControlPanel {
                 let py_translated = *py + scroll_y;
                 unsafe {
                     for child_ptr in &self.children {
-                        if (**child_ptr).mouse_wheel(delta, *px, py_translated, ctx) {
+                        let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: *px, y: py_translated, local_x: *px, local_y: py_translated };
+                        if (**child_ptr).handle_event(&ev, ctx) {
                             return true;
                         }
                     }
@@ -579,8 +582,12 @@ impl cce_ui::widget::Input for ControlPanel {
         let scroll_y = self.scroll_box.scroll_y;
         let py_translated = py + scroll_y;
         if let Some(child_ptr) = self.active_drag_widget {
+            // Dyn child: the Drag* events map onto the Input drag hooks in handle_event
+            // (6bd collapse); the ctx is unused on that path.
+            let mut dummy = cce_ui::context::UiContext::new();
+            let ev = cce_ui::widget::Event::DragStart { start_x: px, start_y: py_translated };
             unsafe {
-                (*child_ptr).drag_begin(px, py_translated);
+                (*child_ptr).handle_event(&ev, &mut dummy);
             }
         }
     }
@@ -593,8 +600,10 @@ impl cce_ui::widget::Input for ControlPanel {
         let scroll_y = self.scroll_box.scroll_y;
         let py_translated = py + scroll_y;
         if let Some(child_ptr) = self.active_drag_widget {
+            let mut dummy = cce_ui::context::UiContext::new();
+            let ev = cce_ui::widget::Event::DragUpdate { dx: 0.0, dy: 0.0, x: px, y: py_translated, local_x: px, local_y: py_translated };
             unsafe {
-                return (*child_ptr).drag_update(px, py_translated);
+                return (*child_ptr).handle_event(&ev, &mut dummy);
             }
         }
         false
@@ -603,8 +612,9 @@ impl cce_ui::widget::Input for ControlPanel {
     fn drag_end(&mut self) {
         self.scroll_box.drag_end();
         if let Some(child_ptr) = self.active_drag_widget {
+            let mut dummy = cce_ui::context::UiContext::new();
             unsafe {
-                (*child_ptr).drag_end();
+                (*child_ptr).handle_event(&cce_ui::widget::Event::DragEnd, &mut dummy);
             }
             self.active_drag_widget = None;
         }
