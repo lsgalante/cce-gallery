@@ -625,7 +625,7 @@ impl State {
     fn register_roster(&mut self) {
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn_mut(i);
-            let (id, ptr) = (w.base().id(), w.as_ptr_mut());
+            let (id, ptr) = (w.base().id(), w as *mut (dyn WidgetHost + 'static));
             self.ui_context.register_widget(id, ptr);
         }
     }
@@ -981,7 +981,7 @@ cascades in cce."
         if !is_child {
             let child_ptrs: Vec<*mut (dyn WidgetHost + 'static)> = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48]
                 .iter()
-                .map(|&idx| state.roster.get_dyn_mut(idx).as_ptr_mut())
+                .map(|&idx| state.roster.get_dyn_mut(idx) as *mut (dyn WidgetHost + 'static))
                 .collect();
             let cp = state.roster.get_dyn_mut(51).as_any_mut().downcast_mut::<ControlPanel>().expect("widget 51 must be a ControlPanel");
             for ptr in child_ptrs {
@@ -990,8 +990,8 @@ cascades in cce."
 
             // Link page selector (46) under StatusBar (2) — the old set_parent + add_child
             // pair as the one tree link it always was (6bd batch 4).
-            let statusbar_ptr = state.roster.get_dyn_mut(2).as_ptr_mut();
-            let dropdown_ptr = state.roster.get_dyn_mut(46).as_ptr_mut();
+            let statusbar_ptr = state.roster.get_dyn_mut(2) as *mut (dyn WidgetHost + 'static);
+            let dropdown_ptr = state.roster.get_dyn_mut(46) as *mut (dyn WidgetHost + 'static);
             unsafe {
                 cce_ui::widget::focus::link_parent_child(
                     &mut *statusbar_ptr,
