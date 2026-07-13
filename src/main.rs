@@ -332,7 +332,6 @@ struct State {
 
     status_text: String,
 
-    drag_widget: Option<usize>,
     focused_widget: Option<usize>,
 
     cursor_x: f32,
@@ -859,7 +858,6 @@ cascades in cce."
             roster,
             positions,
             status_text,
-            drag_widget: None,
             focused_widget: None,
             cursor_x: 0.0,
             cursor_y: 0.0,
@@ -1458,12 +1456,11 @@ cascades in cce."
         self.cursor_y = ly;
 
         let mut changed = false;
-        if let Some(idx) = self.drag_widget {
-            if self.roster.get_dyn_mut(idx).drag_update(lx, ly) {
-                changed = true;
-            }
-        }
-        if self.drag_widget.is_none() {
+        // Routed dispatch (6bd shrink): the router owns the drag lifecycle — one
+        // PointerMove per visible root forwards DragUpdate to a live drag target and
+        // runs hover bookkeeping otherwise.
+        let mv = cce_ui::widget::Event::PointerMove { x: lx, y: ly, local_x: lx, local_y: ly };
+        {
             let is_child = self.is_child;
             let use_menubar = self.use_menubar;
             let use_statusbar = self.use_statusbar;
@@ -1487,16 +1484,19 @@ cascades in cce."
                 }
             };
             for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
                 if !is_visible(i) {
                     continue;
                 }
                 if is_control_panel_child(i) {
                     continue;
                 }
-                if w.cursor_moved(lx, ly, &mut self.ui_context) {
+                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
+                if self.ui_context.propagate_event(&mv, ptr) {
                     changed = true;
                 }
+            }
+            if self.ui_context.is_dragging {
+                changed = true;
             }
         }
         if changed {
@@ -1556,12 +1556,19 @@ cascades in cce."
                 }
             }
             if let Some(i) = clicked_idx {
-                if self.roster.get_dyn_mut(i).mouse_input(button, state, lx, ly, &mut self.ui_context) {
+                // Routed press: the router records the drag target on a handled press
+                // and synthesizes DragStart past its threshold (the old immediate
+                // drag_begin). Legacy also armed drags whose press handler returned
+                // false — preserve that by recording the target explicitly.
+                let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
+                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
+                let press_handled = self.ui_context.propagate_event(&ev, ptr);
+                if press_handled {
                     changed = true;
                 }
-                if button == MouseButton::Left && self.roster.get_dyn_mut(i).draggable() {
-                    self.roster.get_dyn_mut(i).drag_begin(lx, ly);
-                    self.drag_widget = Some(i);
+                if button == MouseButton::Left && !press_handled && self.roster.get_dyn(i).draggable() {
+                    let id = self.roster.get_dyn(i).base().id();
+                    self.ui_context.drag_target = Some(id);
                 }
                 if button == MouseButton::Left {
                     self.roster.get_dyn_mut(i).focus();
@@ -1569,23 +1576,21 @@ cascades in cce."
                 }
             }
         } else {
-            if button == MouseButton::Left {
-                if let Some(idx) = self.drag_widget {
-                    self.roster.get_dyn_mut(idx).drag_end();
-                    self.drag_widget = None;
-                    changed = true;
-                }
+            // The router delivers DragEnd to the drag target on the first propagate call
+            // of a release; every visible root then sees the release (commit contract).
+            if self.ui_context.is_dragging {
+                changed = true;
             }
-
+            let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
             for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
                 if !is_visible(i) {
                     continue;
                 }
                 if is_control_panel_child(i) {
                     continue;
                 }
-                if w.mouse_input(button, state, lx, ly, &mut self.ui_context) {
+                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
+                if self.ui_context.propagate_event(&ev, ptr) {
                     changed = true;
                 }
             }
@@ -1865,15 +1870,16 @@ full screen background.",
                 }
             }
         };
+        let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: lx, y: ly, local_x: lx, local_y: ly };
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
             if !is_visible(i) {
                 continue;
             }
             if is_control_panel_child(i) {
                 continue;
             }
-            if w.mouse_wheel(delta, lx, ly, &mut self.ui_context) {
+            let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
+            if self.ui_context.propagate_event(&ev, ptr) {
                 changed = true;
             }
         }
@@ -1907,8 +1913,10 @@ full screen background.",
             }
         };
         let mut handled = false;
+        let key_ev = cce_ui::widget::Event::KeyInput(event.clone());
         if let Some(focused) = self.focused_widget {
-            if self.roster.get_dyn_mut(focused).keyboard_input(event, &mut self.ui_context) {
+            let ptr = self.roster.get_dyn_mut(focused).as_ptr_mut();
+            if self.ui_context.propagate_event(&key_ev, ptr) {
                 changed = true;
                 handled = true;
             }
@@ -1916,7 +1924,6 @@ full screen background.",
 
         if !handled {
             for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
                 if Some(i) == self.focused_widget {
                     continue;
                 }
@@ -1926,7 +1933,8 @@ full screen background.",
                 if is_control_panel_child(i) {
                     continue;
                 }
-                if w.keyboard_input(event, &mut self.ui_context) {
+                let ptr = self.roster.get_dyn_mut(i).as_ptr_mut();
+                if self.ui_context.propagate_event(&key_ev, ptr) {
                     changed = true;
                 }
             }
