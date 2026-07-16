@@ -2431,21 +2431,20 @@ full screen background.",
         if event.state == ElementState::Pressed {
             let mut page_nav = false;
             let mut selected = 0;
-            if event.ctrl {
-                match &event.logical_key {
-                    Key::Character(c) if c == "1" => {
-                        selected = 0;
-                        page_nav = true;
-                    }
-                    Key::Character(c) if c == "2" => {
-                        selected = 1;
-                        page_nav = true;
-                    }
-                    Key::Character(c) if c == "3" => {
-                        selected = 2;
-                        page_nav = true;
-                    }
-                    _ => {}
+            {
+                // input.kdl `cce-test-interface` domain
+                let m = |name: &str, default: &str| {
+                    cce_ui::widget::match_key_shortcut(event, &cce_ui::input::app_chord(name, default))
+                };
+                if m("page_1", "ctrl+1") {
+                    selected = 0;
+                    page_nav = true;
+                } else if m("page_2", "ctrl+2") {
+                    selected = 1;
+                    page_nav = true;
+                } else if m("page_3", "ctrl+3") {
+                    selected = 2;
+                    page_nav = true;
                 }
             }
             if page_nav && !self.is_child {
