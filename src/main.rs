@@ -1640,19 +1640,18 @@ cascades in cce."
             }
         }
 
-        // ── Popovers: geometry then labels, in-frame, on top of everything ──
-        let mut popover_pc = cce_ui::layout::PopoverCollector::new();
+        // ── Popovers: in-frame, on top of everything. PaintCtx is a
+        // RenderTarget — real prims (the dropdown's expanded inset-plate
+        // surface) with per-label bounds; glyphs render in the later text pass
+        // regardless of emission order. ──
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
                 continue;
             }
             if w.popover_rect().is_some() {
-                w.render_popover(&mut popover_pc);
+                w.render_popover(&mut pc);
             }
-        }
-        for &(qc, qx, qy, qw, qh) in &popover_pc.rects {
-            pc.quad(Rect { x: qx, y: qy, width: qw, height: qh }, qc);
         }
 
         // ── Text, as prims (the legacy rebuild_text_items assembly, uncached) ──
@@ -1744,21 +1743,6 @@ cascades in cce."
             }
         }
 
-        for (t, size, x, y, tc, font_opt, bounds) in popover_pc.texts {
-            pc.text_with(
-                t,
-                x,
-                y,
-                size,
-                [
-                    (tc[0] * 255.0) as u8,
-                    (tc[1] * 255.0) as u8,
-                    (tc[2] * 255.0) as u8,
-                ],
-                font_opt,
-                bounds,
-            );
-        }
 
         // The status line the old text_areas() override appended.
         if !self.is_child {
