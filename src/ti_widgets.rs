@@ -291,7 +291,7 @@ impl Backplate {
     fn backplate_color(&self) -> [f32; 4] {
         let mut c = cce_ui::color::page_low_color();
         if c[3] > 0.001 {
-            c[3] = cce_ui::color::active_backplate_opacity();
+            c[3] = cce_ui::color::root_plate_opacity();
         }
         c
     }
@@ -305,7 +305,7 @@ impl cce_ui::widget::Paint for Backplate {
     }
 
     fn corner_style(&self, _rect: Rect) -> Option<(f32, (bool, bool, bool, bool))> {
-        let r = cce_ui::color::backplate_corner_radius();
+        let r = cce_ui::color::root_plate_corner_radius();
         let on = r > 0.1;
         Some((r, (on, on, on, on)))
     }
@@ -315,7 +315,7 @@ impl cce_ui::widget::Paint for Backplate {
         // all_rounded_quads (nothing when the radius is off) — same shape here. The bevel
         // field is carried for the --border-bevel flag but, like the legacy lookalike, has
         // no reader on the gallery's display path.
-        let radius = cce_ui::color::backplate_corner_radius();
+        let radius = cce_ui::color::root_plate_corner_radius();
         let c = self.backplate_color();
         if radius > 0.1 && c[3].abs() > 0.001 {
             pc.rounded_rect(rect, radius, (true, true, true, true), c);

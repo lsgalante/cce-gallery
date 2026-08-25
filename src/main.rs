@@ -1423,7 +1423,7 @@ cascades in cce."
 
         // ── Rounded geometry (the legacy view_rounded_quads body) ──
         if !self.is_child && self.use_backplate {
-            let r = cce_ui::color::backplate_corner_radius();
+            let r = cce_ui::color::root_plate_corner_radius();
             let bg_color = cce_ui::color::page_low_color();
             pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: sw, height: sh }, r, (true, true, true, true), bg_color);
         }
@@ -1446,7 +1446,7 @@ cascades in cce."
                 continue;
             }
             if !self.is_child && i == 14 {
-                let r = cce_ui::color::backplate_corner_radius();
+                let r = cce_ui::color::root_plate_corner_radius();
                 let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
                 let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
                 let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
@@ -1472,7 +1472,7 @@ cascades in cce."
 
                 let menubar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
                 if menubar_enabled {
-                    let mut menu_color = cce_ui::color::backplate_menubar_color();
+                    let mut menu_color = cce_ui::color::root_plate_menubar_color();
                     menu_color[3] = transparency_val;
                     if backplate_enabled {
                         push_rounded(&mut pc, wx, wy, ww, 30.0, r, menu_color, (true, true, false, false));
@@ -1483,7 +1483,7 @@ cascades in cce."
 
                 let statusbar_enabled = self.roster.get_value_string(40) == Some("true".to_string());
                 if statusbar_enabled {
-                    let mut status_color = cce_ui::color::backplate_statusbar_color();
+                    let mut status_color = cce_ui::color::root_plate_statusbar_color();
                     status_color[3] = transparency_val;
                     if backplate_enabled {
                         push_rounded(&mut pc, wx, wy + wh - 24.0, ww, 24.0, r, status_color, (false, false, true, true));
@@ -1748,7 +1748,7 @@ cascades in cce."
         if !self.is_child {
             let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
             let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
-            let scol = cce_ui::color::backplate_statusbar_text_color();
+            let scol = cce_ui::color::root_plate_statusbar_text_color();
             pc.text_with(
                 self.status_text.clone(),
                 12.0,
@@ -1802,7 +1802,7 @@ cascades in cce."
                     border_color[3] = transparency_val;
                     let t = self.roster.value(43) as f32;
                     let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
-                    let r = cce_ui::color::backplate_corner_radius();
+                    let r = cce_ui::color::root_plate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
                     
                     if backplate_enabled {
