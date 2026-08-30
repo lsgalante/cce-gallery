@@ -2408,6 +2408,11 @@ full screen background.",
                 let root = self.roster.get_dyn(i).base().id();
                 if self.ui_context.propagate_event(&key_ev, root) {
                     changed = true;
+                    // A consumed key is HANDLED, not just repaint-worthy: the
+                    // Escape-quits-app fallback below is gated on !handled,
+                    // and without this a dropdown that took Escape through
+                    // this sweep closed its menu AND exited the app.
+                    handled = true;
                 }
             }
         }
