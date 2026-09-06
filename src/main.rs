@@ -227,12 +227,13 @@ cce-notifier's toasts are\n\
 this kind of surface.",
             ChildKind::LayerBackground => "A wlr-layer-shell surface\n\
 on the Background layer,\n\
-anchored to all four edges,\n\
-behind every window.\n\n\
-cce draws its desktop grid\n\
-natively above this layer,\n\
-so today the surface is\n\
-covered and never seen.",
+anchored to all four edges.\n\n\
+cce paints it over its flat\n\
+backdrop colour and under\n\
+the desktop grid's cells, so\n\
+it shows through the gaps\n\
+between them, like a\n\
+wallpaper would.",
             ChildKind::Status => "An xdg_toplevel whose app_id\n\
 starts with cce-status: the\n\
 WindowRole::StatusBar\n\
