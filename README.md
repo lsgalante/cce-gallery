@@ -109,7 +109,7 @@ for example).
   layout tables, visibility filters and dispatch loops; child windows use the
   five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
   layout tables.
-- `src/ti_widgets.rs` — gallery-local widgets: `ControlPanel` (scroll chrome
+- `src/gallery_widgets.rs` — gallery-local widgets: `ControlPanel` (scroll chrome
   for the Windows page's option column), and lookalikes of the retired toolkit
   `Plate`, `SectionContainer` and `Backplate` kept as exhibits.
 

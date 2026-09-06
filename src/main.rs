@@ -3,8 +3,8 @@ use cce_ui::widget::{
     Toggle, WidgetHost, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar, 
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
-mod ti_widgets;
-use ti_widgets::{Backplate, ControlPanel, Plate, SectionContainer};
+mod gallery_widgets;
+use gallery_widgets::{Backplate, ControlPanel, Plate, SectionContainer};
 use cce_ui::widget::Adapted;
 use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition};
 use wayland_client::QueueHandle;
