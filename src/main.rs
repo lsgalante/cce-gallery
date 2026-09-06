@@ -1149,7 +1149,7 @@ cascades in cce."
         };
 
         let positions = if is_child {
-            child_positions(c_w, c_h, use_backplate, use_menubar, use_statusbar, child_type.as_deref())
+            child_positions(c_w, c_h, use_menubar, use_statusbar, child_type.as_deref())
         } else {
             let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
                 roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator"),
@@ -1361,7 +1361,7 @@ cascades in cce."
             cce_ui::scale::set_scale_factor(scale as f32);
 
             self.positions = if self.is_child {
-                child_positions(self.width, self.height, self.use_backplate, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
+                child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
             } else {
                 let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
                     self.roster.get_dyn_mut(1).as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
@@ -2732,70 +2732,14 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     vec
 }
 
-fn child_positions(sw: f32, sh: f32, _use_backplate: bool, use_menubar: bool, use_statusbar: bool, child_type: Option<&str>) -> Vec<(f32, f32, f32, f32)> {
+/// The five `ChildSlots` rects for a child window of `sw`x`sh`: 0 background,
+/// 1 main (editor or description), 2 Close, 3 and 4 the MenuBar / StatusBar of a
+/// simulated window or the two aux Labels of a Ramp / ColorRamp editor.
+fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, child_type: Option<&str>) -> Vec<(f32, f32, f32, f32)> {
     let dy = if use_menubar { 40.0 } else { 0.0 };
     let dh = if use_statusbar { 24.0 } else { 0.0 };
-    let mut vec = vec![
-        (-1000.0, -1000.0, 0.0, 0.0), // 0
-        (-1000.0, -1000.0, 0.0, 0.0), // 1
-        (-1000.0, -1000.0, 0.0, 0.0), // 2
-        
-        // Page 0
-        (-1000.0, -1000.0, 0.0, 0.0), // 3
-        (-1000.0, -1000.0, 0.0, 0.0), // 4
-        (-1000.0, -1000.0, 0.0, 0.0), // 5
-        (-1000.0, -1000.0, 0.0, 0.0), // 6
-        (-1000.0, -1000.0, 0.0, 0.0), // 7
-        (-1000.0, -1000.0, 0.0, 0.0), // 8
-        (-1000.0, -1000.0, 0.0, 0.0), // 9
-        (-1000.0, -1000.0, 0.0, 0.0), // 10
-        (-1000.0, -1000.0, 0.0, 0.0), // 11
-        (-1000.0, -1000.0, 0.0, 0.0), // 12
-        (-1000.0, -1000.0, 0.0, 0.0), // 13
-        
-        // Page 1
-        (-1000.0, -1000.0, 0.0, 0.0), // 14
-        (-1000.0, -1000.0, 0.0, 0.0), // 15
-        (-1000.0, -1000.0, 0.0, 0.0), // 16
-        (-1000.0, -1000.0, 0.0, 0.0), // 17
-        (-1000.0, -1000.0, 0.0, 0.0), // 18
-        (-1000.0, -1000.0, 0.0, 0.0), // 19
-        (-1000.0, -1000.0, 0.0, 0.0), // 20
-        (-1000.0, -1000.0, 0.0, 0.0), // 21
-        (-1000.0, -1000.0, 0.0, 0.0), // 22
-        (-1000.0, -1000.0, 0.0, 0.0), // 23
-        (-1000.0, -1000.0, 0.0, 0.0), // 24
-        (-1000.0, -1000.0, 0.0, 0.0), // 25
-        (-1000.0, -1000.0, 0.0, 0.0), // 26
-        (-1000.0, -1000.0, 0.0, 0.0), // 27
-        (-1000.0, -1000.0, 0.0, 0.0), // 28
-        (-1000.0, -1000.0, 0.0, 0.0), // 29
-        (-1000.0, -1000.0, 0.0, 0.0), // 30
-        
-        // Page 2
-        (-1000.0, -1000.0, 0.0, 0.0), // 31
-        (-1000.0, -1000.0, 0.0, 0.0), // 32
-        (-1000.0, -1000.0, 0.0, 0.0), // 33
-        (-1000.0, -1000.0, 0.0, 0.0), // 34
-        
-        // New widgets
-        (-1000.0, -1000.0, 0.0, 0.0), // 35
-        (-1000.0, -1000.0, 0.0, 0.0), // 36
-        (-1000.0, -1000.0, 0.0, 0.0), // 37
-        (-1000.0, -1000.0, 0.0, 0.0), // 38
-        (-1000.0, -1000.0, 0.0, 0.0), // 39
-        (-1000.0, -1000.0, 0.0, 0.0), // 40
-        (-1000.0, -1000.0, 0.0, 0.0), // 41
-        (-1000.0, -1000.0, 0.0, 0.0), // 42
-        (-1000.0, -1000.0, 0.0, 0.0), // 43
-        (-1000.0, -1000.0, 0.0, 0.0), // 44
-        (-1000.0, -1000.0, 0.0, 0.0), // 45
-        (-1000.0, -1000.0, 0.0, 0.0), // 46
-        (-1000.0, -1000.0, 0.0, 0.0), // 47
-        (-1000.0, -1000.0, 0.0, 0.0), // 48
-        (-1000.0, -1000.0, 0.0, 0.0), // 49
-        (-1000.0, -1000.0, 0.0, 0.0), // 50
-    ];
+    let inner_h = sh - dy - dh;
+    let mut vec = vec![(-1000.0, -1000.0, 0.0, 0.0); CHILD_COUNT];
 
     if use_menubar {
         vec[3] = (0.0, 0.0, sw, 40.0);
@@ -2804,21 +2748,13 @@ fn child_positions(sw: f32, sh: f32, _use_backplate: bool, use_menubar: bool, us
         vec[4] = (0.0, sh - 24.0, sw, 24.0);
     }
 
-    let inner_h = sh - dy - dh;
-    if child_type == Some("ColorRamp") {
-        vec[0] = (0.0, dy, sw, inner_h);
-        vec[1] = (20.0, dy + 20.0, sw - 40.0, inner_h - 90.0);
-        vec[2] = ((sw - 100.0) / 2.0, dy + inner_h - 55.0, 100.0, 35.0);
-        vec[3] = (20.0, dy + inner_h - 90.0, 200.0, 20.0);
-        vec[4] = (sw - 220.0, dy + inner_h - 90.0, 200.0, 20.0);
-    } else if child_type == Some("Ramp") {
-        vec[0] = (0.0, dy, sw, inner_h);
+    vec[0] = (0.0, dy, sw, inner_h);
+    if matches!(child_type, Some("Ramp") | Some("ColorRamp")) {
         vec[1] = (20.0, dy + 20.0, sw - 40.0, inner_h - 90.0);
         vec[2] = ((sw - 100.0) / 2.0, dy + inner_h - 55.0, 100.0, 35.0);
         vec[3] = (20.0, dy + inner_h - 90.0, 200.0, 20.0);
         vec[4] = (sw - 220.0, dy + inner_h - 90.0, 200.0, 20.0);
     } else {
-        vec[0] = (0.0, dy, sw, inner_h);
         vec[1] = (20.0, dy + 40.0, sw - 40.0, inner_h - 110.0);
         vec[2] = ((sw - 100.0) / 2.0, dy + inner_h - 60.0, 100.0, 35.0);
     }
