@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Clear Test Interface
-Comment=GUI diagnostic and verification window for Clear desktop environment
-Exec=cce-test-interface
-Icon=cce-test-interface
-Terminal=false
-Categories=Utility;Development;
-StartupNotify=true

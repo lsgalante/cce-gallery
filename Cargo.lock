@@ -340,7 +340,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cce-test-interface"
+name = "cce-gallery"
 version = "0.1.0"
 dependencies = [
  "calloop",

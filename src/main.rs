@@ -1136,7 +1136,7 @@ cascades in cce."
                 range_slider_demo: RangeSlider::new().with_label("RangeSlider"),
                 trackpad_demo: Trackpad::new().with_label("Trackpad"),
                 portal_panel: Panel::new(0.0, 0.0, 450.0, 200.0).with_label("XDG Desktop Portal FileChooser"),
-                portal_label: Label::new("This page verifies the integration of the XDG Desktop Portal\nFile Chooser in the Clear environment.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
+                portal_label: Label::new("This page verifies the integration of the XDG Desktop Portal\nFile Chooser in the cce environment.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
                 open_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Open File Dialog"),
                 save_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File Dialog"),
                 textbox_demo: TextBox::new("Interactive TextBox".to_string()),
@@ -1276,17 +1276,17 @@ cascades in cce."
                 None => "Simulated Client Window".to_string(),
             }
         } else {
-            "Clear Test Interface - Diagnostics Dashboard".to_string()
+            "Gallery".to_string()
         };
         
         let mut app_id = if self.is_child {
             if let Some(ref t) = self.child_type {
-                format!("clear-test-child-{}", t.to_lowercase())
+                format!("cce-gallery-child-{}", t.to_lowercase())
             } else {
-                "clear-test-child".to_string()
+                "cce-gallery-child".to_string()
             }
         } else {
-            "cce-test-interface".to_string()
+            "cce-gallery".to_string()
         };
         if self.is_child && self.child_shape.as_deref() == Some("circular") {
             app_id.push_str("-circular");
@@ -1665,9 +1665,9 @@ cascades in cce."
             }
         } else {
             match self.current_page {
-                Page::Controls => "Clear Test Interface - Controls".to_string(),
-                Page::Windows => "Clear Test Interface - Windows".to_string(),
-                Page::Xdg => "Clear Test Interface - XDG Portal".to_string(),
+                Page::Controls => "Gallery - Controls".to_string(),
+                Page::Windows => "Gallery - Windows".to_string(),
+                Page::Xdg => "Gallery - XDG Portal".to_string(),
             }
         };
         let mut has_menu_bar = false;
@@ -2413,7 +2413,7 @@ full screen background.",
             let mut page_nav = false;
             let mut selected = 0;
             {
-                // input.kdl `cce-test-interface` domain
+                // input.kdl `cce-gallery` domain
                 let m = |name: &str, default: &str| {
                     cce_ui::widget::match_key_shortcut(event, &cce_ui::input::app_chord(name, default))
                 };

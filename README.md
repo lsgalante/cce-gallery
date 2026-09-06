@@ -1,4 +1,4 @@
-# cce-test-interface
+# cce-gallery
 
 A widget gallery and compositor-behaviour test bench for the `cce` desktop
 environment. It is a single `cce-ui` client (a real Wayland surface, drawn as
@@ -50,7 +50,7 @@ The child windows spawned from the Windows page are the same binary run with
 `--child`. The flags mirror the control panel:
 
 ```
-cce-test-interface --child --type <Toplevel|Popup|LayerTop|LayerOverlay|LayerBackground|Ramp|ColorRamp>
+cce-gallery --child --type <Toplevel|Popup|LayerTop|LayerOverlay|LayerBackground|Ramp|ColorRamp>
                    [--shape rectangular|circular] [--width N --height N]
                    [--opacity --transparency 0.0-1.0]
                    [--no-border | --border-width N [--border-bevel]]
@@ -59,9 +59,9 @@ cce-test-interface --child --type <Toplevel|Popup|LayerTop|LayerOverlay|LayerBac
 
 A simulated window shows a description label, a `Close` button, and the
 optional menu bar and status bar. Its `app_id` encodes what it is, so
-compositor rules can target it: `clear-test-child-<type>` with `-circular`
+compositor rules can target it: `cce-gallery-child-<type>` with `-circular`
 and/or `-noborder` appended when those apply. The main window's `app_id` is
-`cce-test-interface` (also with `-noborder` when the border is disabled).
+`cce-gallery` (also with `-noborder` when the border is disabled).
 
 `--type Ramp` and `--type ColorRamp` are editor windows rather than simulated
 clients: they host the toolkit's `Ramp` and `ColorRamp` widgets on a
@@ -88,11 +88,11 @@ the editor live.
 
 ## Keybindings
 
-Page navigation is resolved through the `cce-test-interface` domain of
+Page navigation is resolved through the `cce-gallery` domain of
 `~/.config/cce/input.kdl`; the defaults are `ctrl+1`, `ctrl+2`, `ctrl+3`:
 
 ```kdl
-cce-test-interface {
+cce-gallery {
     page_1 "ctrl+1"
     page_2 "ctrl+2"
     page_3 "ctrl+3"
@@ -120,9 +120,9 @@ standalone or from the workspace root. Installation goes through `ccebuild`
 (see `cce-compositor/WORKSPACE.md`):
 
 ```sh
-cargo build --release -p cce-test-interface
-ccebuild install --no-build cce-test-interface   # what `make install` runs
+cargo build --release -p cce-gallery
+ccebuild install --no-build cce-gallery   # what `make install` runs
 ```
 
-Run it from the workspace with `cargo run -p cce-test-interface`, or from the
+Run it from the workspace with `cargo run -p cce-gallery`, or from the
 launcher once installed.

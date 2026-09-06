@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Gallery
+Comment=Widget gallery and compositor test bench for the cce desktop environment
+Exec=cce-gallery
+Icon=cce-gallery
+Terminal=false
+Categories=Utility;Development;
+StartupNotify=true
