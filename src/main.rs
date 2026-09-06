@@ -751,20 +751,17 @@ impl State {
     }
 }
 
-fn open_file_dialog_portal(sender: calloop::channel::Sender<String>) {
-    if let Some(path) = cce_ui::file_dialog::pick_file("Open File Dialog", &[]) {
-        let _ = sender.send(format!("Selected: {}", path.display()));
-    } else {
-        let _ = sender.send("File dialog cancelled by user".to_string());
-    }
-}
-
-fn save_file_dialog_portal(sender: calloop::channel::Sender<String>) {
-    if let Some(path) = cce_ui::file_dialog::save_file("Save File Dialog", &[]) {
-        let _ = sender.send(format!("Saved to: {}", path.display()));
-    } else {
-        let _ = sender.send("Save dialog cancelled by user".to_string());
-    }
+/// Runs the toolkit file chooser on a worker thread (it blocks its caller) and
+/// reports the outcome through the app's message channel, into the status bar.
+fn run_file_dialog(save: bool, sender: calloop::channel::Sender<String>) {
+    std::thread::spawn(move || {
+        let result = if save {
+            cce_ui::file_dialog::save_file("Save File", &[]).map(|p| format!("Saved to: {}", p.display()))
+        } else {
+            cce_ui::file_dialog::pick_file("Open File", &[]).map(|p| format!("Selected: {}", p.display()))
+        };
+        let _ = sender.send(result.unwrap_or_else(|| "File dialog cancelled".to_string()));
+    });
 }
 
 
@@ -1093,10 +1090,10 @@ cascades in cce."
                 ).with_font_size(10.0),
                 range_slider_demo: RangeSlider::new().with_label("RangeSlider"),
                 trackpad_demo: Trackpad::new().with_label("Trackpad"),
-                portal_panel: Panel::new(0.0, 0.0, 450.0, 200.0).with_label("XDG Desktop Portal FileChooser"),
-                portal_label: Label::new("This page verifies the integration of the XDG Desktop Portal\nFile Chooser in the cce environment.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
-                open_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Open File Dialog"),
-                save_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File Dialog"),
+                portal_panel: Panel::new(0.0, 0.0, 450.0, 200.0).with_label("File chooser"),
+                portal_label: Label::new("Opens the desktop file chooser through cce-ui's file_dialog\nand reports the chosen path in the status bar.").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
+                open_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Open File"),
+                save_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File"),
                 textbox_demo: TextBox::new("Interactive TextBox".to_string()),
                 plate_demo: Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate"),
                 backplate_toggle: {
@@ -1625,7 +1622,7 @@ cascades in cce."
             match self.current_page {
                 Page::Controls => "Gallery - Controls".to_string(),
                 Page::Windows => "Gallery - Windows".to_string(),
-                Page::Xdg => "Gallery - XDG Portal".to_string(),
+                Page::Xdg => "Gallery - XDG".to_string(),
             }
         };
         let mut has_menu_bar = false;
@@ -2217,27 +2214,16 @@ full screen background.",
                             changed = true;
                         }
                     } else if self.current_page == Page::Xdg {
-                        let mut open_file = false;
-                        let mut save_file = false;
-                        if self.roster.take_click(26) {
-                            open_file = true;
+                        let save = if self.roster.take_click(26) {
+                            Some(false)
                         } else if self.roster.take_click(27) {
-                            save_file = true;
-                        }
- 
-                        if open_file {
-                            self.update_status_text("Opening Open File Dialog...");
-                            let sender_clone = self.sender.clone();
-                            std::thread::spawn(move || {
-                                open_file_dialog_portal(sender_clone);
-                            });
-                            changed = true;
-                        } else if save_file {
-                            self.update_status_text("Opening Save File Dialog...");
-                            let sender_clone = self.sender.clone();
-                            std::thread::spawn(move || {
-                                save_file_dialog_portal(sender_clone);
-                            });
+                            Some(true)
+                        } else {
+                            None
+                        };
+                        if let Some(save) = save {
+                            self.update_status_text(if save { "Opening the Save File dialog..." } else { "Opening the Open File dialog..." });
+                            run_file_dialog(save, self.sender.clone());
                             changed = true;
                         }
                     }
@@ -2452,7 +2438,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     vec[20] = (base_x + 10.0, 330.0, 170.0, 20.0); // 20 Label
     vec[21] = (base_x + 10.0, 360.0, 170.0, 180.0); // 21 Label
     
-    // Page 2 (XDG FileChooser)
+    // Page 2 (XDG)
     vec[24] = (base_x, 60.0, 450.0, 200.0); // 24 Panel
     vec[25] = (base_x + 20.0, 80.0, 410.0, 60.0); // 25 Label
     vec[26] = (base_x + 20.0, 160.0, 180.0, bh); // 26 Button

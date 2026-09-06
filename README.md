@@ -39,10 +39,10 @@ of each surface kind can be observed. The control panel on the right chooses:
 the child will be drawn with, and a description plate explains what the
 selected surface type is and how it is expected to be laid out.
 
-**XDG** — two buttons, `Open File Dialog` and `Save File Dialog`, that call the
-toolkit's `file_dialog` module (the XDG Desktop Portal file chooser) on a
-background thread and report the chosen path, or the cancellation, in the
-status bar.
+**XDG** — two buttons, `Open File` and `Save File`, that call the toolkit's
+`file_dialog` module (the XDG Desktop Portal file chooser, via `rfd`) on a
+worker thread and report the chosen path, or the cancellation, in the status
+bar.
 
 ## Child windows
 
