@@ -1,5 +1,5 @@
 use cce_ui::widget::{
-    Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
+    Button, Checkbox, ContentBg, Dropdown, Label, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     Toggle, WidgetHost, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar,
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
@@ -55,10 +55,10 @@ impl Visibility {
             };
         }
         match index {
-            0..=2 | 38 => true,
-            3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => self.page == Page::Controls,
-            9..=21 | 30..=37 | 40 | 43 => self.page == Page::Windows,
-            24..=27 => self.page == Page::Xdg,
+            0..=1 | 37 => true,
+            2..=7 | 21 | 22 | 27 | 28 | 38 | 40 | 41 | 43 => self.page == Page::Controls,
+            8..=20 | 29..=36 | 39 | 42 => self.page == Page::Windows,
+            23..=26 => self.page == Page::Xdg,
             _ => false,
         }
     }
@@ -71,12 +71,11 @@ struct PreviewStyle {
     bg_color: [f32; 4],
 }
 
-/// The gallery roster: 45 named slots. The numeric indexes used by the positions
+/// The gallery roster: 44 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
     pub menu_bar: Adapted<MenuBar>,
-    pub paginator: Adapted<Paginator>,
     pub status_bar: Adapted<StatusBar>,
     pub button_demo: Adapted<Button>,
     pub checkbox_demo: Adapted<Checkbox>,
@@ -122,7 +121,7 @@ pub struct GallerySlots {
     pub layout_dd: Adapted<Dropdown>,
 }
 
-pub const GALLERY_COUNT: usize = 45;
+pub const GALLERY_COUNT: usize = 44;
 
 impl GallerySlots {
 
@@ -130,50 +129,49 @@ impl GallerySlots {
     pub fn draggable(&self, idx: usize) -> bool {
         match idx {
             0 => self.menu_bar.draggable(),
-            1 => self.paginator.draggable(),
-            2 => self.status_bar.draggable(),
-            3 => self.button_demo.draggable(),
-            4 => self.checkbox_demo.draggable(),
-            5 => self.toggle_demo.draggable(),
-            6 => self.progress_demo.draggable(),
-            7 => self.slider_demo.draggable(),
-            8 => self.spinbox_demo.draggable(),
-            9 => self.panel_demo.draggable(),
-            10 => self.create_window_btn.draggable(),
-            11 => self.opacity_toggle.draggable(),
-            12 => self.transparency_slider.draggable(),
-            13 => self.transparency_label.draggable(),
-            14 => self.window_type_dd.draggable(),
-            15 => self.window_shape_dd.draggable(),
-            16 => self.enable_toggle.draggable(),
-            17 => self.width_spin.draggable(),
-            18 => self.height_spin.draggable(),
-            19 => self.surface_plate.draggable(),
-            20 => self.surface_info_label.draggable(),
-            21 => self.surface_desc_label.draggable(),
-            22 => self.range_slider_demo.draggable(),
-            23 => self.trackpad_demo.draggable(),
-            24 => self.portal_panel.draggable(),
-            25 => self.portal_label.draggable(),
-            26 => self.open_dialog_btn.draggable(),
-            27 => self.save_dialog_btn.draggable(),
-            28 => self.textbox_demo.draggable(),
-            29 => self.plate_demo.draggable(),
-            30 => self.backplate_toggle.draggable(),
-            31 => self.menubar_toggle.draggable(),
-            32 => self.statusbar_toggle.draggable(),
-            33 => self.border_section.draggable(),
-            34 => self.bevel_toggle.draggable(),
-            35 => self.border_width_spin.draggable(),
-            36 => self.bevel_depth_spin.draggable(),
-            37 => self.elements_section.draggable(),
-            38 => self.page_selector.draggable(),
-            39 => self.color_ramp_btn.draggable(),
-            40 => self.bevel_shape_btn.draggable(),
-            41 => self.bevel_ramp.draggable(),
-            42 => self.ramp_btn.draggable(),
-            43 => self.control_panel.draggable(),
-            44 => self.layout_dd.draggable(),
+            1 => self.status_bar.draggable(),
+            2 => self.button_demo.draggable(),
+            3 => self.checkbox_demo.draggable(),
+            4 => self.toggle_demo.draggable(),
+            5 => self.progress_demo.draggable(),
+            6 => self.slider_demo.draggable(),
+            7 => self.spinbox_demo.draggable(),
+            8 => self.panel_demo.draggable(),
+            9 => self.create_window_btn.draggable(),
+            10 => self.opacity_toggle.draggable(),
+            11 => self.transparency_slider.draggable(),
+            12 => self.transparency_label.draggable(),
+            13 => self.window_type_dd.draggable(),
+            14 => self.window_shape_dd.draggable(),
+            15 => self.enable_toggle.draggable(),
+            16 => self.width_spin.draggable(),
+            17 => self.height_spin.draggable(),
+            18 => self.surface_plate.draggable(),
+            19 => self.surface_info_label.draggable(),
+            20 => self.surface_desc_label.draggable(),
+            21 => self.range_slider_demo.draggable(),
+            22 => self.trackpad_demo.draggable(),
+            23 => self.portal_panel.draggable(),
+            24 => self.portal_label.draggable(),
+            25 => self.open_dialog_btn.draggable(),
+            26 => self.save_dialog_btn.draggable(),
+            27 => self.textbox_demo.draggable(),
+            28 => self.plate_demo.draggable(),
+            29 => self.backplate_toggle.draggable(),
+            30 => self.menubar_toggle.draggable(),
+            31 => self.statusbar_toggle.draggable(),
+            32 => self.border_section.draggable(),
+            33 => self.bevel_toggle.draggable(),
+            34 => self.border_width_spin.draggable(),
+            35 => self.bevel_depth_spin.draggable(),
+            36 => self.elements_section.draggable(),
+            37 => self.page_selector.draggable(),
+            38 => self.color_ramp_btn.draggable(),
+            39 => self.bevel_shape_btn.draggable(),
+            40 => self.bevel_ramp.draggable(),
+            41 => self.ramp_btn.draggable(),
+            42 => self.control_panel.draggable(),
+            43 => self.layout_dd.draggable(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -181,50 +179,49 @@ impl GallerySlots {
     pub fn is_dragging(&self, idx: usize) -> bool {
         match idx {
             0 => self.menu_bar.is_dragging(),
-            1 => self.paginator.is_dragging(),
-            2 => self.status_bar.is_dragging(),
-            3 => self.button_demo.is_dragging(),
-            4 => self.checkbox_demo.is_dragging(),
-            5 => self.toggle_demo.is_dragging(),
-            6 => self.progress_demo.is_dragging(),
-            7 => self.slider_demo.is_dragging(),
-            8 => self.spinbox_demo.is_dragging(),
-            9 => self.panel_demo.is_dragging(),
-            10 => self.create_window_btn.is_dragging(),
-            11 => self.opacity_toggle.is_dragging(),
-            12 => self.transparency_slider.is_dragging(),
-            13 => self.transparency_label.is_dragging(),
-            14 => self.window_type_dd.is_dragging(),
-            15 => self.window_shape_dd.is_dragging(),
-            16 => self.enable_toggle.is_dragging(),
-            17 => self.width_spin.is_dragging(),
-            18 => self.height_spin.is_dragging(),
-            19 => self.surface_plate.is_dragging(),
-            20 => self.surface_info_label.is_dragging(),
-            21 => self.surface_desc_label.is_dragging(),
-            22 => self.range_slider_demo.is_dragging(),
-            23 => self.trackpad_demo.is_dragging(),
-            24 => self.portal_panel.is_dragging(),
-            25 => self.portal_label.is_dragging(),
-            26 => self.open_dialog_btn.is_dragging(),
-            27 => self.save_dialog_btn.is_dragging(),
-            28 => self.textbox_demo.is_dragging(),
-            29 => self.plate_demo.is_dragging(),
-            30 => self.backplate_toggle.is_dragging(),
-            31 => self.menubar_toggle.is_dragging(),
-            32 => self.statusbar_toggle.is_dragging(),
-            33 => self.border_section.is_dragging(),
-            34 => self.bevel_toggle.is_dragging(),
-            35 => self.border_width_spin.is_dragging(),
-            36 => self.bevel_depth_spin.is_dragging(),
-            37 => self.elements_section.is_dragging(),
-            38 => self.page_selector.is_dragging(),
-            39 => self.color_ramp_btn.is_dragging(),
-            40 => self.bevel_shape_btn.is_dragging(),
-            41 => self.bevel_ramp.is_dragging(),
-            42 => self.ramp_btn.is_dragging(),
-            43 => self.control_panel.is_dragging(),
-            44 => self.layout_dd.is_dragging(),
+            1 => self.status_bar.is_dragging(),
+            2 => self.button_demo.is_dragging(),
+            3 => self.checkbox_demo.is_dragging(),
+            4 => self.toggle_demo.is_dragging(),
+            5 => self.progress_demo.is_dragging(),
+            6 => self.slider_demo.is_dragging(),
+            7 => self.spinbox_demo.is_dragging(),
+            8 => self.panel_demo.is_dragging(),
+            9 => self.create_window_btn.is_dragging(),
+            10 => self.opacity_toggle.is_dragging(),
+            11 => self.transparency_slider.is_dragging(),
+            12 => self.transparency_label.is_dragging(),
+            13 => self.window_type_dd.is_dragging(),
+            14 => self.window_shape_dd.is_dragging(),
+            15 => self.enable_toggle.is_dragging(),
+            16 => self.width_spin.is_dragging(),
+            17 => self.height_spin.is_dragging(),
+            18 => self.surface_plate.is_dragging(),
+            19 => self.surface_info_label.is_dragging(),
+            20 => self.surface_desc_label.is_dragging(),
+            21 => self.range_slider_demo.is_dragging(),
+            22 => self.trackpad_demo.is_dragging(),
+            23 => self.portal_panel.is_dragging(),
+            24 => self.portal_label.is_dragging(),
+            25 => self.open_dialog_btn.is_dragging(),
+            26 => self.save_dialog_btn.is_dragging(),
+            27 => self.textbox_demo.is_dragging(),
+            28 => self.plate_demo.is_dragging(),
+            29 => self.backplate_toggle.is_dragging(),
+            30 => self.menubar_toggle.is_dragging(),
+            31 => self.statusbar_toggle.is_dragging(),
+            32 => self.border_section.is_dragging(),
+            33 => self.bevel_toggle.is_dragging(),
+            34 => self.border_width_spin.is_dragging(),
+            35 => self.bevel_depth_spin.is_dragging(),
+            36 => self.elements_section.is_dragging(),
+            37 => self.page_selector.is_dragging(),
+            38 => self.color_ramp_btn.is_dragging(),
+            39 => self.bevel_shape_btn.is_dragging(),
+            40 => self.bevel_ramp.is_dragging(),
+            41 => self.ramp_btn.is_dragging(),
+            42 => self.control_panel.is_dragging(),
+            43 => self.layout_dd.is_dragging(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -232,50 +229,49 @@ impl GallerySlots {
     pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match idx {
             0 => &self.menu_bar,
-            1 => &self.paginator,
-            2 => &self.status_bar,
-            3 => &self.button_demo,
-            4 => &self.checkbox_demo,
-            5 => &self.toggle_demo,
-            6 => &self.progress_demo,
-            7 => &self.slider_demo,
-            8 => &self.spinbox_demo,
-            9 => &self.panel_demo,
-            10 => &self.create_window_btn,
-            11 => &self.opacity_toggle,
-            12 => &self.transparency_slider,
-            13 => &self.transparency_label,
-            14 => &self.window_type_dd,
-            15 => &self.window_shape_dd,
-            16 => &self.enable_toggle,
-            17 => &self.width_spin,
-            18 => &self.height_spin,
-            19 => &self.surface_plate,
-            20 => &self.surface_info_label,
-            21 => &self.surface_desc_label,
-            22 => &self.range_slider_demo,
-            23 => &self.trackpad_demo,
-            24 => &self.portal_panel,
-            25 => &self.portal_label,
-            26 => &self.open_dialog_btn,
-            27 => &self.save_dialog_btn,
-            28 => &self.textbox_demo,
-            29 => &self.plate_demo,
-            30 => &self.backplate_toggle,
-            31 => &self.menubar_toggle,
-            32 => &self.statusbar_toggle,
-            33 => &self.border_section,
-            34 => &self.bevel_toggle,
-            35 => &self.border_width_spin,
-            36 => &self.bevel_depth_spin,
-            37 => &self.elements_section,
-            38 => &self.page_selector,
-            39 => &self.color_ramp_btn,
-            40 => &self.bevel_shape_btn,
-            41 => &self.bevel_ramp,
-            42 => &self.ramp_btn,
-            43 => &self.control_panel,
-            44 => &self.layout_dd,
+            1 => &self.status_bar,
+            2 => &self.button_demo,
+            3 => &self.checkbox_demo,
+            4 => &self.toggle_demo,
+            5 => &self.progress_demo,
+            6 => &self.slider_demo,
+            7 => &self.spinbox_demo,
+            8 => &self.panel_demo,
+            9 => &self.create_window_btn,
+            10 => &self.opacity_toggle,
+            11 => &self.transparency_slider,
+            12 => &self.transparency_label,
+            13 => &self.window_type_dd,
+            14 => &self.window_shape_dd,
+            15 => &self.enable_toggle,
+            16 => &self.width_spin,
+            17 => &self.height_spin,
+            18 => &self.surface_plate,
+            19 => &self.surface_info_label,
+            20 => &self.surface_desc_label,
+            21 => &self.range_slider_demo,
+            22 => &self.trackpad_demo,
+            23 => &self.portal_panel,
+            24 => &self.portal_label,
+            25 => &self.open_dialog_btn,
+            26 => &self.save_dialog_btn,
+            27 => &self.textbox_demo,
+            28 => &self.plate_demo,
+            29 => &self.backplate_toggle,
+            30 => &self.menubar_toggle,
+            31 => &self.statusbar_toggle,
+            32 => &self.border_section,
+            33 => &self.bevel_toggle,
+            34 => &self.border_width_spin,
+            35 => &self.bevel_depth_spin,
+            36 => &self.elements_section,
+            37 => &self.page_selector,
+            38 => &self.color_ramp_btn,
+            39 => &self.bevel_shape_btn,
+            40 => &self.bevel_ramp,
+            41 => &self.ramp_btn,
+            42 => &self.control_panel,
+            43 => &self.layout_dd,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -283,50 +279,49 @@ impl GallerySlots {
     pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
         match idx {
             0 => &mut self.menu_bar,
-            1 => &mut self.paginator,
-            2 => &mut self.status_bar,
-            3 => &mut self.button_demo,
-            4 => &mut self.checkbox_demo,
-            5 => &mut self.toggle_demo,
-            6 => &mut self.progress_demo,
-            7 => &mut self.slider_demo,
-            8 => &mut self.spinbox_demo,
-            9 => &mut self.panel_demo,
-            10 => &mut self.create_window_btn,
-            11 => &mut self.opacity_toggle,
-            12 => &mut self.transparency_slider,
-            13 => &mut self.transparency_label,
-            14 => &mut self.window_type_dd,
-            15 => &mut self.window_shape_dd,
-            16 => &mut self.enable_toggle,
-            17 => &mut self.width_spin,
-            18 => &mut self.height_spin,
-            19 => &mut self.surface_plate,
-            20 => &mut self.surface_info_label,
-            21 => &mut self.surface_desc_label,
-            22 => &mut self.range_slider_demo,
-            23 => &mut self.trackpad_demo,
-            24 => &mut self.portal_panel,
-            25 => &mut self.portal_label,
-            26 => &mut self.open_dialog_btn,
-            27 => &mut self.save_dialog_btn,
-            28 => &mut self.textbox_demo,
-            29 => &mut self.plate_demo,
-            30 => &mut self.backplate_toggle,
-            31 => &mut self.menubar_toggle,
-            32 => &mut self.statusbar_toggle,
-            33 => &mut self.border_section,
-            34 => &mut self.bevel_toggle,
-            35 => &mut self.border_width_spin,
-            36 => &mut self.bevel_depth_spin,
-            37 => &mut self.elements_section,
-            38 => &mut self.page_selector,
-            39 => &mut self.color_ramp_btn,
-            40 => &mut self.bevel_shape_btn,
-            41 => &mut self.bevel_ramp,
-            42 => &mut self.ramp_btn,
-            43 => &mut self.control_panel,
-            44 => &mut self.layout_dd,
+            1 => &mut self.status_bar,
+            2 => &mut self.button_demo,
+            3 => &mut self.checkbox_demo,
+            4 => &mut self.toggle_demo,
+            5 => &mut self.progress_demo,
+            6 => &mut self.slider_demo,
+            7 => &mut self.spinbox_demo,
+            8 => &mut self.panel_demo,
+            9 => &mut self.create_window_btn,
+            10 => &mut self.opacity_toggle,
+            11 => &mut self.transparency_slider,
+            12 => &mut self.transparency_label,
+            13 => &mut self.window_type_dd,
+            14 => &mut self.window_shape_dd,
+            15 => &mut self.enable_toggle,
+            16 => &mut self.width_spin,
+            17 => &mut self.height_spin,
+            18 => &mut self.surface_plate,
+            19 => &mut self.surface_info_label,
+            20 => &mut self.surface_desc_label,
+            21 => &mut self.range_slider_demo,
+            22 => &mut self.trackpad_demo,
+            23 => &mut self.portal_panel,
+            24 => &mut self.portal_label,
+            25 => &mut self.open_dialog_btn,
+            26 => &mut self.save_dialog_btn,
+            27 => &mut self.textbox_demo,
+            28 => &mut self.plate_demo,
+            29 => &mut self.backplate_toggle,
+            30 => &mut self.menubar_toggle,
+            31 => &mut self.statusbar_toggle,
+            32 => &mut self.border_section,
+            33 => &mut self.bevel_toggle,
+            34 => &mut self.border_width_spin,
+            35 => &mut self.bevel_depth_spin,
+            36 => &mut self.elements_section,
+            37 => &mut self.page_selector,
+            38 => &mut self.color_ramp_btn,
+            39 => &mut self.bevel_shape_btn,
+            40 => &mut self.bevel_ramp,
+            41 => &mut self.ramp_btn,
+            42 => &mut self.control_panel,
+            43 => &mut self.layout_dd,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -533,36 +528,36 @@ impl Roster {
             Roster::Child(c) => return idx == 2 && c.close.take_click(),
         };
         match idx {
-            3 => s.button_demo.take_click(),
-            4 => s.checkbox_demo.take_click(),
-            5 => s.toggle_demo.take_click(),
-            7 => s.slider_demo.take_click(),
-            8 => s.spinbox_demo.take_click(),
-            10 => s.create_window_btn.take_click(),
-            11 => s.opacity_toggle.take_click(),
-            12 => s.transparency_slider.take_click(),
-            14 => s.window_type_dd.take_click(),
-            15 => s.window_shape_dd.take_click(),
-            16 => s.enable_toggle.take_click(),
-            17 => s.width_spin.take_click(),
-            18 => s.height_spin.take_click(),
-            22 => s.range_slider_demo.take_click(),
-            23 => s.trackpad_demo.take_click(),
-            26 => s.open_dialog_btn.take_click(),
-            27 => s.save_dialog_btn.take_click(),
-            28 => s.textbox_demo.take_click(),
-            29 => s.plate_demo.take_click(),
-            30 => s.backplate_toggle.take_click(),
-            31 => s.menubar_toggle.take_click(),
-            32 => s.statusbar_toggle.take_click(),
-            34 => s.bevel_toggle.take_click(),
-            35 => s.border_width_spin.take_click(),
-            36 => s.bevel_depth_spin.take_click(),
-            38 => s.page_selector.take_click(),
-            39 => s.color_ramp_btn.take_click(),
-            40 => s.bevel_shape_btn.take_click(),
-            42 => s.ramp_btn.take_click(),
-            44 => s.layout_dd.take_click(),
+            2 => s.button_demo.take_click(),
+            3 => s.checkbox_demo.take_click(),
+            4 => s.toggle_demo.take_click(),
+            6 => s.slider_demo.take_click(),
+            7 => s.spinbox_demo.take_click(),
+            9 => s.create_window_btn.take_click(),
+            10 => s.opacity_toggle.take_click(),
+            11 => s.transparency_slider.take_click(),
+            13 => s.window_type_dd.take_click(),
+            14 => s.window_shape_dd.take_click(),
+            15 => s.enable_toggle.take_click(),
+            16 => s.width_spin.take_click(),
+            17 => s.height_spin.take_click(),
+            21 => s.range_slider_demo.take_click(),
+            22 => s.trackpad_demo.take_click(),
+            25 => s.open_dialog_btn.take_click(),
+            26 => s.save_dialog_btn.take_click(),
+            27 => s.textbox_demo.take_click(),
+            28 => s.plate_demo.take_click(),
+            29 => s.backplate_toggle.take_click(),
+            30 => s.menubar_toggle.take_click(),
+            31 => s.statusbar_toggle.take_click(),
+            33 => s.bevel_toggle.take_click(),
+            34 => s.border_width_spin.take_click(),
+            35 => s.bevel_depth_spin.take_click(),
+            37 => s.page_selector.take_click(),
+            38 => s.color_ramp_btn.take_click(),
+            39 => s.bevel_shape_btn.take_click(),
+            41 => s.ramp_btn.take_click(),
+            43 => s.layout_dd.take_click(),
             _ => panic!("take_click: unwired gallery slot {idx}"),
         }
     }
@@ -570,15 +565,15 @@ impl Roster {
     pub fn value(&self, idx: usize) -> i32 {
         let s = self.gallery();
         match idx {
-            12 => s.transparency_slider.value(),
-            14 => s.window_type_dd.value(),
-            15 => s.window_shape_dd.value(),
-            17 => s.width_spin.value(),
-            18 => s.height_spin.value(),
-            35 => s.border_width_spin.value(),
-            36 => s.bevel_depth_spin.value(),
-            38 => s.page_selector.value(),
-            44 => s.layout_dd.value(),
+            11 => s.transparency_slider.value(),
+            13 => s.window_type_dd.value(),
+            14 => s.window_shape_dd.value(),
+            16 => s.width_spin.value(),
+            17 => s.height_spin.value(),
+            34 => s.border_width_spin.value(),
+            35 => s.bevel_depth_spin.value(),
+            37 => s.page_selector.value(),
+            43 => s.layout_dd.value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -586,12 +581,12 @@ impl Roster {
     pub fn get_value_string(&self, idx: usize) -> Option<String> {
         let s = self.gallery();
         match idx {
-            11 => s.opacity_toggle.get_value_string(),
-            16 => s.enable_toggle.get_value_string(),
-            30 => s.backplate_toggle.get_value_string(),
-            31 => s.menubar_toggle.get_value_string(),
-            32 => s.statusbar_toggle.get_value_string(),
-            34 => s.bevel_toggle.get_value_string(),
+            10 => s.opacity_toggle.get_value_string(),
+            15 => s.enable_toggle.get_value_string(),
+            29 => s.backplate_toggle.get_value_string(),
+            30 => s.menubar_toggle.get_value_string(),
+            31 => s.statusbar_toggle.get_value_string(),
+            33 => s.bevel_toggle.get_value_string(),
             _ => panic!("get_value_string: unwired gallery slot {idx}"),
         }
     }
@@ -599,7 +594,7 @@ impl Roster {
     pub fn set_text(&mut self, idx: usize, text: &str) {
         let s = self.gallery_mut();
         match idx {
-            21 => s.surface_desc_label.set_text(text),
+            20 => s.surface_desc_label.set_text(text),
             _ => panic!("set_text: unwired gallery slot {idx}"),
         }
     }
@@ -771,12 +766,12 @@ fn push_bevel_slice_corners(
 }
 
 fn is_control_panel_child(i: usize) -> bool {
-    matches!(i, 10..=18 | 30..=37 | 40)
+    matches!(i, 9..=17 | 29..=36 | 39)
 }
 
 /// The control panel's child slots, in arrangement order: the app lays them out, paints
 /// them clamped to the panel viewport, and dispatches them as ordinary roots.
-const CP_CHILDREN: [usize; 18] = [10, 14, 15, 11, 12, 13, 16, 17, 18, 30, 31, 32, 33, 34, 35, 36, 37, 40];
+const CP_CHILDREN: [usize; 18] = [9, 13, 14, 10, 11, 12, 15, 16, 17, 29, 30, 31, 32, 33, 34, 35, 36, 39];
 
 impl State {
     /// The dissolved panel's hit gate: pointer events reach the panel's children only
@@ -844,20 +839,13 @@ impl State {
         self.positions = if self.is_child {
             child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
         } else {
-            let sidebar_w = self.sidebar_w();
-            demo_positions(self.width, self.height, sidebar_w, self.layout_idx, self.roster.gallery())
+            demo_positions(self.width, self.height, self.layout_idx, self.roster.gallery())
         };
     }
 
-    fn sidebar_w(&self) -> f32 {
-        cce_ui::widget::PageSelector::sidebar_w(
-            self.roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator"),
-        )
-    }
-
     fn preview_style(&self) -> PreviewStyle {
-        let backplate = self.toggled(30);
-        let transparency = if self.toggled(11) { self.roster.value(12) as f32 / 100.0 } else { 1.0 };
+        let backplate = self.toggled(29);
+        let transparency = if self.toggled(10) { self.roster.value(11) as f32 / 100.0 } else { 1.0 };
         let bg_color = if backplate {
             let mut col = cce_ui::color::page_low_color();
             col[3] = transparency;
@@ -892,9 +880,9 @@ impl State {
             if self.roster.is_dragging(i) {
                 continue;
             }
-            // The page selector (38) is placed inside the status bar below; the panel's
+            // The page selector (37) is placed inside the status bar below; the panel's
             // children are laid out by arrange_control_panel at real screen coordinates.
-            if !self.is_child && (i == 38 || is_control_panel_child(i)) {
+            if !self.is_child && (i == 37 || is_control_panel_child(i)) {
                 continue;
             }
             let visible = self.is_widget_visible(i);
@@ -902,7 +890,7 @@ impl State {
             let widget = self.roster.get_dyn_mut(i);
             if visible {
                 // Everything but the chrome and the panel clips at the status bar.
-                let clipped = i != 0 && i != 1 && i != 2 && i != 43 && y + h > limit_y;
+                let clipped = i != 0 && i != 1 && i != 42 && y + h > limit_y;
                 let final_h = if clipped { (limit_y - y).max(0.0) } else { h };
                 widget.set_rect(x, y, w, final_h);
             } else {
@@ -911,17 +899,17 @@ impl State {
         }
 
         if !self.is_child {
-            let (x, y, w, h) = self.positions[43];
-            self.roster.get_dyn_mut(43).set_rect(x, y, w, h);
+            let (x, y, w, h) = self.positions[42];
+            self.roster.get_dyn_mut(42).set_rect(x, y, w, h);
 
-            let sb_rect = self.roster.get_dyn_mut(2).rect();
+            let sb_rect = self.roster.get_dyn_mut(1).rect();
             let ddh = cce_ui::layout::dropdown_height();
             let pad_x = 10.0;
             let pad_y = (sb_rect.3 - ddh) / 2.0;
             let dw = 120.0;
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
-            self.roster.get_dyn_mut(38).set_rect(dx, dy, dw, ddh);
+            self.roster.get_dyn_mut(37).set_rect(dx, dy, dw, ddh);
 
             self.arrange_control_panel();
         }
@@ -1089,7 +1077,6 @@ impl cce_ui::engine::Application for State {
                 .with_right_aligned_title(true);
             Roster::Gallery(Box::new(GallerySlots {
                 menu_bar,
-                paginator: Paginator::new(vec![]),
                 status_bar: StatusBar::new(),
                 button_demo: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Button"),
                 checkbox_demo: Checkbox::new().with_label("Checkbox"),
@@ -1197,9 +1184,9 @@ impl cce_ui::engine::Application for State {
         };
 
         if !is_child {
-            // Link the page selector (38) under the status bar (2) in the ui tree.
-            let statusbar_ptr = state.roster.get_dyn_mut(2) as *mut (dyn WidgetHost + 'static);
-            let dropdown_ptr = state.roster.get_dyn_mut(38) as *mut (dyn WidgetHost + 'static);
+            // Link the page selector (37) under the status bar (1) in the ui tree.
+            let statusbar_ptr = state.roster.get_dyn_mut(1) as *mut (dyn WidgetHost + 'static);
+            let dropdown_ptr = state.roster.get_dyn_mut(37) as *mut (dyn WidgetHost + 'static);
             unsafe {
                 cce_ui::widget::focus::link_parent_child(
                     &mut *statusbar_ptr,
@@ -1369,15 +1356,15 @@ impl cce_ui::engine::Application for State {
             if is_control_panel_child(i) {
                 continue;
             }
-            if !self.is_child && i == 9 {
+            if !self.is_child && i == 8 {
                 let r = cce_ui::color::root_plate_corner_radius();
                 let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
-                let border_bevel = self.toggled(34);
+                let border_bevel = self.toggled(33);
 
                 let (wx, wy, ww, wh) = w.rect();
                 if backplate_enabled {
                     if border_bevel {
-                        let t = self.roster.value(35) as f32;
+                        let t = self.roster.value(34) as f32;
                         let r_inner = (r - t).max(0.0);
                         push_rounded(&mut pc, wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true));
                     } else {
@@ -1385,7 +1372,7 @@ impl cce_ui::engine::Application for State {
                     }
                 }
 
-                let menubar_enabled = self.toggled(31);
+                let menubar_enabled = self.toggled(30);
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::root_plate_menubar_color();
                     menu_color[3] = transparency_val;
@@ -1396,7 +1383,7 @@ impl cce_ui::engine::Application for State {
                     }
                 }
 
-                let statusbar_enabled = self.toggled(32);
+                let statusbar_enabled = self.toggled(31);
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::root_plate_statusbar_color();
                     status_color[3] = transparency_val;
@@ -1501,7 +1488,7 @@ impl cce_ui::engine::Application for State {
             if is_control_panel_child(i) {
                 continue;
             }
-            if !self.is_child && i == 9 {
+            if !self.is_child && i == 8 {
                 let style = self.preview_style();
                 let (wx, wy, ww, wh) = w.rect();
                 if !style.backplate {
@@ -1671,15 +1658,15 @@ impl cce_ui::engine::Application for State {
                 continue;
             }
 
-            if !self.is_child && i == 9 {
-                let border_enabled = self.toggled(16);
+            if !self.is_child && i == 8 {
+                let border_enabled = self.toggled(15);
                 if border_enabled {
                     let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
-                    let t = self.roster.value(35) as f32;
-                    let border_bevel = self.toggled(34);
+                    let t = self.roster.value(34) as f32;
+                    let border_bevel = self.toggled(33);
                     let r = cce_ui::color::root_plate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
 
@@ -1696,7 +1683,7 @@ impl cce_ui::engine::Application for State {
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
 
                                 let d_h = h_inner - h_outer;
-                                let bevel_depth = self.roster.value(36) as f32 / 100.0;
+                                let bevel_depth = self.roster.value(35) as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
 
                                  let rad = cce_ui::layout::light_source_position();
@@ -1890,21 +1877,21 @@ impl cce_ui::engine::Application for State {
                         return Some("exit".to_string());
                     }
                 } else {
-                    if self.roster.take_click(38) {
-                        self.go_to_page(Page::from_index(self.roster.value(38) as usize));
+                    if self.roster.take_click(37) {
+                        self.go_to_page(Page::from_index(self.roster.value(37) as usize));
                         changed = true;
-                    } else if self.roster.take_click(44) {
-                        self.layout_idx = self.roster.value(44) as usize;
+                    } else if self.roster.take_click(43) {
+                        self.layout_idx = self.roster.value(43) as usize;
                         self.relayout();
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
-                        if self.roster.take_click(39) {
+                        if self.roster.take_click(38) {
                             spawn_editor("ColorRamp");
-                        } else if self.roster.take_click(42) {
+                        } else if self.roster.take_click(41) {
                             spawn_editor("Ramp");
                         } else {
-                            for i in [3, 4, 5, 7, 8, 22, 23, 28, 29] {
+                            for i in [2, 3, 4, 6, 7, 21, 22, 27, 28] {
                                 if self.roster.take_click(i) {
                                     changed = true;
                                 }
@@ -1913,20 +1900,20 @@ impl cce_ui::engine::Application for State {
                     } else if self.current_page == Page::Windows {
                         let mut create_window = false;
 
-                        if self.roster.take_click(10) {
+                        if self.roster.take_click(9) {
                             create_window = true;
-                        } else if self.roster.take_click(40) {
+                        } else if self.roster.take_click(39) {
                             spawn_editor("Ramp");
                         } else {
                             let mut dropdown_clicked = false;
-                            for i in [11, 12, 14, 15, 16, 17, 18, 30, 31, 32, 34, 35, 36] {
+                            for i in [10, 11, 13, 14, 15, 16, 17, 29, 30, 31, 33, 34, 35] {
                                 if self.roster.take_click(i) {
                                     changed = true;
-                                    if i == 14 {
+                                    if i == 13 {
                                         dropdown_clicked = true;
                                     }
-                                    if i == 36 {
-                                        let depth = self.roster.value(36) as f32 / 100.0;
+                                    if i == 35 {
+                                        let depth = self.roster.value(35) as f32 / 100.0;
                                         if let Ok(mut registry) = cce_ui::layout::get_style_registry().write() {
                                             registry.set_float("bevel_depth", depth);
                                         }
@@ -1934,13 +1921,13 @@ impl cce_ui::engine::Application for State {
                                 }
                             }
                             if dropdown_clicked {
-                                let desc = window_type_description(self.roster.value(14));
-                                self.roster.set_text(21, desc);
+                                let desc = window_type_description(self.roster.value(13));
+                                self.roster.set_text(20, desc);
                             }
                         }
 
                         if create_window {
-                            let window_type = match self.roster.value(14) {
+                            let window_type = match self.roster.value(13) {
                                 0 => "Toplevel",
                                 1 => "Popup",
                                 2 => "LayerTop",
@@ -1948,17 +1935,17 @@ impl cce_ui::engine::Application for State {
                                 4 => "LayerBackground",
                                 _ => "Toplevel",
                             };
-                            let shape = match self.roster.value(15) {
+                            let shape = match self.roster.value(14) {
                                 0 => "rectangular",
                                 1 => "circular",
                                 _ => "rectangular",
                             };
-                            let opacity_enabled = self.toggled(11);
-                            let transparency_pct = self.roster.value(12);
+                            let opacity_enabled = self.toggled(10);
+                            let transparency_pct = self.roster.value(11);
                             let transparency_val = transparency_pct as f32 / 100.0;
-                            let border_enabled = self.toggled(16);
-                            let custom_width = self.roster.value(17);
-                            let custom_height = self.roster.value(18);
+                            let border_enabled = self.toggled(15);
+                            let custom_width = self.roster.value(16);
+                            let custom_height = self.roster.value(17);
 
                             self.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
                             if let Some(mut cmd) = child_command() {
@@ -1969,12 +1956,12 @@ impl cce_ui::engine::Application for State {
                                 if !border_enabled {
                                     cmd.arg("--no-border");
                                 } else {
-                                    cmd.args(["--border-width", &self.roster.value(35).to_string()]);
-                                    if self.toggled(34) {
+                                    cmd.args(["--border-width", &self.roster.value(34).to_string()]);
+                                    if self.toggled(33) {
                                         cmd.arg("--border-bevel");
                                     }
                                 }
-                                for (flag, on) in [("--backplate", self.toggled(30)), ("--menubar", self.toggled(31)), ("--statusbar", self.toggled(32))] {
+                                for (flag, on) in [("--backplate", self.toggled(29)), ("--menubar", self.toggled(30)), ("--statusbar", self.toggled(31))] {
                                     if on {
                                         cmd.arg(flag);
                                     }
@@ -1985,9 +1972,9 @@ impl cce_ui::engine::Application for State {
                             changed = true;
                         }
                     } else if self.current_page == Page::Xdg {
-                        let save = if self.roster.take_click(26) {
+                        let save = if self.roster.take_click(25) {
                             Some(false)
-                        } else if self.roster.take_click(27) {
+                        } else if self.roster.take_click(26) {
                             Some(true)
                         } else {
                             None
@@ -2017,8 +2004,8 @@ impl cce_ui::engine::Application for State {
         // The panel's scroll frame gets the wheel first; a consumed wheel never reaches
         // its children.
         let mut cp_took_wheel = false;
-        if !self.is_child && is_visible(43) {
-            let root = self.roster.get_dyn(43).base().id();
+        if !self.is_child && is_visible(42) {
+            let root = self.roster.get_dyn(42).base().id();
             if self.ui_context.propagate_event(&ev, root) {
                 changed = true;
                 cp_took_wheel = true;
@@ -2026,7 +2013,7 @@ impl cce_ui::engine::Application for State {
         }
         let cp_wheel_ok = !self.is_child && self.cp_gate(lx, ly);
         for i in 0..self.roster.len() {
-            if i == 43 {
+            if i == 42 {
                 continue;
             }
             if !is_visible(i) {
@@ -2195,54 +2182,53 @@ fn spawn_editor(kind: &str) {
     }
 }
 
-fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &GallerySlots) -> Vec<(f32, f32, f32, f32)> {
-    let base_x = sidebar_w + 20.0;
+fn demo_positions(sw: f32, sh: f32, layout_idx: usize, slots: &GallerySlots) -> Vec<(f32, f32, f32, f32)> {
+    let base_x = 20.0;
     let sph = cce_ui::layout::spinbox_height();
     let tgh = cce_ui::layout::toggle_height();
     let slh = cce_ui::layout::slider_height();
     let bh = cce_ui::layout::button_height();
     let ddh = cce_ui::layout::dropdown_height();
 
-    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 45];
+    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 44];
 
     // Common layout elements
     vec[0] = (0.0, 0.0, sw, 40.0); // 0 MenuBar
-    vec[1] = (0.0, 40.0, sidebar_w, sh - 40.0 - 24.0); // 1 Page selector (Sidebar)
-    vec[2] = (0.0, sh - 24.0, sw, 24.0); // 2 StatusBar
+    vec[1] = (0.0, sh - 24.0, sw, 24.0); // 1 StatusBar
 
     // Page 1 (Windows)
-    vec[9] = (base_x, 60.0, 400.0, 250.0); // 9 Panel (Window simulation area)
-    vec[10] = (base_x + 420.0, 60.0, 140.0, bh); // 10 Button (Create Window)
-    vec[11] = (base_x + 420.0, 160.0, 140.0, tgh); // 11 Toggle (Opacity)
-    vec[12] = (base_x + 420.0, 210.0, 140.0, slh); // 12 Slider
-    vec[13] = (base_x + 420.0, 250.0, 140.0, 20.0); // 13 Label
-    vec[14] = (base_x + 580.0, 60.0, 180.0, ddh); // 14 Dropdown (Window Type)
-    vec[15] = (base_x + 580.0, 115.0, 180.0, ddh); // 15 Dropdown (Window Shape)
-    vec[16] = (base_x + 580.0, 170.0, 120.0, tgh); // 16 Toggle (Enable)
-    vec[17] = (base_x + 580.0, 210.0, 140.0, sph); // 17 Spinbox (Width)
-    vec[18] = (base_x + 580.0, 255.0, 140.0, sph); // 18 Spinbox (Height)
-    vec[19] = (base_x, 320.0, 190.0, 250.0); // 19 Plate
-    vec[20] = (base_x + 10.0, 330.0, 170.0, 20.0); // 20 Label
-    vec[21] = (base_x + 10.0, 360.0, 170.0, 180.0); // 21 Label
+    vec[8] = (base_x, 60.0, 400.0, 250.0); // 8 Panel (Window simulation area)
+    vec[9] = (base_x + 420.0, 60.0, 140.0, bh); // 9 Button (Create Window)
+    vec[10] = (base_x + 420.0, 160.0, 140.0, tgh); // 10 Toggle (Opacity)
+    vec[11] = (base_x + 420.0, 210.0, 140.0, slh); // 11 Slider
+    vec[12] = (base_x + 420.0, 250.0, 140.0, 20.0); // 12 Label
+    vec[13] = (base_x + 580.0, 60.0, 180.0, ddh); // 13 Dropdown (Window Type)
+    vec[14] = (base_x + 580.0, 115.0, 180.0, ddh); // 14 Dropdown (Window Shape)
+    vec[15] = (base_x + 580.0, 170.0, 120.0, tgh); // 15 Toggle (Enable)
+    vec[16] = (base_x + 580.0, 210.0, 140.0, sph); // 16 Spinbox (Width)
+    vec[17] = (base_x + 580.0, 255.0, 140.0, sph); // 17 Spinbox (Height)
+    vec[18] = (base_x, 320.0, 190.0, 250.0); // 18 Plate
+    vec[19] = (base_x + 10.0, 330.0, 170.0, 20.0); // 19 Label
+    vec[20] = (base_x + 10.0, 360.0, 170.0, 180.0); // 20 Label
 
     // Page 2 (XDG)
-    vec[24] = (base_x, 60.0, 450.0, 200.0); // 24 Panel
-    vec[25] = (base_x + 20.0, 80.0, 410.0, 60.0); // 25 Label
-    vec[26] = (base_x + 20.0, 160.0, 180.0, bh); // 26 Button
-    vec[27] = (base_x + 220.0, 160.0, 180.0, bh); // 27 Button
+    vec[23] = (base_x, 60.0, 450.0, 200.0); // 23 Panel
+    vec[24] = (base_x + 20.0, 80.0, 410.0, 60.0); // 24 Label
+    vec[25] = (base_x + 20.0, 160.0, 180.0, bh); // 25 Button
+    vec[26] = (base_x + 220.0, 160.0, 180.0, bh); // 26 Button
 
     // Window Simulation options (visible when Page::Windows is active)
-    vec[30] = (base_x + 420.0, 300.0, 140.0, tgh); // 30 Toggle: Backplate
-    vec[31] = (base_x + 420.0, 340.0, 140.0, tgh); // 31 Toggle: MenuBar
-    vec[32] = (base_x + 420.0, 380.0, 140.0, tgh); // 32 Toggle: StatusBar
-    vec[33] = (base_x + 420.0, 420.0, 140.0, 20.0); // 33 SectionContainer: Border
-    vec[34] = (base_x + 420.0, 450.0, 140.0, tgh); // 34 Toggle: Bevel
-    vec[35] = (base_x + 420.0, 490.0, 140.0, sph); // 35 Spinbox: Border Width
-    vec[36] = (base_x + 420.0, 535.0, 140.0, sph); // 36 Spinbox: Bevel Depth
-    vec[37] = (base_x + 420.0, 270.0, 140.0, 20.0); // 37 SectionContainer: Window Elements
-    // 38 (page selector) is placed by apply_layout, inside the status bar.
-    vec[40] = (base_x + 420.0, 580.0, 140.0, bh); // 40 Button: Bevel Shape
-    vec[43] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 43 ControlPanel
+    vec[29] = (base_x + 420.0, 300.0, 140.0, tgh); // 29 Toggle: Backplate
+    vec[30] = (base_x + 420.0, 340.0, 140.0, tgh); // 30 Toggle: MenuBar
+    vec[31] = (base_x + 420.0, 380.0, 140.0, tgh); // 31 Toggle: StatusBar
+    vec[32] = (base_x + 420.0, 420.0, 140.0, 20.0); // 32 SectionContainer: Border
+    vec[33] = (base_x + 420.0, 450.0, 140.0, tgh); // 33 Toggle: Bevel
+    vec[34] = (base_x + 420.0, 490.0, 140.0, sph); // 34 Spinbox: Border Width
+    vec[35] = (base_x + 420.0, 535.0, 140.0, sph); // 35 Spinbox: Bevel Depth
+    vec[36] = (base_x + 420.0, 270.0, 140.0, 20.0); // 36 SectionContainer: Window Elements
+    // 37 (page selector) is placed by apply_layout, inside the status bar.
+    vec[39] = (base_x + 420.0, 580.0, 140.0, bh); // 39 Button: Bevel Shape
+    vec[42] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 42 ControlPanel
 
     // Dynamically position Page 0 (Controls) elements using the selected layout index
     let available_w = (sw - base_x - 290.0).max(300.0);
@@ -2330,22 +2316,22 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
 
     let mut items: Vec<(usize, f32, f32, f32)> = vec![
         // Button
-        (3, 200.0, bh + label_off(3), bh),
+        (2, 200.0, bh + label_off(2), bh),
         // Progress Bar
-        (6, 415.0, cce_ui::layout::progressbar_height() + label_off(6), cce_ui::layout::progressbar_height()),
+        (5, 415.0, cce_ui::layout::progressbar_height() + label_off(5), cce_ui::layout::progressbar_height()),
         // Inputs
-        (44, 200.0, ddh + label_off(44), ddh),
+        (43, 200.0, ddh + label_off(43), ddh),
+        (3, 200.0, tgh + label_off(3), tgh),
         (4, 200.0, tgh + label_off(4), tgh),
-        (5, 200.0, tgh + label_off(5), tgh),
-        (7, 200.0, slh + label_off(7), slh),
-        (8, 200.0, sph + label_off(8), sph),
-        (28, 200.0, ddh + label_off(28), ddh),
-        (22, 200.0, cce_ui::layout::rangeslider_height() + label_off(22), cce_ui::layout::rangeslider_height()),
-        (23, 200.0, 100.0 + label_off(23), 100.0),
-        (29, 200.0, 120.0 + label_off(29), 120.0),
-        (39, 200.0, bh + label_off(39), bh),
-        (42, 200.0, bh + label_off(42), bh),
-        (41, 200.0, 150.0 + label_off(41), 150.0),
+        (6, 200.0, slh + label_off(6), slh),
+        (7, 200.0, sph + label_off(7), sph),
+        (27, 200.0, ddh + label_off(27), ddh),
+        (21, 200.0, cce_ui::layout::rangeslider_height() + label_off(21), cce_ui::layout::rangeslider_height()),
+        (22, 200.0, 100.0 + label_off(22), 100.0),
+        (28, 200.0, 120.0 + label_off(28), 120.0),
+        (38, 200.0, bh + label_off(38), bh),
+        (41, 200.0, bh + label_off(41), bh),
+        (40, 200.0, 150.0 + label_off(40), 150.0),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 

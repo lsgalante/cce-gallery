@@ -12,9 +12,8 @@ compositor does with the windows it spawns. It has no automated test suite.
 
 ## Pages
 
-The sidebar on the left switches between three pages. The same navigation is
-available from the dropdown in the status bar and from the keyboard (see
-Keybindings).
+The dropdown at the right of the status bar switches between three pages; the
+keyboard does the same (see Keybindings).
 
 **Controls** — the widget gallery. One of each of the toolkit's standard
 widgets: Button, Checkbox, Toggle, ProgressBar, Slider, RangeSlider, Spinbox,
@@ -107,7 +106,7 @@ for example).
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 45 named slots (`GallerySlots`) addressed by numeric index in the
+  roster of 44 named slots (`GallerySlots`) addressed by numeric index in the
   layout tables, visibility filters and dispatch loops; child windows use the
   five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
   layout tables.
