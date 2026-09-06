@@ -105,7 +105,7 @@ for example).
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 52 named slots (`GallerySlots`) addressed by numeric index in the
+  roster of 45 named slots (`GallerySlots`) addressed by numeric index in the
   layout tables, visibility filters and dispatch loops; child windows use the
   five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
   layout tables.
