@@ -1,31 +1,130 @@
-# Clear Test Interface
+# cce-test-interface
 
-This repository contains integration and verification tests for the `clear` desktop environment programs, specifically:
-- `clear-computing-environment-server` (Wayland compositor with background blur support)
-- `ccec` (window manager / layout agent)
-- `cce-ui` (WebGPU-based desktop widget system)
+A widget gallery and compositor-behaviour test bench for the `cce` desktop
+environment. It is a single `cce-ui` client (a real Wayland surface, drawn as
+GPU primitives) that shows the toolkit's widgets on one page, spawns simulated
+client windows of different shell types on another, and exercises the XDG
+file-chooser portal on a third. It ships a `.desktop` entry under
+Utility/Development, so it appears in the launcher.
 
-The tests run in a **headless Wayland session** using the `headless` backend of `wlroots` to ensure portability and automated execution.
+It is a *visual* test harness: you look at what it draws and what the
+compositor does with the windows it spawns. It has no automated test suite.
 
-## Features tested
-1. **Window Opacity**: Verifies that client windows (such as `cce-ui`) render with expected transparency/alpha settings.
-2. **Background Blur**: Confirms the compositor's background blur is successfully initialized and enabled for mapped window surface trees.
-3. **Window Layout and Tiling**: Verifies that IPC commands sent via `clearctl` dynamically update tiling layouts (Cascade, Grid, Vsplit, etc.) and window geometries as expected.
+## Pages
 
-## Requirements
-- Python 3.x
-- `Pillow` (for screenshot color analysis)
-- `grim` (for Wayland screenshot capture)
-- `clear-computing-environment-server` and `ccec` built/installed
+The sidebar on the left switches between three pages. The same navigation is
+available from the dropdown in the status bar and from the keyboard (see
+Keybindings).
 
-## Running the Suite
+**Controls** — the widget gallery. One of each of the toolkit's standard
+widgets: Button, Checkbox, Toggle, ProgressBar, Slider, RangeSlider, Spinbox,
+TextBox, Trackpad, Plate, plus the MenuBar and StatusBar that frame every
+page. A `Layout` dropdown re-packs the gallery under each of the toolkit's
+layout strategies (Vertical, Columns, Grid, Adaptive Grid, Overlay, Flex,
+Splitter, Radial, Circular Pane, Mosaic, Reverse Mosaic). `Color Ramp...` and
+`Ramp...` open the ColorRamp and Ramp editors in their own child windows.
 
-You can execute the whole test suite using the orchestration script:
-```bash
-python3 run_suite.py
+**Windows** — spawns *simulated client windows* so the compositor's handling
+of each surface kind can be observed. The control panel on the right chooses:
+
+- window type: Toplevel, Popup, Layer Top, Layer Overlay, Layer Background
+- shape: rectangular or circular
+- size (width/height spinboxes), opacity on/off with a transparency slider
+- window elements: backplate, menu bar, status bar
+- border: enabled/disabled, width, bevel on/off, bevel depth, and the bevel
+  cross-section shape (`Bevel Shape...` opens the Ramp editor)
+
+`Create Window` re-executes this binary with `--child` and the matching flags
+(see below). A panel in the main window previews the border and bevel that
+the child will be drawn with, and a description plate explains what the
+selected surface type is and how it is expected to be laid out. `Tile Windows`
+currently only reports to the status bar; it does not send anything to the
+compositor.
+
+**XDG** — two buttons, `Open File Dialog` and `Save File Dialog`, that call the
+toolkit's `file_dialog` module (the XDG Desktop Portal file chooser) on a
+background thread and report the chosen path, or the cancellation, in the
+status bar.
+
+## Child windows
+
+The child windows spawned from the Windows page are the same binary run with
+`--child`. The flags mirror the control panel:
+
+```
+cce-test-interface --child --type <Toplevel|Popup|LayerTop|LayerOverlay|LayerBackground|Ramp|ColorRamp>
+                   [--shape rectangular|circular] [--width N --height N]
+                   [--opacity --transparency 0.0-1.0]
+                   [--no-border | --border-width N [--border-bevel]]
+                   [--backplate] [--menubar] [--statusbar]
 ```
 
-Or run individual tests with python unit tests or pytest if desired:
-```bash
-python3 -m unittest discover tests
+A simulated window shows a description label, a `Close` button, and the
+optional menu bar and status bar. Its `app_id` encodes what it is, so
+compositor rules can target it: `clear-test-child-<type>` with `-circular`
+and/or `-noborder` appended when those apply. The main window's `app_id` is
+`cce-test-interface` (also with `-noborder` when the border is disabled).
+
+`--type Ramp` and `--type ColorRamp` are editor windows rather than simulated
+clients: they host the toolkit's `Ramp` and `ColorRamp` widgets on a
+backplate.
+
+## The bevel ramp file
+
+The bevel cross-section is shared between the Ramp editor window and the main
+window through `~/.config/cce/bevel_ramp.kdl` (next to the shared
+`config.kdl`):
+
+```kdl
+keys {
+    key pos=0 val=0
+    key pos=0.5 val=1
+    key pos=1 val=0
+}
+line_type "linear"   // or "bezier"
 ```
+
+The Ramp child writes the file on every edit. The main window watches its
+mtime each tick and reloads, so the bevel preview on the Windows page follows
+the editor live.
+
+## Keybindings
+
+Page navigation is resolved through the `cce-test-interface` domain of
+`~/.config/cce/input.kdl`; the defaults are `ctrl+1`, `ctrl+2`, `ctrl+3`:
+
+```kdl
+cce-test-interface {
+    page_1 "ctrl+1"
+    page_2 "ctrl+2"
+    page_3 "ctrl+3"
+}
+```
+
+Escape quits, unless a widget consumed it first (a dropdown closing its menu,
+for example).
+
+## Layout of the source
+
+- `src/main.rs` — the `Application` impl. The gallery is a concretely typed
+  roster of 53 named slots (`GallerySlots`) addressed by numeric index in the
+  layout tables, visibility filters and dispatch loops; child windows use the
+  five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
+  layout tables.
+- `src/ti_widgets.rs` — gallery-local widgets: `ControlPanel` (scroll chrome
+  for the Windows page's option column), and lookalikes of the retired toolkit
+  `Plate`, `SectionContainer` and `Backplate` kept as exhibits.
+
+## Building and installing
+
+This crate is one member of the `cce` multi-repo workspace; it builds
+standalone or from the workspace root. Installation goes through `ccebuild`
+(see `cce-compositor/WORKSPACE.md`):
+
+```sh
+cargo build --release -p cce-test-interface
+ccebuild install --no-build cce-test-interface   # what `make install` runs
+```
+
+Run it from the workspace with `cargo run -p cce-test-interface`, or from the
+launcher once installed.
