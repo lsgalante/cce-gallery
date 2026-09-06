@@ -1,16 +1,13 @@
-//! Test-interface-owned copies of the dissolved cce-ui containers (Phase 6as): the
-//! gallery is the last constructor of ControlPanel / SectionContainer / Plate /
-//! Backplate, and it needs them only as demo chrome — the panel verbatim, the other
-//! three as passive lookalikes replicating the legacy types' exact emission surfaces
-//! (color rules, corner radius/rounding, borders, separators, labels, hit shapes).
-//! Phase 6az: all four are on the narrow traits wrapped in `Adapted<W>`; the gallery
-//! roster keeps them as `Box<dyn WidgetHost>` and reaches the models through `as_any`.
+//! Gallery-owned copies of containers the toolkit no longer ships: the ControlPanel
+//! (scroll chrome the app lays children into) and passive lookalikes of the old
+//! Plate, SectionContainer and Backplate, kept as exhibits that reproduce their colour
+//! rules, corner rounding, borders, separators and labels. All four sit on the narrow
+//! widget traits wrapped in `Adapted<W>`.
 
 use cce_ui::colors;
 use cce_ui::scene::layout::Rect;
 use cce_ui::scene::paint::PaintCtx;
 use cce_ui::widget::*;
-use cce_ui::widget::ScrollBox;
 
 pub struct ControlPanel {
     x: f32,
@@ -20,13 +17,9 @@ pub struct ControlPanel {
     pub scroll_box: ScrollBox,
 }
 
-/// The panel is scroll chrome only (the ControlPanel endgame): background, borders, and
-/// the ScrollBox machinery. Its former stored child pointers, label-matched arrangement,
-/// aggregate views, and dyn event/tick/drag forwarding are DISSOLVED into the app —
-/// main.rs lays the child slots out at SCREEN (scrolled) coordinates
-/// (`arrange_control_panel`), emits their geometry/text clamped to the panel viewport in
-/// `display_list`, and dispatches them as ordinary routed roots. No `*mut dyn` storage,
-/// no dummy contexts, no scroll-translated coordinates anywhere.
+/// Scroll chrome only: background, borders and the ScrollBox. main.rs lays the child
+/// slots out at screen coordinates (`arrange_control_panel`), paints them clamped to
+/// the panel viewport in `display_list`, and dispatches them as ordinary roots.
 impl ControlPanel {
     pub fn new() -> Adapted<ControlPanel> {
         let mut sb = ScrollBox::new();
@@ -48,8 +41,7 @@ impl ControlPanel {
 }
 
 impl cce_ui::widget::Layout for ControlPanel {
-    // The panel's own label ("ControlPanel") never rendered on the legacy paths and its
-    // rect was never label-inflated — keep the adapter out of both.
+    // The panel's label is never rendered and its rect is never label-inflated.
     fn inline_label(&self) -> bool {
         true
     }
@@ -69,13 +61,12 @@ impl cce_ui::widget::Paint for ControlPanel {
     }
 
     fn corner_style(&self, _rect: Rect) -> Option<(f32, (bool, bool, bool, bool))> {
-        // Legacy: rounded_corners all-true with the WidgetHost-default 12.0 radius.
+        // All corners, 12px.
         Some((12.0, (true, true, true, true)))
     }
 
-    /// Background + borders, as radius-0 rounded prims so they ride the adapter's
-    /// rounded-tuple bridge exactly where the legacy aggregate emitted them (the app
-    /// emits the children and the scrollbar after these, in the legacy order).
+    /// Background + borders as radius-0 rounded prims, so they land in the rounded pass
+    /// ahead of the children and the scrollbar the app paints after them.
     fn paint(&self, _rect: Rect, pc: &mut PaintCtx) {
         let (x, y, w, h) = self.rect();
         let none = (false, false, false, false);
@@ -132,10 +123,9 @@ impl cce_ui::widget::Input for ControlPanel {
     }
 }
 
-/// Gallery exhibit lookalike of the dissolved cce-ui `Plate`: default plate color rule
-/// (config plate color, else page color) at plate opacity, alpha negated under blur,
-/// plate corner radius/rounding, config border, detached-top label handled like the
-/// legacy plate (background shifted below the label, label drawn from `paint`).
+/// Exhibit lookalike of the old cce-ui `Plate`: config plate colour (else page colour)
+/// at plate opacity, alpha negated under blur, plate corner radius, config border, and a
+/// detached-top label with the background shifted below it.
 pub struct Plate {
     blur: bool,
     label: Option<String>,
@@ -161,7 +151,7 @@ impl Plate {
         c
     }
 
-    /// The legacy `Widget::label_offset` rule for the model-held label copy.
+    /// Label offset for the model-held label copy.
     fn label_offset(&self) -> f32 {
         if cce_ui::layout::control_label_layout() == "side" {
             return 0.0;
@@ -176,8 +166,8 @@ impl Plate {
 }
 
 impl cce_ui::widget::Layout for Plate {
-    // The legacy plate never inflated its rect for the label; it shifted its background
-    // below it instead (see `paint`).
+    // The rect is not inflated for the label; the background shifts below it instead
+    // (see `paint`).
     fn inline_label(&self) -> bool {
         true
     }
@@ -203,8 +193,8 @@ impl cce_ui::widget::Paint for Plate {
     }
 
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
-        // Rounded background below the label region — the legacy all_rounded_quads
-        // override: emitted only while corners are on and the color has alpha.
+        // Rounded background below the label region, only while corners are on and the
+        // colour has alpha.
         let radius = cce_ui::layout::plate_corner_radius();
         let c = self.plate_color();
         if radius > 0.0 && c[3].abs() > 0.001 {
@@ -225,9 +215,8 @@ impl cce_ui::widget::Paint for Plate {
 
 impl cce_ui::widget::Input for Plate {}
 
-/// Gallery lookalike of the dissolved cce-ui `SectionContainer` as the ControlPanel uses
-/// it: a childless section header row — the title label plus the SectionHeader separator
-/// line. The panel matches sections by the adapter's base label; the model keeps a copy
+/// Lookalike of the old cce-ui `SectionContainer` as the panel used it: a childless
+/// section header row, title plus separator line. The model keeps a copy of the label
 /// (via `sync_label`) for its own painting.
 pub struct SectionContainer {
     title: String,
@@ -240,8 +229,8 @@ impl SectionContainer {
 }
 
 impl cce_ui::widget::Layout for SectionContainer {
-    // The title is painted by the model at its legacy position; keep the adapter's
-    // detached-label machinery (offset inflation + fallback label) out of it.
+    // The model paints the title itself; keep the adapter's detached-label machinery
+    // (offset inflation + fallback label) out of it.
     fn inline_label(&self) -> bool {
         true
     }
@@ -271,21 +260,15 @@ impl cce_ui::widget::Input for SectionContainer {
     }
 }
 
-/// Child-window background lookalike of the dissolved cce-ui `Backplate`: the base color
-/// forced to the configured backplate opacity, backplate corner radius, immovable.
-pub struct Backplate {
-    bevel: Option<f32>,
-}
+/// Child-window background, a lookalike of the old cce-ui `Backplate`: page colour at
+/// the configured backplate opacity, backplate corner radius, immovable.
+pub struct Backplate;
 
 impl Backplate {
     pub fn new(x: f32, y: f32, w: f32, h: f32) -> Adapted<Backplate> {
-        let mut bp = Adapted::new(Self { bevel: None });
+        let mut bp = Adapted::new(Self);
         bp.set_rect(x, y, w, h);
         bp
-    }
-
-    pub fn set_bevel(&mut self, thickness: f32) {
-        self.bevel = Some(thickness);
     }
 
     fn backplate_color(&self) -> [f32; 4] {
@@ -311,10 +294,7 @@ impl cce_ui::widget::Paint for Backplate {
     }
 
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
-        // The legacy rounded Backplate emitted its background only through
-        // all_rounded_quads (nothing when the radius is off) — same shape here. The bevel
-        // field is carried for the --border-bevel flag but, like the legacy lookalike, has
-        // no reader on the gallery's display path.
+        // Painted only while the radius is on.
         let radius = cce_ui::color::root_plate_corner_radius();
         let c = self.backplate_color();
         if radius > 0.1 && c[3].abs() > 0.001 {

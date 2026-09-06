@@ -1,6 +1,6 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Paginator, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    Toggle, WidgetHost, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar, 
+    Toggle, WidgetHost, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar,
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
 };
 mod gallery_widgets;
@@ -16,10 +16,64 @@ enum Page {
     Xdg,
 }
 
+impl Page {
+    fn from_index(i: usize) -> Page {
+        match i {
+            0 => Page::Controls,
+            1 => Page::Windows,
+            _ => Page::Xdg,
+        }
+    }
 
-/// The gallery roster, concretely typed (Phase 6bb): 45 named slots replacing the erased
-/// `Vec<Box<dyn WidgetHost>>`. The historical numeric indexes (positions vec, dispatch loops,
-/// page layouts) keep addressing the same slots through `get_dyn`/`get_dyn_mut`.
+    fn label(self) -> &'static str {
+        match self {
+            Page::Controls => "Controls",
+            Page::Windows => "Windows",
+            Page::Xdg => "XDG",
+        }
+    }
+}
+
+/// What the roster's visibility filter needs, copied out of `State` so the dispatch
+/// loops can hold `&mut self.roster` while asking.
+#[derive(Clone, Copy)]
+struct Visibility {
+    is_child: bool,
+    use_menubar: bool,
+    use_statusbar: bool,
+    page: Page,
+}
+
+impl Visibility {
+    fn is_visible(self, index: usize) -> bool {
+        if self.is_child {
+            return match index {
+                0..=2 => true, // background, main, Close
+                3 => self.use_menubar,
+                4 => self.use_statusbar,
+                _ => false,
+            };
+        }
+        match index {
+            0..=2 | 38 => true,
+            3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => self.page == Page::Controls,
+            9..=21 | 30..=37 | 40 | 43 => self.page == Page::Windows,
+            24..=27 => self.page == Page::Xdg,
+            _ => false,
+        }
+    }
+}
+
+/// The Windows page's preview panel look, shared by its three paint passes.
+struct PreviewStyle {
+    backplate: bool,
+    transparency: f32,
+    bg_color: [f32; 4],
+}
+
+/// The gallery roster: 45 named slots. The numeric indexes used by the positions
+/// table, the visibility filter and the dispatch loops address these slots through
+/// `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
     pub menu_bar: Adapted<MenuBar>,
     pub paginator: Adapted<Paginator>,
@@ -72,8 +126,7 @@ pub const GALLERY_COUNT: usize = 45;
 
 impl GallerySlots {
 
-    // Per-slot drag queries (the ControlPanel endgame took `draggable`/`is_dragging`
-    // off `WidgetHost`).
+    // Per-slot drag queries.
     pub fn draggable(&self, idx: usize) -> bool {
         match idx {
             0 => self.menu_bar.draggable(),
@@ -469,15 +522,17 @@ impl Roster {
         }
     }
 
-    // --- App-local value drains (6bd value shrink): the `WidgetHost` polling block
-    // (`take_click`/`value`/`get_value_string`/`set_text`) went concrete-slot — these
-    // route a gallery index to its concrete slot's inherent `Adapted` method. Arms exist
-    // only for the slots the page logic actually drains; a new drain site adds its arm.
+    // --- Value drains: route a slot index to its concrete slot's `take_click` /
+    // `value` / `get_value_string` / `set_text`. Arms exist only for the slots the
+    // page logic actually drains; a new drain site adds its arm.
 
     pub fn take_click(&mut self, idx: usize) -> bool {
-        let s = self.gallery_mut();
+        let s = match self {
+            Roster::Gallery(s) => s,
+            // The child roster drains one slot: its Close button.
+            Roster::Child(c) => return idx == 2 && c.close.take_click(),
+        };
         match idx {
-            2 => s.status_bar.take_click(),
             3 => s.button_demo.take_click(),
             4 => s.checkbox_demo.take_click(),
             5 => s.toggle_demo.take_click(),
@@ -558,13 +613,8 @@ struct State {
 
     focused_widget: Option<usize>,
 
-    cursor_x: f32,
-    cursor_y: f32,
-
     width: f32,
     height: f32,
-    physical_width: u32,
-    physical_height: u32,
     scale: f64,
 
     current_page: Page,
@@ -724,9 +774,8 @@ fn is_control_panel_child(i: usize) -> bool {
     matches!(i, 10..=18 | 30..=37 | 40)
 }
 
-/// The panel's child slots in the legacy arrangement/aggregation order (the ControlPanel
-/// endgame: the panel no longer stores pointers to them — the app lays them out, emits
-/// them clamped to the panel viewport, and dispatches them as ordinary routed roots).
+/// The control panel's child slots, in arrangement order: the app lays them out, paints
+/// them clamped to the panel viewport, and dispatches them as ordinary roots.
 const CP_CHILDREN: [usize; 18] = [10, 14, 15, 11, 12, 13, 16, 17, 18, 30, 31, 32, 33, 34, 35, 36, 37, 40];
 
 impl State {
@@ -766,29 +815,63 @@ fn run_file_dialog(save: bool, sender: calloop::channel::Sender<String>) {
 
 
 impl State {
+    fn visibility(&self) -> Visibility {
+        Visibility {
+            is_child: self.is_child,
+            use_menubar: self.use_menubar,
+            use_statusbar: self.use_statusbar,
+            page: self.current_page,
+        }
+    }
+
     fn is_widget_visible(&self, index: usize) -> bool {
-        if self.is_child {
-            return match index {
-                0..=2 => true,
-                3 => self.use_menubar,
-                4 => self.use_statusbar,
-                _ => false,
-            };
-        }
-        match index {
-            0..=2 | 38 => true,
-            3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => self.current_page == Page::Controls,
-            9..=21 | 30..=37 | 40 | 43 => self.current_page == Page::Windows,
-            24..=27 => self.current_page == Page::Xdg,
-            _ => false,
-        }
+        self.visibility().is_visible(index)
+    }
+
+    /// A toggle slot's state.
+    fn toggled(&self, idx: usize) -> bool {
+        self.roster.get_value_string(idx) == Some("true".to_string())
+    }
+
+    fn go_to_page(&mut self, page: Page) {
+        self.current_page = page;
+        self.update_status_text(&format!("Viewing {} Page", page.label()));
+        self.apply_layout();
+    }
+
+    /// Recompute the positions table for the current size, mode and layout.
+    fn relayout(&mut self) {
+        self.positions = if self.is_child {
+            child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
+        } else {
+            let sidebar_w = self.sidebar_w();
+            demo_positions(self.width, self.height, sidebar_w, self.layout_idx, self.roster.gallery())
+        };
+    }
+
+    fn sidebar_w(&self) -> f32 {
+        cce_ui::widget::PageSelector::sidebar_w(
+            self.roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator"),
+        )
+    }
+
+    fn preview_style(&self) -> PreviewStyle {
+        let backplate = self.toggled(30);
+        let transparency = if self.toggled(11) { self.roster.value(12) as f32 / 100.0 } else { 1.0 };
+        let bg_color = if backplate {
+            let mut col = cce_ui::color::page_low_color();
+            col[3] = transparency;
+            col
+        } else {
+            [0.12, 0.12, 0.15, transparency]
+        };
+        PreviewStyle { backplate, transparency, bg_color }
     }
 
     /// Register every roster widget in the ui_context (idempotent — `register` is
     /// id-keyed and the boxed slots keep pointers stable). The id-rooted router
-    /// (`propagate_event(event, WidgetId)`) resolves roots through this registry;
-    /// TI's custom paint loop never goes through `render_widget`, which is where
-    /// other apps pick registration up as a side effect.
+    /// resolves roots through this registry; the gallery's own paint loop never goes
+    /// through `render_widget`, where other apps pick registration up as a side effect.
     fn register_roster(&mut self) {
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn_mut(i);
@@ -805,40 +888,28 @@ impl State {
             sh - 24.0
         };
 
-        for i in 0..self.positions.len() {
+        for i in 0..self.roster.len() {
+            if self.roster.is_dragging(i) {
+                continue;
+            }
+            // The page selector (38) is placed inside the status bar below; the panel's
+            // children are laid out by arrange_control_panel at real screen coordinates.
+            if !self.is_child && (i == 38 || is_control_panel_child(i)) {
+                continue;
+            }
             let visible = self.is_widget_visible(i);
-            let pos = self.positions[i];
-            if i < self.roster.len() {
-                if self.roster.is_dragging(i) {
-                    continue;
-                }
-                let widget = self.roster.get_dyn_mut(i);
-                
-                if !self.is_child && i == 38 {
-                    continue;
-                }
-
-                if is_control_panel_child(i) {
-                    // Laid out by arrange_control_panel after this loop (real screen
-                    // coordinates; every consumer gates on page visibility).
-                    continue;
-                }
-                
-                if visible {
-                    let (x, y, w, h) = pos;
-                    let mut final_h = h;
-                    if i != 0 && i != 1 && i != 2 && i != 43 {
-                        if y + h > limit_y {
-                            final_h = (limit_y - y).max(0.0);
-                        }
-                    }
-                    widget.set_rect(x, y, w, final_h);
-                } else {
-                    widget.set_rect(-1000.0, -1000.0, 0.0, 0.0);
-                }
+            let (x, y, w, h) = self.positions[i];
+            let widget = self.roster.get_dyn_mut(i);
+            if visible {
+                // Everything but the chrome and the panel clips at the status bar.
+                let clipped = i != 0 && i != 1 && i != 2 && i != 43 && y + h > limit_y;
+                let final_h = if clipped { (limit_y - y).max(0.0) } else { h };
+                widget.set_rect(x, y, w, final_h);
+            } else {
+                widget.set_rect(-1000.0, -1000.0, 0.0, 0.0);
             }
         }
-        
+
         if !self.is_child {
             let (x, y, w, h) = self.positions[43];
             self.roster.get_dyn_mut(43).set_rect(x, y, w, h);
@@ -856,17 +927,15 @@ impl State {
         }
     }
 
-    /// Lay the panel's child slots out at SCREEN coordinates (the ControlPanel endgame).
-    /// The legacy panel arranged them in content space and shifted at aggregate time;
-    /// applying the scroll offset at layout time means hit-testing, dispatch, text, and
-    /// popovers all see real positions. Runs from apply_layout — every rebuild — which is
-    /// also what re-arranges after a scroll (the wheel handler sets needs_rebuild).
+    /// Lay the panel's child slots out at screen coordinates, scroll offset applied, so
+    /// hit-testing, dispatch, text and popovers all see real positions. Runs from
+    /// apply_layout and from display_list, which is what re-arranges after a scroll.
     fn arrange_control_panel(&mut self) {
         let s = self.roster.gallery_mut();
         let (x, y, w, h) = s.control_panel.rect();
         let padding = cce_ui::layout::control_panel_padding();
         let gap = cce_ui::layout::control_panel_gap();
-        // 12px reserved for the scrollbar track, like the legacy arrangement.
+        // 12px reserved for the scrollbar track.
         let mut col = cce_ui::widget::ColumnLayout::new(x, y, w - 12.0, gap, padding);
 
         col.add_widget(&mut s.create_window_btn, 28.0);
@@ -915,40 +984,21 @@ impl cce_ui::engine::Application for State {
 
     fn new(_qh: &QueueHandle<cce_ui::engine::EngineState<Self>>, sender: calloop::channel::Sender<Self::Message>) -> Self {
         let args: Vec<String> = std::env::args().collect();
-        let is_child = args.contains(&"--child".to_string());
-        let use_backplate = if is_child {
-            args.contains(&"--backplate".to_string())
-        } else {
-            !args.contains(&"--no-backplate".to_string())
-        };
-        let use_menubar = args.contains(&"--menubar".to_string());
-        let use_statusbar = args.contains(&"--statusbar".to_string());
-        let type_idx = args.iter().position(|a| a == "--type");
-        let child_type = type_idx.and_then(|i| args.get(i + 1)).cloned();
-        let shape_idx = args.iter().position(|a| a == "--shape");
-        let child_shape = shape_idx.and_then(|i| args.get(i + 1)).cloned();
-        let opacity = args.contains(&"--opacity".to_string());
-        let transp_idx = args.iter().position(|a| a == "--transparency");
-        let transparency = transp_idx
-            .and_then(|i| args.get(i + 1))
-            .and_then(|s| s.parse::<f32>().ok())
-            .unwrap_or(1.0);
-        let no_border = args.contains(&"--no-border".to_string());
-        let border_enabled = !no_border;
-        let border_width_idx = args.iter().position(|a| a == "--border-width");
-        let border_width = border_width_idx
-            .and_then(|i| args.get(i + 1))
-            .and_then(|s| s.parse::<f32>().ok())
-            .unwrap_or(1.0);
-        let border_bevel = args.contains(&"--border-bevel".to_string());
-        let width_idx = args.iter().position(|a| a == "--width");
-        let custom_width = width_idx
-            .and_then(|i| args.get(i + 1))
-            .and_then(|s| s.parse::<f32>().ok());
-        let height_idx = args.iter().position(|a| a == "--height");
-        let custom_height = height_idx
-            .and_then(|i| args.get(i + 1))
-            .and_then(|s| s.parse::<f32>().ok());
+        let flag = |name: &str| args.iter().any(|a| a == name);
+        let value = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
+        let number = |name: &str| value(name).and_then(|s| s.parse::<f32>().ok());
+
+        let is_child = flag("--child");
+        let use_backplate = if is_child { flag("--backplate") } else { !flag("--no-backplate") };
+        let use_menubar = flag("--menubar");
+        let use_statusbar = flag("--statusbar");
+        let child_type = value("--type");
+        let child_shape = value("--shape");
+        let opacity = flag("--opacity");
+        let transparency = number("--transparency").unwrap_or(1.0);
+        let border_enabled = !flag("--no-border");
+        let custom_width = number("--width");
+        let custom_height = number("--height");
 
         let (mut c_w, mut c_h): (f32, f32) = if is_child {
             if let (Some(w), Some(h)) = (custom_width, custom_height) {
@@ -973,9 +1023,9 @@ impl cce_ui::engine::Application for State {
             c_h = side;
         }
 
-        let is_ramp_child = is_child && (child_type.as_deref() == Some("Ramp") || child_type.as_deref() == Some("ColorRamp"));
+        let is_ramp_child = is_child && matches!(child_type.as_deref(), Some("Ramp") | Some("ColorRamp"));
         let opacity = opacity || is_ramp_child;
-        let status_text = "Select a test case to begin verification.".to_string();
+        let status_text = "Ready.".to_string();
 
         let roster = if is_child {
             let desc_label = match child_type.as_deref() {
@@ -988,11 +1038,7 @@ impl cce_ui::engine::Application for State {
                 None => "This is an active simulated window in the window manager.".to_string(),
             };
             let bg = if use_backplate {
-                let mut bp = Backplate::new(0.0, 0.0, c_w, c_h);
-                if border_bevel {
-                    bp.set_bevel(border_width);
-                }
-                ChildBg::Backplate(bp)
+                ChildBg::Backplate(Backplate::new(0.0, 0.0, c_w, c_h))
             } else {
                 ChildBg::ContentBg(ContentBg::new())
             };
@@ -1042,11 +1088,8 @@ impl cce_ui::engine::Application for State {
                 .with_item("Help", &["About"])
                 .with_right_aligned_title(true);
             Roster::Gallery(Box::new(GallerySlots {
-                menu_bar: menu_bar,
-                paginator: {
-                    let paginator = Paginator::new(vec![]);
-                    paginator
-                },
+                menu_bar,
+                paginator: Paginator::new(vec![]),
                 status_bar: StatusBar::new(),
                 button_demo: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Button"),
                 checkbox_demo: Checkbox::new().with_label("Checkbox"),
@@ -1079,15 +1122,7 @@ impl cce_ui::engine::Application for State {
                 height_spin: Spinbox::new(250, 100, 2000, 10).with_label("Height"),
                 surface_plate: Plate::new(0.0, 0.0, 190.0, 250.0, true),
                 surface_info_label: Label::new("Surface Info").with_font_size(12.0),
-                surface_desc_label: Label::new(
-                    "A standard application\n\
-window (xdg_toplevel).\n\
-It supports tiling (cascade,\n\
-split, grid), fullscreening,\n\
-dragging, and resizing.\n\n\
-Testing layout:\n\
-cascades in cce."
-                ).with_font_size(10.0),
+                surface_desc_label: Label::new(window_type_description(0)).with_font_size(10.0),
                 range_slider_demo: RangeSlider::new().with_label("RangeSlider"),
                 trackpad_demo: Trackpad::new().with_label("Trackpad"),
                 portal_panel: Panel::new(0.0, 0.0, 450.0, 200.0).with_label("File chooser"),
@@ -1101,22 +1136,10 @@ cascades in cce."
                     t.set_toggled(true);
                     t
                 },
-                menubar_toggle: {
-                    let mut t = Toggle::new().with_label("MenuBar");
-                    t.set_toggled(false);
-                    t
-                },
-                statusbar_toggle: {
-                    let mut t = Toggle::new().with_label("StatusBar");
-                    t.set_toggled(false);
-                    t
-                },
+                menubar_toggle: Toggle::new().with_label("MenuBar"),
+                statusbar_toggle: Toggle::new().with_label("StatusBar"),
                 border_section: SectionContainer::new("Border"),
-                bevel_toggle: {
-                    let mut t = Toggle::new().with_label("Bevel");
-                    t.set_toggled(false);
-                    t
-                },
+                bevel_toggle: Toggle::new().with_label("Bevel"),
                 border_width_spin: Spinbox::new(1, 1, 20, 1).with_label("Border Width"),
                 bevel_depth_spin: {
                     let default_depth = (cce_ui::layout::bevel_depth() * 100.0) as i32;
@@ -1145,28 +1168,15 @@ cascades in cce."
             }))
         };
 
-        let positions = if is_child {
-            child_positions(c_w, c_h, use_menubar, use_statusbar, child_type.as_deref())
-        } else {
-            let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
-                roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator"),
-            );
-            demo_positions(c_w, c_h, sidebar_w, 9, roster.gallery())
-        };
-
         let (loaded_keys, loaded_type) = load_bevel_ramp();
 
         let mut state = Self {
             roster,
-            positions,
+            positions: Vec::new(),
             status_text,
             focused_widget: None,
-            cursor_x: 0.0,
-            cursor_y: 0.0,
             width: c_w,
             height: c_h,
-            physical_width: c_w as u32,
-            physical_height: c_h as u32,
             scale: 1.0,
             current_page: Page::Controls,
             is_child,
@@ -1187,8 +1197,7 @@ cascades in cce."
         };
 
         if !is_child {
-            // Link page selector (38) under StatusBar (2) — the old set_parent + add_child
-            // pair as the one tree link it always was (6bd batch 4).
+            // Link the page selector (38) under the status bar (2) in the ui tree.
             let statusbar_ptr = state.roster.get_dyn_mut(2) as *mut (dyn WidgetHost + 'static);
             let dropdown_ptr = state.roster.get_dyn_mut(38) as *mut (dyn WidgetHost + 'static);
             unsafe {
@@ -1215,25 +1224,18 @@ cascades in cce."
             }
         }
 
+        state.relayout();
         state.apply_layout();
         state
     }
 
     fn settings(&self) -> cce_ui::engine::WindowSettings {
         let title = if self.is_child {
-            match self.child_type.as_deref() {
-                Some("Toplevel") => "Simulated Toplevel Window".to_string(),
-                Some("Popup") => "Simulated Popup Window".to_string(),
-                Some("LayerTop") => "Simulated Layer Shell (Top) Surface".to_string(),
-                Some("LayerOverlay") => "Simulated Layer Shell (Overlay) Surface".to_string(),
-                Some("LayerBackground") => "Simulated Layer Shell (Background) Surface".to_string(),
-                Some(other) => format!("Simulated {} Window", other),
-                None => "Simulated Client Window".to_string(),
-            }
+            child_title(self.child_type.as_deref())
         } else {
             "Gallery".to_string()
         };
-        
+
         let mut app_id = if self.is_child {
             if let Some(ref t) = self.child_type {
                 format!("cce-gallery-child-{}", t.to_lowercase())
@@ -1292,28 +1294,8 @@ cascades in cce."
         if hover_animation::tick(dt) {
             changed = true;
         }
-        let is_child = self.is_child;
-        let use_menubar = self.use_menubar;
-        let use_statusbar = self.use_statusbar;
-        let current_page = self.current_page;
-        let is_visible = move |index: usize| -> bool {
-            if is_child {
-                match index {
-                    0..=2 => true,
-                    3 => use_menubar,
-                    4 => use_statusbar,
-                    _ => false,
-                }
-            } else {
-                match index {
-                    0..=2 | 38 => true,
-                    3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => current_page == Page::Controls,
-                    9..=21 | 30..=37 | 40 | 43 => current_page == Page::Windows,
-                    24..=27 => current_page == Page::Xdg,
-                    _ => false,
-                }
-            }
-        };
+        let vis = self.visibility();
+        let is_visible = move |index: usize| vis.is_visible(index);
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn_mut(i);
             if is_visible(i) {
@@ -1337,34 +1319,23 @@ cascades in cce."
     }
 
     fn display_list(&mut self, size: LogicalSize, scale: f64) -> Option<cce_ui::scene::paint::DisplayList> {
-        // Phase 6af single paint path: the whole frame — the legacy view_rounded_quads
-        // geometry, then the view() geometry (the wrapper's order), then every text
-        // label as a prim — is this one list, rebuilt fresh each frame (the old
-        // rebuild_text_items cache and its 14 invalidation call sites are gone).
+        // The whole frame — rounded geometry, plain geometry, popovers, then text — is
+        // one display list, rebuilt each frame.
         use cce_ui::scene::layout::Rect;
         self.register_roster();
-        // Panel children follow the scroll offset at LAYOUT time (the dissolved panel
-        // shifted at aggregate time): re-arrange every frame so a wheel scroll moves the
-        // content on the frame it repaints. Idempotent and cheap (~20 set_rects).
+        // Panel children follow the scroll offset at layout time: re-arrange every frame
+        // so a wheel scroll moves the content on the frame it repaints. Idempotent and
+        // cheap (~20 set_rects).
         if !self.is_child {
             self.arrange_control_panel();
         }
         if (self.width - size.width as f32).abs() > 0.001 || (self.height - size.height as f32).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
             self.width = size.width as f32;
             self.height = size.height as f32;
-            self.physical_width = (size.width * scale as f32) as u32;
-            self.physical_height = (size.height * scale as f32) as u32;
             self.scale = scale;
             cce_ui::scale::set_scale_factor(scale as f32);
 
-            self.positions = if self.is_child {
-                child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
-            } else {
-                let sidebar_w = cce_ui::widget::PageSelector::sidebar_w(
-                    self.roster.get_dyn_mut(1).as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("widgets[1] must be the Paginator"),
-                );
-                demo_positions(self.width, self.height, sidebar_w, self.layout_idx, self.roster.gallery())
-            };
+            self.relayout();
             self.apply_layout();
             let text = self.status_text.clone();
             self.update_status_text(&text);
@@ -1374,7 +1345,7 @@ cascades in cce."
         let sh = self.height;
         let mut pc = cce_ui::scene::paint::PaintCtx::new();
 
-        // ── Rounded geometry (the legacy view_rounded_quads body) ──
+        // ── Rounded geometry ──
         if !self.is_child && self.use_backplate {
             let r = cce_ui::color::root_plate_corner_radius();
             let bg_color = cce_ui::color::page_low_color();
@@ -1400,17 +1371,8 @@ cascades in cce."
             }
             if !self.is_child && i == 9 {
                 let r = cce_ui::color::root_plate_corner_radius();
-                let backplate_enabled = self.roster.get_value_string(30) == Some("true".to_string());
-                let border_bevel = self.roster.get_value_string(34) == Some("true".to_string());
-                let opacity_enabled = self.roster.get_value_string(11) == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.roster.value(12) as f32 / 100.0 } else { 1.0 };
-                let bg_color = if backplate_enabled {
-                    let mut col = cce_ui::color::page_low_color();
-                    col[3] = transparency_val;
-                    col
-                } else {
-                    [0.12, 0.12, 0.15, transparency_val]
-                };
+                let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
+                let border_bevel = self.toggled(34);
 
                 let (wx, wy, ww, wh) = w.rect();
                 if backplate_enabled {
@@ -1423,7 +1385,7 @@ cascades in cce."
                     }
                 }
 
-                let menubar_enabled = self.roster.get_value_string(31) == Some("true".to_string());
+                let menubar_enabled = self.toggled(31);
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::root_plate_menubar_color();
                     menu_color[3] = transparency_val;
@@ -1434,7 +1396,7 @@ cascades in cce."
                     }
                 }
 
-                let statusbar_enabled = self.roster.get_value_string(32) == Some("true".to_string());
+                let statusbar_enabled = self.toggled(32);
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::root_plate_statusbar_color();
                     status_color[3] = transparency_val;
@@ -1460,13 +1422,11 @@ cascades in cce."
             }
         }
 
-        // ── ControlPanel children (the dissolved panel's aggregate, app-side): the slots
-        // are at real screen coordinates now; the legacy clamp-to-viewport, partial-clip
-        // radius zeroing, and solid-border synthesis/inset rules apply verbatim, and the
-        // scrollbar draws last, over the children, like the aggregate did. ──
+        // ── ControlPanel children: clamped to the panel viewport (a partially clipped
+        // quad loses its radius), solid borders synthesized and their fill inset, then
+        // the scrollbar last, over the children. ──
         if !self.is_child && self.current_page == Page::Windows {
-            let (panel_x, panel_y, panel_w, panel_h) = self.roster.gallery().control_panel.rect();
-            let _ = (panel_x, panel_w);
+            let (_, panel_y, _, panel_h) = self.roster.gallery().control_panel.rect();
             let y_start = panel_y;
             let y_end = panel_y + panel_h;
             for &ci in CP_CHILDREN.iter() {
@@ -1532,7 +1492,7 @@ cascades in cce."
             }
         }
 
-        // ── Plain geometry (the legacy view() body) ──
+        // ── Plain geometry ──
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn(i);
             if !self.is_widget_visible(i) {
@@ -1542,19 +1502,10 @@ cascades in cce."
                 continue;
             }
             if !self.is_child && i == 9 {
-                let backplate_enabled = self.roster.get_value_string(30) == Some("true".to_string());
-                let opacity_enabled = self.roster.get_value_string(11) == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.roster.value(12) as f32 / 100.0 } else { 1.0 };
-                let bg_color = if backplate_enabled {
-                    let mut col = cce_ui::color::page_low_color();
-                    col[3] = transparency_val;
-                    col
-                } else {
-                    [0.12, 0.12, 0.15, transparency_val]
-                };
+                let style = self.preview_style();
                 let (wx, wy, ww, wh) = w.rect();
-                if !backplate_enabled {
-                    pc.quad(Rect { x: wx, y: wy, width: ww, height: wh }, bg_color);
+                if !style.backplate {
+                    pc.quad(Rect { x: wx, y: wy, width: ww, height: wh }, style.bg_color);
                 }
             } else {
                 for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
@@ -1563,9 +1514,8 @@ cascades in cce."
             }
         }
 
-        // ── ControlPanel children, plain decorations (the dissolved aggregate_plain):
-        // the child's own rounded background is skipped like the legacy rule, the rest
-        // clamps to the panel viewport. ──
+        // ── ControlPanel children, plain decorations: a child's own rounded background
+        // was painted above; the rest clamps to the panel viewport. ──
         if !self.is_child && self.current_page == Page::Windows {
             let (_panel_x, panel_y, _panel_w, panel_h) = self.roster.gallery().control_panel.rect();
             let y_start = panel_y;
@@ -1607,23 +1557,11 @@ cascades in cce."
             }
         }
 
-        // ── Text, as prims (the legacy rebuild_text_items assembly, uncached) ──
+        // ── Text ──
         let label_text = if self.is_child {
-            match self.child_type.as_deref() {
-                Some("Toplevel") => "Simulated Toplevel Window".to_string(),
-                Some("Popup") => "Simulated Popup Window".to_string(),
-                Some("LayerTop") => "Simulated Layer Shell (Top) Surface".to_string(),
-                Some("LayerOverlay") => "Simulated Layer Shell (Overlay) Surface".to_string(),
-                Some("LayerBackground") => "Simulated Layer Shell (Background) Surface".to_string(),
-                Some(other) => format!("Simulated {} Window", other),
-                None => "Simulated Window".to_string(),
-            }
+            child_title(self.child_type.as_deref())
         } else {
-            match self.current_page {
-                Page::Controls => "Gallery - Controls".to_string(),
-                Page::Windows => "Gallery - Windows".to_string(),
-                Page::Xdg => "Gallery - XDG".to_string(),
-            }
+            format!("Gallery - {}", self.current_page.label())
         };
         let mut has_menu_bar = false;
         for i in 0..self.roster.len() {
@@ -1661,13 +1599,9 @@ cascades in cce."
             if !self.is_widget_visible(i) {
                 continue;
             }
-            // Text via the paint walk (not the legacy getters): same labels with the
-            // widget's content font and clip bounds; the popover cull stays on the prim
-            // coordinates. Any widget with a ui-tree parent (the page selector under the
-            // status bar) is covered by that parent's descent — walking it here too would
-            // emit its text twice. ControlPanel children clamp their bounds to the panel
-            // viewport (the dissolved scrolled_child_labels rule, minus the shift — the
-            // slots sit at real screen coordinates now).
+            // A widget with a ui-tree parent (the page selector under the status bar) is
+            // covered by that parent's walk — emitting it here too would draw its text
+            // twice. Text inside a popover is culled; panel children clip to the panel.
             if self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
                 continue;
             }
@@ -1697,7 +1631,7 @@ cascades in cce."
         }
 
 
-        // The status line the old text_areas() override appended.
+        // The status line.
         if !self.is_child {
             let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
             let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
@@ -1738,26 +1672,17 @@ cascades in cce."
             }
 
             if !self.is_child && i == 9 {
-                let border_enabled = self.roster.get_value_string(16) == Some("true".to_string());
+                let border_enabled = self.toggled(16);
                 if border_enabled {
-                    let backplate_enabled = self.roster.get_value_string(30) == Some("true".to_string());
-                    let opacity_enabled = self.roster.get_value_string(11) == Some("true".to_string());
-                    let transparency_val = if opacity_enabled { self.roster.value(12) as f32 / 100.0 } else { 1.0 };
-                    let bg_color = if backplate_enabled {
-                        let mut col = cce_ui::color::page_low_color();
-                        col[3] = transparency_val;
-                        col
-                    } else {
-                        [0.12, 0.12, 0.15, transparency_val]
-                    };
+                    let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
                     let t = self.roster.value(35) as f32;
-                    let border_bevel = self.roster.get_value_string(34) == Some("true".to_string());
+                    let border_bevel = self.toggled(34);
                     let r = cce_ui::color::root_plate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
-                    
+
                     if backplate_enabled {
                         let radii = CornerRadii::new(r, r, r, r);
                         if border_bevel {
@@ -1766,18 +1691,18 @@ cascades in cce."
                             for idx in 0..slices {
                                 let u_curr = idx as f32 / slices as f32;
                                 let u_next = (idx + 1) as f32 / slices as f32;
-                                
+
                                 let h_outer = interpolate_ramp_value(&self.bevel_ramp, u_curr, &self.bevel_ramp_line_type);
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
-                                
+
                                 let d_h = h_inner - h_outer;
                                 let bevel_depth = self.roster.value(36) as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
-                                
+
                                  let rad = cce_ui::layout::light_source_position();
                                  let lx = rad.cos();
                                  let ly = -rad.sin();
-                                 
+
                                  let c_offset = |factor: f32| -> [f32; 4] {
                                      let o = factor * color_offset;
                                      [
@@ -1787,19 +1712,19 @@ cascades in cce."
                                          bg_color[3]
                                      ]
                                  };
-                                 
+
                                  let top_color = c_offset(-ly);
                                  let left_color = c_offset(-lx);
                                  let bottom_color = c_offset(ly);
                                  let right_color = c_offset(lx);
- 
+
                                  let offset = idx as f32 * slice_w;
                                  let r_offset = (r - offset).max(0.0);
                                  verts.extend(quad_vertices(wx + r_offset, wy + offset, ww - 2.0 * r_offset, slice_w, sw, sh, top_color));
                                  verts.extend(quad_vertices(wx + offset, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, left_color));
                                  verts.extend(quad_vertices(wx + r_offset, wy + wh - offset - slice_w, ww - 2.0 * r_offset, slice_w, sw, sh, bottom_color));
                                  verts.extend(quad_vertices(wx + ww - offset - slice_w, wy + r_offset, slice_w, wh - 2.0 * r_offset, sw, sh, right_color));
- 
+
                                  push_bevel_slice_corners(
                                      wx, wy, ww, wh,
                                      r, r_offset, slice_w,
@@ -1850,37 +1775,15 @@ cascades in cce."
 
     fn handle_pointer_move(&mut self, pos: LogicalPosition, needs_rebuild: &mut bool) {
         let (lx, ly) = (pos.x as f32, pos.y as f32);
-        self.cursor_x = lx;
-        self.cursor_y = ly;
 
         let mut changed = false;
-        // Routed dispatch (6bd shrink): the router owns the drag lifecycle — one
+        // The router owns the drag lifecycle — one
         // PointerMove per visible root forwards DragUpdate to a live drag target and
         // runs hover bookkeeping otherwise.
         let mv = cce_ui::widget::Event::PointerMove { x: lx, y: ly, local_x: lx, local_y: ly };
         {
-            let is_child = self.is_child;
-            let use_menubar = self.use_menubar;
-            let use_statusbar = self.use_statusbar;
-            let current_page = self.current_page;
-            let is_visible = move |index: usize| -> bool {
-                if is_child {
-                    match index {
-                        0..=2 => true,
-                        3 => use_menubar,
-                        4 => use_statusbar,
-                        _ => false,
-                    }
-                } else {
-                    match index {
-                        0..=2 | 38 => true,
-                        3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => current_page == Page::Controls,
-                        9..=21 | 30..=37 | 40 | 43 => current_page == Page::Windows,
-                        24..=27 => current_page == Page::Xdg,
-                        _ => false,
-                    }
-                }
-            };
+            let vis = self.visibility();
+            let is_visible = move |index: usize| vis.is_visible(index);
             for i in 0..self.roster.len() {
                 if !is_visible(i) {
                     continue;
@@ -1901,32 +1804,10 @@ cascades in cce."
 
     fn handle_mouse_input(&mut self, button: MouseButton, state: ElementState, pos: LogicalPosition, needs_rebuild: &mut bool) -> Option<Self::Message> {
         let (lx, ly) = (pos.x as f32, pos.y as f32);
-        self.cursor_x = lx;
-        self.cursor_y = ly;
 
         let mut changed = false;
-        let is_child = self.is_child;
-        let use_menubar = self.use_menubar;
-        let use_statusbar = self.use_statusbar;
-        let current_page = self.current_page;
-        let is_visible = move |index: usize| -> bool {
-            if is_child {
-                match index {
-                    0..=2 => true,
-                    3 => use_menubar,
-                    4 => use_statusbar,
-                    _ => false,
-                }
-            } else {
-                match index {
-                    0..=2 | 38 => true,
-                    3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => current_page == Page::Controls,
-                    9..=21 | 30..=37 | 40 | 43 => current_page == Page::Windows,
-                    24..=27 => current_page == Page::Xdg,
-                    _ => false,
-                }
-            }
-        };
+        let vis = self.visibility();
+        let is_visible = move |index: usize| vis.is_visible(index);
 
         if state == ElementState::Pressed {
             let mut clicked_idx = None;
@@ -1964,10 +1845,9 @@ cascades in cce."
                 }
             }
             if let Some(i) = clicked_idx {
-                // Routed press: the router records the drag target on a handled press
-                // and synthesizes DragStart past its threshold (the old immediate
-                // drag_begin). Legacy also armed drags whose press handler returned
-                // false — preserve that by recording the target explicitly.
+                // The router records the drag target on a handled press and synthesizes
+                // DragStart past its threshold; a draggable slot whose press handler
+                // returned false is armed explicitly.
                 let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
                 let root = self.roster.get_dyn(i).base().id();
                 let press_handled = self.ui_context.propagate_event(&ev, root);
@@ -2010,62 +1890,21 @@ cascades in cce."
                         return Some("exit".to_string());
                     }
                 } else {
-                    let mut page_changed = false;
-                    let mut selected = 0;
                     if self.roster.take_click(38) {
-                        selected = self.roster.value(38);
-                        page_changed = true;
-                    }
-                    
-                    if page_changed {
-                        if selected == 0 {
-                            self.current_page = Page::Controls;
-                            self.update_status_text("Viewing Controls Page");
-                        } else if selected == 1 {
-                            self.current_page = Page::Windows;
-                            self.update_status_text("Viewing Windows Page");
-                        } else {
-                            self.current_page = Page::Xdg;
-                            self.update_status_text("Viewing XDG Page");
-                        }
-                        self.apply_layout();
+                        self.go_to_page(Page::from_index(self.roster.value(38) as usize));
                         changed = true;
                     } else if self.roster.take_click(44) {
                         self.layout_idx = self.roster.value(44) as usize;
-                        self.positions = demo_positions(self.width, self.height, cce_ui::widget::PageSelector::sidebar_w(self.roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator")), self.layout_idx, self.roster.gallery());
+                        self.relayout();
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
-                        if self.roster.take_click(3) {
-                            // Does nothing
-                        } else if self.roster.take_click(39) {
-                            if let Ok(exe) = std::env::current_exe() {
-                                let mut cmd = std::process::Command::new(exe);
-                                cmd.arg("--child")
-                                   .arg("--type")
-                                   .arg("ColorRamp")
-                                   .arg("--width")
-                                   .arg("450")
-                                   .arg("--height")
-                                   .arg("350")
-                                   .arg("--backplate");
-                                let _ = cmd.spawn();
-                            }
+                        if self.roster.take_click(39) {
+                            spawn_editor("ColorRamp");
                         } else if self.roster.take_click(42) {
-                            if let Ok(exe) = std::env::current_exe() {
-                                let mut cmd = std::process::Command::new(exe);
-                                cmd.arg("--child")
-                                   .arg("--type")
-                                   .arg("Ramp")
-                                   .arg("--width")
-                                   .arg("450")
-                                   .arg("--height")
-                                   .arg("350")
-                                   .arg("--backplate");
-                                let _ = cmd.spawn();
-                            }
+                            spawn_editor("Ramp");
                         } else {
-                            for i in [4, 5, 7, 8, 22, 23, 28, 29] {
+                            for i in [3, 4, 5, 7, 8, 22, 23, 28, 29] {
                                 if self.roster.take_click(i) {
                                     changed = true;
                                 }
@@ -2073,22 +1912,11 @@ cascades in cce."
                         }
                     } else if self.current_page == Page::Windows {
                         let mut create_window = false;
-                        
+
                         if self.roster.take_click(10) {
                             create_window = true;
                         } else if self.roster.take_click(40) {
-                            if let Ok(exe) = std::env::current_exe() {
-                                let mut cmd = std::process::Command::new(exe);
-                                cmd.arg("--child")
-                                   .arg("--type")
-                                   .arg("Ramp")
-                                   .arg("--width")
-                                   .arg("450")
-                                   .arg("--height")
-                                   .arg("350")
-                                   .arg("--backplate");
-                                let _ = cmd.spawn();
-                            }
+                            spawn_editor("Ramp");
                         } else {
                             let mut dropdown_clicked = false;
                             for i in [11, 12, 14, 15, 16, 17, 18, 30, 31, 32, 34, 35, 36] {
@@ -2106,48 +1934,11 @@ cascades in cce."
                                 }
                             }
                             if dropdown_clicked {
-                                let desc = match self.roster.value(14) {
-                                    0 => "A standard application\n\
-window (xdg_toplevel).\n\
-It supports tiling (cascade,\n\
-split, grid), fullscreening,\n\
-dragging, and resizing.\n\n\
-Testing layout:\n\
-cascades in cce.",
-                                    1 => "An anchored sub-surface\n\
-popup (xdg_popup).\n\
-Usually transient context\n\
-menus, tooltips, or dropdown\n\
-lists. Bypasses tiling.\n\n\
-Testing layout:\n\
-maps floating on top.",
-                                    2 => "A high-level Layer Shell\n\
-surface (anchored to top).\n\
-Typically status bars, menus,\n\
-or docks. Reserves panel\n\
-space, limiting workspace.\n\n\
-Testing layout:\n\
-full width at top.",
-                                    3 => "A high-priority Layer Shell\n\
-surface (overlay layer).\n\
-Used for screensavers, lock\n\
-screens, or overlay HUDs.\n\
-Sits above tiling windows.\n\n\
-Testing layout:\n\
-center floating window.",
-                                    4 => "A bottom-level Layer Shell\n\
-surface (background layer).\n\
-Used for desktop wallpaper.\n\
-Renders below all other\n\
-client windows.\n\n\
-Testing layout:\n\
-full screen background.",
-                                    _ => "",
-                                };
+                                let desc = window_type_description(self.roster.value(14));
                                 self.roster.set_text(21, desc);
                             }
                         }
-                        
+
                         if create_window {
                             let window_type = match self.roster.value(14) {
                                 0 => "Toplevel",
@@ -2162,55 +1953,35 @@ full screen background.",
                                 1 => "circular",
                                 _ => "rectangular",
                             };
-                            let opacity_enabled = self.roster.get_value_string(11) == Some("true".to_string());
+                            let opacity_enabled = self.toggled(11);
                             let transparency_pct = self.roster.value(12);
                             let transparency_val = transparency_pct as f32 / 100.0;
-                            let border_enabled = self.roster.get_value_string(16) == Some("true".to_string());
+                            let border_enabled = self.toggled(16);
                             let custom_width = self.roster.value(17);
                             let custom_height = self.roster.value(18);
-     
+
                             self.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
-                            if let Ok(exe) = std::env::current_exe() {
-                                let mut cmd = std::process::Command::new(exe);
-                                cmd.arg("--child")
-                                   .arg("--type")
-                                   .arg(window_type)
-                                   .arg("--shape")
-                                   .arg(shape);
-                                let backplate_enabled = self.roster.get_value_string(30) == Some("true".to_string());
-                                let menubar_enabled = self.roster.get_value_string(31) == Some("true".to_string());
-                                let statusbar_enabled = self.roster.get_value_string(32) == Some("true".to_string());
+                            if let Some(mut cmd) = child_command() {
+                                cmd.args(["--type", window_type, "--shape", shape]);
                                 if opacity_enabled {
-                                    cmd.arg("--opacity")
-                                       .arg("--transparency")
-                                       .arg(transparency_val.to_string());
+                                    cmd.args(["--opacity", "--transparency", &transparency_val.to_string()]);
                                 }
                                 if !border_enabled {
                                     cmd.arg("--no-border");
                                 } else {
-                                    let border_width = self.roster.value(35) as f32;
-                                    let border_bevel = self.roster.get_value_string(34) == Some("true".to_string());
-                                    cmd.arg("--border-width")
-                                       .arg(border_width.to_string());
-                                    if border_bevel {
+                                    cmd.args(["--border-width", &self.roster.value(35).to_string()]);
+                                    if self.toggled(34) {
                                         cmd.arg("--border-bevel");
                                     }
                                 }
-                                if backplate_enabled {
-                                    cmd.arg("--backplate");
+                                for (flag, on) in [("--backplate", self.toggled(30)), ("--menubar", self.toggled(31)), ("--statusbar", self.toggled(32))] {
+                                    if on {
+                                        cmd.arg(flag);
+                                    }
                                 }
-                                if menubar_enabled {
-                                    cmd.arg("--menubar");
-                                }
-                                if statusbar_enabled {
-                                    cmd.arg("--statusbar");
-                                }
-                                 cmd.arg("--width")
-                                    .arg(custom_width.to_string())
-                                    .arg("--height")
-                                    .arg(custom_height.to_string());
-                                 let _ = cce_ui::process::spawn_tracked(cmd);
-                             }
+                                cmd.args(["--width", &custom_width.to_string(), "--height", &custom_height.to_string()]);
+                                let _ = cce_ui::process::spawn_tracked(cmd);
+                            }
                             changed = true;
                         }
                     } else if self.current_page == Page::Xdg {
@@ -2240,31 +2011,11 @@ full screen background.",
     fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, pos: LogicalPosition, needs_rebuild: &mut bool) {
         let (lx, ly) = (pos.x as f32, pos.y as f32);
         let mut changed = false;
-        let is_child = self.is_child;
-        let use_menubar = self.use_menubar;
-        let use_statusbar = self.use_statusbar;
-        let current_page = self.current_page;
-        let is_visible = move |index: usize| -> bool {
-            if is_child {
-                match index {
-                    0..=2 => true,
-                    3 => use_menubar,
-                    4 => use_statusbar,
-                    _ => false,
-                }
-            } else {
-                match index {
-                    0..=2 | 38 => true,
-                    3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => current_page == Page::Controls,
-                    9..=21 | 30..=37 | 40 | 43 => current_page == Page::Windows,
-                    24..=27 => current_page == Page::Xdg,
-                    _ => false,
-                }
-            }
-        };
+        let vis = self.visibility();
+        let is_visible = move |index: usize| vis.is_visible(index);
         let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: lx, y: ly, local_x: lx, local_y: ly };
-        // Panel scroll first (legacy: the panel's scroll frame consumed the wheel before
-        // its children saw it); a consumed wheel never reaches the panel's children.
+        // The panel's scroll frame gets the wheel first; a consumed wheel never reaches
+        // its children.
         let mut cp_took_wheel = false;
         if !self.is_child && is_visible(43) {
             let root = self.roster.get_dyn(43).base().id();
@@ -2296,28 +2047,8 @@ full screen background.",
 
     fn handle_key_input(&mut self, event: &KeyEvent, needs_rebuild: &mut bool) -> Option<Self::Message> {
         let mut changed = false;
-        let is_child = self.is_child;
-        let use_menubar = self.use_menubar;
-        let use_statusbar = self.use_statusbar;
-        let current_page = self.current_page;
-        let is_visible = move |index: usize| -> bool {
-            if is_child {
-                match index {
-                    0..=2 => true,
-                    3 => use_menubar,
-                    4 => use_statusbar,
-                    _ => false,
-                }
-            } else {
-                match index {
-                    0..=2 | 38 => true,
-                    3..=8 | 22 | 23 | 28 | 29 | 39 | 41 | 42 | 44 => current_page == Page::Controls,
-                    9..=21 | 30..=37 | 40 | 43 => current_page == Page::Windows,
-                    24..=27 => current_page == Page::Xdg,
-                    _ => false,
-                }
-            }
-        };
+        let vis = self.visibility();
+        let is_visible = move |index: usize| vis.is_visible(index);
         let mut handled = false;
         let key_ev = cce_ui::widget::Event::KeyInput(event.clone());
         if let Some(focused) = self.focused_widget {
@@ -2336,8 +2067,7 @@ full screen background.",
                 if !is_visible(i) {
                     continue;
                 }
-                // Panel children take keys only through the focused path above (the
-                // legacy panel never forwarded keys).
+                // Panel children take keys only through the focused path above.
                 if is_control_panel_child(i) {
                     continue;
                 }
@@ -2353,37 +2083,22 @@ full screen background.",
             }
         }
 
-        if event.state == ElementState::Pressed {
-            let mut page_nav = false;
-            let mut selected = 0;
-            {
-                // input.kdl `cce-gallery` domain
-                let m = |name: &str, default: &str| {
-                    cce_ui::widget::match_key_shortcut(event, &cce_ui::input::app_chord(name, default))
-                };
-                if m("page_1", "ctrl+1") {
-                    selected = 0;
-                    page_nav = true;
-                } else if m("page_2", "ctrl+2") {
-                    selected = 1;
-                    page_nav = true;
-                } else if m("page_3", "ctrl+3") {
-                    selected = 2;
-                    page_nav = true;
-                }
-            }
-            if page_nav && !self.is_child {
-                if selected == 0 {
-                    self.current_page = Page::Controls;
-                    self.update_status_text("Viewing Controls Page");
-                } else if selected == 1 {
-                    self.current_page = Page::Windows;
-                    self.update_status_text("Viewing Windows Page");
-                } else {
-                    self.current_page = Page::Xdg;
-                    self.update_status_text("Viewing XDG Page");
-                }
-                self.apply_layout();
+        if event.state == ElementState::Pressed && !self.is_child {
+            // input.kdl `cce-gallery` domain
+            let m = |name: &str, default: &str| {
+                cce_ui::widget::match_key_shortcut(event, &cce_ui::input::app_chord(name, default))
+            };
+            let page = if m("page_1", "ctrl+1") {
+                Some(Page::Controls)
+            } else if m("page_2", "ctrl+2") {
+                Some(Page::Windows)
+            } else if m("page_3", "ctrl+3") {
+                Some(Page::Xdg)
+            } else {
+                None
+            };
+            if let Some(page) = page {
+                self.go_to_page(page);
                 changed = true;
             }
         }
@@ -2408,6 +2123,78 @@ full screen background.",
     }
 }
 
+/// A child window's title, from its `--type`.
+fn child_title(child_type: Option<&str>) -> String {
+    match child_type {
+        Some("Toplevel") => "Simulated Toplevel Window".to_string(),
+        Some("Popup") => "Simulated Popup Window".to_string(),
+        Some("LayerTop") => "Simulated Layer Shell (Top) Surface".to_string(),
+        Some("LayerOverlay") => "Simulated Layer Shell (Overlay) Surface".to_string(),
+        Some("LayerBackground") => "Simulated Layer Shell (Background) Surface".to_string(),
+        Some(other) => format!("Simulated {} Window", other),
+        None => "Simulated Window".to_string(),
+    }
+}
+
+/// The Windows page's description of a window-type dropdown entry.
+fn window_type_description(idx: i32) -> &'static str {
+    match idx {
+        0 => "A standard application\n\
+window (xdg_toplevel).\n\
+It supports tiling (cascade,\n\
+split, grid), fullscreening,\n\
+dragging, and resizing.\n\n\
+Testing layout:\n\
+cascades in cce.",
+        1 => "An anchored sub-surface\n\
+popup (xdg_popup).\n\
+Usually transient context\n\
+menus, tooltips, or dropdown\n\
+lists. Bypasses tiling.\n\n\
+Testing layout:\n\
+maps floating on top.",
+        2 => "A high-level Layer Shell\n\
+surface (anchored to top).\n\
+Typically status bars, menus,\n\
+or docks. Reserves panel\n\
+space, limiting workspace.\n\n\
+Testing layout:\n\
+full width at top.",
+        3 => "A high-priority Layer Shell\n\
+surface (overlay layer).\n\
+Used for screensavers, lock\n\
+screens, or overlay HUDs.\n\
+Sits above tiling windows.\n\n\
+Testing layout:\n\
+center floating window.",
+        4 => "A bottom-level Layer Shell\n\
+surface (background layer).\n\
+Used for desktop wallpaper.\n\
+Renders below all other\n\
+client windows.\n\n\
+Testing layout:\n\
+full screen background.",
+        _ => "",
+    }
+}
+
+/// A `Command` that re-runs this binary as a child window; the caller adds the flags.
+fn child_command() -> Option<std::process::Command> {
+    let exe = std::env::current_exe().ok()?;
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("--child");
+    Some(cmd)
+}
+
+/// Opens a Ramp or ColorRamp editor window. Untracked on purpose: an editor outlives
+/// the gallery, unlike the simulated windows Create Window spawns.
+fn spawn_editor(kind: &str) {
+    if let Some(mut cmd) = child_command() {
+        cmd.args(["--type", kind, "--width", "450", "--height", "350", "--backplate"]);
+        let _ = cmd.spawn();
+    }
+}
+
 fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &GallerySlots) -> Vec<(f32, f32, f32, f32)> {
     let base_x = sidebar_w + 20.0;
     let sph = cce_ui::layout::spinbox_height();
@@ -2415,14 +2202,14 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     let slh = cce_ui::layout::slider_height();
     let bh = cce_ui::layout::button_height();
     let ddh = cce_ui::layout::dropdown_height();
-    
+
     let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 45];
-    
+
     // Common layout elements
     vec[0] = (0.0, 0.0, sw, 40.0); // 0 MenuBar
     vec[1] = (0.0, 40.0, sidebar_w, sh - 40.0 - 24.0); // 1 Page selector (Sidebar)
     vec[2] = (0.0, sh - 24.0, sw, 24.0); // 2 StatusBar
-    
+
     // Page 1 (Windows)
     vec[9] = (base_x, 60.0, 400.0, 250.0); // 9 Panel (Window simulation area)
     vec[10] = (base_x + 420.0, 60.0, 140.0, bh); // 10 Button (Create Window)
@@ -2437,13 +2224,13 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     vec[19] = (base_x, 320.0, 190.0, 250.0); // 19 Plate
     vec[20] = (base_x + 10.0, 330.0, 170.0, 20.0); // 20 Label
     vec[21] = (base_x + 10.0, 360.0, 170.0, 180.0); // 21 Label
-    
+
     // Page 2 (XDG)
     vec[24] = (base_x, 60.0, 450.0, 200.0); // 24 Panel
     vec[25] = (base_x + 20.0, 80.0, 410.0, 60.0); // 25 Label
     vec[26] = (base_x + 20.0, 160.0, 180.0, bh); // 26 Button
     vec[27] = (base_x + 220.0, 160.0, 180.0, bh); // 27 Button
-    
+
     // Window Simulation options (visible when Page::Windows is active)
     vec[30] = (base_x + 420.0, 300.0, 140.0, tgh); // 30 Toggle: Backplate
     vec[31] = (base_x + 420.0, 340.0, 140.0, tgh); // 31 Toggle: MenuBar
@@ -2453,13 +2240,13 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     vec[35] = (base_x + 420.0, 490.0, 140.0, sph); // 35 Spinbox: Border Width
     vec[36] = (base_x + 420.0, 535.0, 140.0, sph); // 36 Spinbox: Bevel Depth
     vec[37] = (base_x + 420.0, 270.0, 140.0, 20.0); // 37 SectionContainer: Window Elements
-    vec[38] = (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh); // 38 Dropdown: Page selector
+    // 38 (page selector) is placed by apply_layout, inside the status bar.
     vec[40] = (base_x + 420.0, 580.0, 140.0, bh); // 40 Button: Bevel Shape
     vec[43] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 43 ControlPanel
-    
+
     // Dynamically position Page 0 (Controls) elements using the selected layout index
     let available_w = (sw - base_x - 290.0).max(300.0);
-    
+
     struct DemoPacker {
         free_rects: Vec<(f32, f32, f32, f32)>,
         max_w: f32,
@@ -2479,7 +2266,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
 
         fn pack(&mut self, cw: f32, ch: f32) -> (f32, f32) {
             let cw_clamped = cw.min(self.max_w);
-            
+
             let mut best_idx = None;
             let mut best_y = f32::MAX;
             let mut best_x = f32::MAX;
@@ -2713,8 +2500,8 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
             }
         }
     }
-    
-    
+
+
     vec
 }
 

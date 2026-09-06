@@ -58,7 +58,9 @@ cce-gallery --child --type <Toplevel|Popup|LayerTop|LayerOverlay|LayerBackground
 ```
 
 A simulated window shows a description label, a `Close` button, and the
-optional menu bar and status bar. Its `app_id` encodes what it is, so
+optional menu bar and status bar. `--border-width` and `--border-bevel` are
+accepted so the argv mirrors the panel, but the child does not draw a bevel
+yet; the bevel preview lives in the main window's panel. Its `app_id` encodes what it is, so
 compositor rules can target it: `cce-gallery-child-<type>` with `-circular`
 and/or `-noborder` appended when those apply. The main window's `app_id` is
 `cce-gallery` (also with `-noborder` when the border is disabled).
