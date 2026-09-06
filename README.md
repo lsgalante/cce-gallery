@@ -15,19 +15,26 @@ compositor does with the windows it spawns. It has no automated test suite.
 The dropdown at the right of the status bar switches between three pages; the
 keyboard does the same (see Keybindings).
 
-**Controls** — the widget gallery. One of each of the toolkit's standard
-widgets: Button, Checkbox, Toggle, ProgressBar, Slider, RangeSlider, Spinbox,
-TextBox, Trackpad, Plate, plus the MenuBar and StatusBar that frame every
-page. A `Layout` dropdown re-packs the gallery under each of the toolkit's
-layout strategies (Vertical, Columns, Grid, Adaptive Grid, Overlay, Flex,
-Splitter, Radial, Circular Pane, Mosaic, Reverse Mosaic). `Color Ramp...` and
-`Ramp...` open the ColorRamp and Ramp editors in their own child windows.
+**Controls** — the widget gallery: one of each widget `cce_ui::widget`
+exports that stands on its own. Inputs: Button, ButtonStrip, Checkbox, Toggle,
+Slider, RangeSlider, Slider2D, Spinbox, Float3, TextBox, KeybindRecorder,
+ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
+StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
+TreeList, Plate, BevelPreview, RampPreview, Ramp. The MenuBar and StatusBar
+frame every page. The `Layout` dropdown lays the exhibits out with the
+toolkit's own `ContainerLayout` strategies — Vertical, Columns, Grid, Adaptive
+Grid, Mosaic, Reverse Mosaic, Overlay — so what you see is what a container
+using that strategy does. `Color Ramp...` and `Ramp...` open the ColorRamp and
+Ramp editors in their own child windows.
 
-**Windows** — spawns *simulated client windows* so the compositor's handling
-of each surface kind can be observed. The control panel on the right chooses:
+**Windows** — spawns child windows of each kind a toolkit client can be under
+cce, so the compositor's handling of each can be observed. The control panel
+on the right chooses:
 
-- window type: Toplevel, Popup, Layer Top, Layer Overlay, Layer Background
-- shape: rectangular or circular
+- window kind: Floating (a plain toplevel), Fullscreen, Utility (declared
+  over the cce window-management protocol), the Top, Overlay and Background
+  wlr-layer-shell layers, and a Status segment (the `cce-status-*` app_id
+  convention the compositor docks into the bar)
 - size (width/height spinboxes), opacity on/off with a transparency slider
 - window elements: backplate, menu bar, status bar
 - border: enabled/disabled, width, bevel on/off, bevel depth, and the bevel
@@ -35,8 +42,16 @@ of each surface kind can be observed. The control panel on the right chooses:
 
 `Create Window` re-executes this binary with `--child` and the matching flags
 (see below). A panel in the main window previews the border and bevel that
-the child will be drawn with, and a description plate explains what the
-selected surface type is and how it is expected to be laid out.
+the child will be drawn with, and a description plate says what cce does with
+the selected kind. Tiled is not on the list because a client cannot ask for
+it: the compositor's toggle action tiles a floating window. A `mode_rule` in
+`config.kdl` can force a mode, or circular rendering, for an app_id.
+
+Two kinds show a gap in the current compositor rather than a feature: a
+Fullscreen child maps Floating, because cce acts only on the
+`request_fullscreen` signal and not on a fullscreen state set before the
+first commit, and a Background-layer child is never visible, because cce
+draws its desktop grid natively above that layer.
 
 **XDG** — two buttons, `Open File` and `Save File`, that call the toolkit's
 `file_dialog` module (the XDG Desktop Portal file chooser, via `rfd`) on a
@@ -49,20 +64,27 @@ The child windows spawned from the Windows page are the same binary run with
 `--child`. The flags mirror the control panel:
 
 ```
-cce-gallery --child --type <Toplevel|Popup|LayerTop|LayerOverlay|LayerBackground|Ramp|ColorRamp>
-                   [--shape rectangular|circular] [--width N --height N]
+cce-gallery --child --type <Floating|Fullscreen|Utility|LayerTop|LayerOverlay|LayerBackground|Status|Ramp|ColorRamp>
+                   [--width N --height N]
                    [--opacity --transparency 0.0-1.0]
                    [--no-border | --border-width N [--border-bevel]]
                    [--backplate] [--menubar] [--statusbar]
 ```
 
-A simulated window shows a description label, a `Close` button, and the
-optional menu bar and status bar. `--border-width` and `--border-bevel` are
-accepted so the argv mirrors the panel, but the child does not draw a bevel
-yet; the bevel preview lives in the main window's panel. Its `app_id` encodes what it is, so
-compositor rules can target it: `cce-gallery-child-<type>` with `-circular`
-and/or `-noborder` appended when those apply. The main window's `app_id` is
-`cce-gallery` (also with `-noborder` when the border is disabled).
+The kind decides how the child asks to be mapped: Fullscreen sets the
+toplevel's fullscreen flag, Utility answers the toolkit's `utility` hook, the
+three Layer kinds answer its `layer` hook with a `LayerSettings` (Top is
+anchored left-top-right with an exclusive zone of its height, Overlay is
+unanchored, Background is anchored on every edge), and Status uses the app_id
+`cce-status-right-gallery`. Every other kind's app_id is
+`cce-gallery-child-<type>`, with `-noborder` appended when the border is
+disabled, so `mode_rule`s can target it. The main window's `app_id` is
+`cce-gallery`.
+
+A child shows a one-line description, a `Close` button, and the optional menu
+bar and status bar. `--border-width` and `--border-bevel` are accepted so the
+argv mirrors the panel, but the child does not draw a bevel yet; the bevel
+preview lives in the main window's panel.
 
 `--type Ramp` and `--type ColorRamp` are editor windows rather than simulated
 clients: they host the toolkit's `Ramp` and `ColorRamp` widgets on a
@@ -106,7 +128,7 @@ for example).
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 44 named slots (`GallerySlots`) addressed by numeric index in the
+  roster of 59 named slots (`GallerySlots`) addressed by numeric index in the
   layout tables, visibility filters and dispatch loops; child windows use the
   five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
   layout tables.

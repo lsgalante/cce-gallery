@@ -1,12 +1,16 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, Panel, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     Toggle, WidgetHost, Trackpad, hover_animation, TextBox, CornerRadii, MenuBar,
-    Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta
+    Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta,
+    ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus,
+    InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter,
+    VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout,
 };
 mod gallery_widgets;
 use gallery_widgets::{Backplate, ControlPanel, Plate, SectionContainer};
 use cce_ui::widget::Adapted;
-use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition};
+use cce_ui::widget::input::Slider2D;
+use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
 use wayland_client::QueueHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +38,216 @@ impl Page {
     }
 }
 
+/// What a child window is, from `--type`. The first seven are the kinds of surface a
+/// toolkit client can be under cce; the last two are the gallery's editor windows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChildKind {
+    Floating,
+    Fullscreen,
+    Utility,
+    LayerTop,
+    LayerOverlay,
+    LayerBackground,
+    Status,
+    Ramp,
+    ColorRamp,
+}
+
+impl ChildKind {
+    /// The Windows page's dropdown, in order.
+    const WINDOW_KINDS: [ChildKind; 7] = [
+        ChildKind::Floating, ChildKind::Fullscreen, ChildKind::Utility,
+        ChildKind::LayerTop, ChildKind::LayerOverlay, ChildKind::LayerBackground, ChildKind::Status,
+    ];
+
+    fn from_arg(s: &str) -> Option<ChildKind> {
+        Some(match s {
+            "Floating" => ChildKind::Floating,
+            "Fullscreen" => ChildKind::Fullscreen,
+            "Utility" => ChildKind::Utility,
+            "LayerTop" => ChildKind::LayerTop,
+            "LayerOverlay" => ChildKind::LayerOverlay,
+            "LayerBackground" => ChildKind::LayerBackground,
+            "Status" => ChildKind::Status,
+            "Ramp" => ChildKind::Ramp,
+            "ColorRamp" => ChildKind::ColorRamp,
+            _ => return None,
+        })
+    }
+
+    fn from_dropdown(i: i32) -> ChildKind {
+        Self::WINDOW_KINDS.get(i.max(0) as usize).copied().unwrap_or(ChildKind::Floating)
+    }
+
+    /// The `--type` spelling.
+    fn arg(self) -> &'static str {
+        match self {
+            ChildKind::Floating => "Floating",
+            ChildKind::Fullscreen => "Fullscreen",
+            ChildKind::Utility => "Utility",
+            ChildKind::LayerTop => "LayerTop",
+            ChildKind::LayerOverlay => "LayerOverlay",
+            ChildKind::LayerBackground => "LayerBackground",
+            ChildKind::Status => "Status",
+            ChildKind::Ramp => "Ramp",
+            ChildKind::ColorRamp => "ColorRamp",
+        }
+    }
+
+    /// The dropdown entry.
+    fn label(self) -> &'static str {
+        match self {
+            ChildKind::Floating => "Floating",
+            ChildKind::Fullscreen => "Fullscreen",
+            ChildKind::Utility => "Utility",
+            ChildKind::LayerTop => "Layer: Top",
+            ChildKind::LayerOverlay => "Layer: Overlay",
+            ChildKind::LayerBackground => "Layer: Background",
+            ChildKind::Status => "Status segment",
+            ChildKind::Ramp => "Ramp",
+            ChildKind::ColorRamp => "ColorRamp",
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            ChildKind::Floating => "Floating Window",
+            ChildKind::Fullscreen => "Fullscreen Window",
+            ChildKind::Utility => "Utility Window",
+            ChildKind::LayerTop => "Layer Shell (Top) Surface",
+            ChildKind::LayerOverlay => "Layer Shell (Overlay) Surface",
+            ChildKind::LayerBackground => "Layer Shell (Background) Surface",
+            ChildKind::Status => "Status Segment",
+            ChildKind::Ramp => "Ramp Editor",
+            ChildKind::ColorRamp => "Color Ramp Editor",
+        }
+    }
+
+    fn is_editor(self) -> bool {
+        matches!(self, ChildKind::Ramp | ChildKind::ColorRamp)
+    }
+
+    fn default_size(self) -> (f32, f32) {
+        match self {
+            ChildKind::Floating | ChildKind::Fullscreen => (400.0, 250.0),
+            ChildKind::Utility | ChildKind::LayerOverlay => (300.0, 180.0),
+            ChildKind::LayerTop => (800.0, 40.0),
+            ChildKind::LayerBackground => (800.0, 600.0),
+            ChildKind::Status => (140.0, 24.0),
+            ChildKind::Ramp | ChildKind::ColorRamp => (450.0, 350.0),
+        }
+    }
+
+    /// `cce-status-*` is the compositor's status-bar convention (`WindowRole::from_app_id`),
+    /// with the edge read from the `-left-` / `-right-` infix; everything else is ours.
+    fn app_id(self) -> String {
+        match self {
+            ChildKind::Status => "cce-status-right-gallery".to_string(),
+            kind => format!("cce-gallery-child-{}", kind.arg().to_lowercase()),
+        }
+    }
+
+    /// The wlr-layer-shell configuration for the three layer kinds.
+    fn layer(self, height: i32) -> Option<LayerSettings> {
+        let (layer, anchor, exclusive_zone) = match self {
+            ChildKind::LayerTop => (LayerKind::Top, LayerAnchor::TOP | LayerAnchor::LEFT | LayerAnchor::RIGHT, height),
+            ChildKind::LayerOverlay => (LayerKind::Overlay, LayerAnchor::empty(), 0),
+            ChildKind::LayerBackground => (
+                LayerKind::Background,
+                LayerAnchor::TOP | LayerAnchor::BOTTOM | LayerAnchor::LEFT | LayerAnchor::RIGHT,
+                -1,
+            ),
+            _ => return None,
+        };
+        Some(LayerSettings {
+            layer,
+            anchor,
+            exclusive_zone,
+            keyboard_interactivity: LayerKeyboardInteractivity::None,
+            margin: (0, 0, 0, 0),
+            namespace: "cce-gallery".to_string(),
+        })
+    }
+
+    /// The line inside the child window.
+    fn child_text(self) -> &'static str {
+        match self {
+            ChildKind::Floating => "A plain xdg_toplevel, mapped Floating by cce.",
+            ChildKind::Fullscreen => "An xdg_toplevel that asked for fullscreen at map.",
+            ChildKind::Utility => "A toplevel declared UTILITY over the cce protocol.",
+            ChildKind::LayerTop => "A Top-layer wlr-layer-shell surface with an exclusive zone.",
+            ChildKind::LayerOverlay => "An Overlay-layer wlr-layer-shell surface, unanchored.",
+            ChildKind::LayerBackground => "A Background-layer wlr-layer-shell surface.",
+            ChildKind::Status => "A cce-status-* toplevel, docked into the status bar.",
+            ChildKind::Ramp | ChildKind::ColorRamp => "",
+        }
+    }
+
+    /// The Windows page's description plate (about 28 characters per line).
+    fn description(self) -> &'static str {
+        match self {
+            ChildKind::Floating => "A plain xdg_toplevel. cce\n\
+maps it Floating: moved and\n\
+resized freely, its edges\n\
+snapping to the desktop\n\
+grid's cell edges. The\n\
+toggle action tiles it: every\n\
+edge on a cell edge, reported\n\
+as maximized. A mode_rule in\n\
+config.kdl can force a mode.",
+            ChildKind::Fullscreen => "An xdg_toplevel that sets\n\
+fullscreen before its first\n\
+commit. cce acts only on the\n\
+later request_fullscreen\n\
+signal, so today it maps\n\
+Floating; the fullscreen\n\
+action still toggles it, and\n\
+Fullscreen mode then covers\n\
+the output.",
+            ChildKind::Utility => "A toplevel declaring\n\
+set_utility on the cce\n\
+window-management protocol:\n\
+a tool window whose contents\n\
+decide its size. It floats\n\
+and moves like any window\n\
+but gets no resize handle\n\
+and no saved geometry.",
+            ChildKind::LayerTop => "A wlr-layer-shell surface\n\
+on the Top layer, anchored\n\
+left-top-right with an\n\
+exclusive zone.\n\n\
+cce reserves that strip and\n\
+lays normal windows out\n\
+below it, like a panel.",
+            ChildKind::LayerOverlay => "A wlr-layer-shell surface\n\
+on the Overlay layer,\n\
+unanchored: centred above\n\
+every window, keyboard focus\n\
+left with the windows below.\n\n\
+cce-notifier's toasts are\n\
+this kind of surface.",
+            ChildKind::LayerBackground => "A wlr-layer-shell surface\n\
+on the Background layer,\n\
+anchored to all four edges,\n\
+behind every window.\n\n\
+cce draws its desktop grid\n\
+natively above this layer,\n\
+so today the surface is\n\
+covered and never seen.",
+            ChildKind::Status => "An xdg_toplevel whose app_id\n\
+starts with cce-status: the\n\
+WindowRole::StatusBar\n\
+convention. cce docks it\n\
+into the status bar at\n\
+bar_height, spaced among the\n\
+other segments, the way\n\
+cce-status-interface's\n\
+modules are.",
+            ChildKind::Ramp | ChildKind::ColorRamp => "",
+        }
+    }
+}
+
 /// What the roster's visibility filter needs, copied out of `State` so the dispatch
 /// loops can hold `&mut self.roster` while asking.
 #[derive(Clone, Copy)]
@@ -55,10 +269,10 @@ impl Visibility {
             };
         }
         match index {
-            0..=1 | 37 => true,
-            2..=7 | 21 | 22 | 27 | 28 | 38 | 40 | 41 | 43 => self.page == Page::Controls,
-            8..=20 | 29..=36 | 39 | 42 => self.page == Page::Windows,
-            23..=26 => self.page == Page::Xdg,
+            0..=1 | 36 => true,
+            2..=7 | 20 | 21 | 26 | 27 | 37 | 39 | 40 | 42..=58 => self.page == Page::Controls,
+            8..=19 | 28..=35 | 38 | 41 => self.page == Page::Windows,
+            22..=25 => self.page == Page::Xdg,
             _ => false,
         }
     }
@@ -71,7 +285,7 @@ struct PreviewStyle {
     bg_color: [f32; 4],
 }
 
-/// The gallery roster: 44 named slots. The numeric indexes used by the positions
+/// The gallery roster: 59 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
@@ -89,7 +303,6 @@ pub struct GallerySlots {
     pub transparency_slider: Adapted<Slider>,
     pub transparency_label: Adapted<Label>,
     pub window_type_dd: Adapted<Dropdown>,
-    pub window_shape_dd: Adapted<Dropdown>,
     pub enable_toggle: Adapted<Toggle>,
     pub width_spin: Adapted<Spinbox>,
     pub height_spin: Adapted<Spinbox>,
@@ -119,9 +332,25 @@ pub struct GallerySlots {
     pub ramp_btn: Adapted<Button>,
     pub control_panel: Adapted<ControlPanel>,
     pub layout_dd: Adapted<Dropdown>,
+    pub color_selector_demo: Adapted<ColorSelector>,
+    pub font_selector_demo: Adapted<FontSelector>,
+    pub keybind_demo: Adapted<KeybindRecorder>,
+    pub button_strip_demo: Adapted<ButtonStrip>,
+    pub slider2d_demo: Adapted<Slider2D>,
+    pub float3_demo: Adapted<Float3>,
+    pub usage_bar_demo: Adapted<UsageBar>,
+    pub status_dot_demo: Adapted<StatusDot>,
+    pub info_box_demo: Adapted<InfoBox>,
+    pub list_item_demo: Adapted<InteractiveListItem>,
+    pub breadcrumb_demo: Adapted<Breadcrumb>,
+    pub tree_list_demo: Adapted<TreeList>,
+    pub bevel_preview_demo: Adapted<BevelPreview>,
+    pub ramp_preview_demo: Adapted<RampPreview>,
+    pub separator_demo: Adapted<Separator>,
+    pub splitter_demo: Adapted<Splitter>,
 }
 
-pub const GALLERY_COUNT: usize = 44;
+pub const GALLERY_COUNT: usize = 59;
 
 impl GallerySlots {
 
@@ -142,36 +371,51 @@ impl GallerySlots {
             11 => self.transparency_slider.draggable(),
             12 => self.transparency_label.draggable(),
             13 => self.window_type_dd.draggable(),
-            14 => self.window_shape_dd.draggable(),
-            15 => self.enable_toggle.draggable(),
-            16 => self.width_spin.draggable(),
-            17 => self.height_spin.draggable(),
-            18 => self.surface_plate.draggable(),
-            19 => self.surface_info_label.draggable(),
-            20 => self.surface_desc_label.draggable(),
-            21 => self.range_slider_demo.draggable(),
-            22 => self.trackpad_demo.draggable(),
-            23 => self.portal_panel.draggable(),
-            24 => self.portal_label.draggable(),
-            25 => self.open_dialog_btn.draggable(),
-            26 => self.save_dialog_btn.draggable(),
-            27 => self.textbox_demo.draggable(),
-            28 => self.plate_demo.draggable(),
-            29 => self.backplate_toggle.draggable(),
-            30 => self.menubar_toggle.draggable(),
-            31 => self.statusbar_toggle.draggable(),
-            32 => self.border_section.draggable(),
-            33 => self.bevel_toggle.draggable(),
-            34 => self.border_width_spin.draggable(),
-            35 => self.bevel_depth_spin.draggable(),
-            36 => self.elements_section.draggable(),
-            37 => self.page_selector.draggable(),
-            38 => self.color_ramp_btn.draggable(),
-            39 => self.bevel_shape_btn.draggable(),
-            40 => self.bevel_ramp.draggable(),
-            41 => self.ramp_btn.draggable(),
-            42 => self.control_panel.draggable(),
-            43 => self.layout_dd.draggable(),
+            14 => self.enable_toggle.draggable(),
+            15 => self.width_spin.draggable(),
+            16 => self.height_spin.draggable(),
+            17 => self.surface_plate.draggable(),
+            18 => self.surface_info_label.draggable(),
+            19 => self.surface_desc_label.draggable(),
+            20 => self.range_slider_demo.draggable(),
+            21 => self.trackpad_demo.draggable(),
+            22 => self.portal_panel.draggable(),
+            23 => self.portal_label.draggable(),
+            24 => self.open_dialog_btn.draggable(),
+            25 => self.save_dialog_btn.draggable(),
+            26 => self.textbox_demo.draggable(),
+            27 => self.plate_demo.draggable(),
+            28 => self.backplate_toggle.draggable(),
+            29 => self.menubar_toggle.draggable(),
+            30 => self.statusbar_toggle.draggable(),
+            31 => self.border_section.draggable(),
+            32 => self.bevel_toggle.draggable(),
+            33 => self.border_width_spin.draggable(),
+            34 => self.bevel_depth_spin.draggable(),
+            35 => self.elements_section.draggable(),
+            36 => self.page_selector.draggable(),
+            37 => self.color_ramp_btn.draggable(),
+            38 => self.bevel_shape_btn.draggable(),
+            39 => self.bevel_ramp.draggable(),
+            40 => self.ramp_btn.draggable(),
+            41 => self.control_panel.draggable(),
+            42 => self.layout_dd.draggable(),
+            43 => self.color_selector_demo.draggable(),
+            44 => self.font_selector_demo.draggable(),
+            45 => self.keybind_demo.draggable(),
+            46 => self.button_strip_demo.draggable(),
+            47 => self.slider2d_demo.draggable(),
+            48 => self.float3_demo.draggable(),
+            49 => self.usage_bar_demo.draggable(),
+            50 => self.status_dot_demo.draggable(),
+            51 => self.info_box_demo.draggable(),
+            52 => self.list_item_demo.draggable(),
+            53 => self.breadcrumb_demo.draggable(),
+            54 => self.tree_list_demo.draggable(),
+            55 => self.bevel_preview_demo.draggable(),
+            56 => self.ramp_preview_demo.draggable(),
+            57 => self.separator_demo.draggable(),
+            58 => self.splitter_demo.draggable(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -192,36 +436,51 @@ impl GallerySlots {
             11 => self.transparency_slider.is_dragging(),
             12 => self.transparency_label.is_dragging(),
             13 => self.window_type_dd.is_dragging(),
-            14 => self.window_shape_dd.is_dragging(),
-            15 => self.enable_toggle.is_dragging(),
-            16 => self.width_spin.is_dragging(),
-            17 => self.height_spin.is_dragging(),
-            18 => self.surface_plate.is_dragging(),
-            19 => self.surface_info_label.is_dragging(),
-            20 => self.surface_desc_label.is_dragging(),
-            21 => self.range_slider_demo.is_dragging(),
-            22 => self.trackpad_demo.is_dragging(),
-            23 => self.portal_panel.is_dragging(),
-            24 => self.portal_label.is_dragging(),
-            25 => self.open_dialog_btn.is_dragging(),
-            26 => self.save_dialog_btn.is_dragging(),
-            27 => self.textbox_demo.is_dragging(),
-            28 => self.plate_demo.is_dragging(),
-            29 => self.backplate_toggle.is_dragging(),
-            30 => self.menubar_toggle.is_dragging(),
-            31 => self.statusbar_toggle.is_dragging(),
-            32 => self.border_section.is_dragging(),
-            33 => self.bevel_toggle.is_dragging(),
-            34 => self.border_width_spin.is_dragging(),
-            35 => self.bevel_depth_spin.is_dragging(),
-            36 => self.elements_section.is_dragging(),
-            37 => self.page_selector.is_dragging(),
-            38 => self.color_ramp_btn.is_dragging(),
-            39 => self.bevel_shape_btn.is_dragging(),
-            40 => self.bevel_ramp.is_dragging(),
-            41 => self.ramp_btn.is_dragging(),
-            42 => self.control_panel.is_dragging(),
-            43 => self.layout_dd.is_dragging(),
+            14 => self.enable_toggle.is_dragging(),
+            15 => self.width_spin.is_dragging(),
+            16 => self.height_spin.is_dragging(),
+            17 => self.surface_plate.is_dragging(),
+            18 => self.surface_info_label.is_dragging(),
+            19 => self.surface_desc_label.is_dragging(),
+            20 => self.range_slider_demo.is_dragging(),
+            21 => self.trackpad_demo.is_dragging(),
+            22 => self.portal_panel.is_dragging(),
+            23 => self.portal_label.is_dragging(),
+            24 => self.open_dialog_btn.is_dragging(),
+            25 => self.save_dialog_btn.is_dragging(),
+            26 => self.textbox_demo.is_dragging(),
+            27 => self.plate_demo.is_dragging(),
+            28 => self.backplate_toggle.is_dragging(),
+            29 => self.menubar_toggle.is_dragging(),
+            30 => self.statusbar_toggle.is_dragging(),
+            31 => self.border_section.is_dragging(),
+            32 => self.bevel_toggle.is_dragging(),
+            33 => self.border_width_spin.is_dragging(),
+            34 => self.bevel_depth_spin.is_dragging(),
+            35 => self.elements_section.is_dragging(),
+            36 => self.page_selector.is_dragging(),
+            37 => self.color_ramp_btn.is_dragging(),
+            38 => self.bevel_shape_btn.is_dragging(),
+            39 => self.bevel_ramp.is_dragging(),
+            40 => self.ramp_btn.is_dragging(),
+            41 => self.control_panel.is_dragging(),
+            42 => self.layout_dd.is_dragging(),
+            43 => self.color_selector_demo.is_dragging(),
+            44 => self.font_selector_demo.is_dragging(),
+            45 => self.keybind_demo.is_dragging(),
+            46 => self.button_strip_demo.is_dragging(),
+            47 => self.slider2d_demo.is_dragging(),
+            48 => self.float3_demo.is_dragging(),
+            49 => self.usage_bar_demo.is_dragging(),
+            50 => self.status_dot_demo.is_dragging(),
+            51 => self.info_box_demo.is_dragging(),
+            52 => self.list_item_demo.is_dragging(),
+            53 => self.breadcrumb_demo.is_dragging(),
+            54 => self.tree_list_demo.is_dragging(),
+            55 => self.bevel_preview_demo.is_dragging(),
+            56 => self.ramp_preview_demo.is_dragging(),
+            57 => self.separator_demo.is_dragging(),
+            58 => self.splitter_demo.is_dragging(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -242,36 +501,51 @@ impl GallerySlots {
             11 => &self.transparency_slider,
             12 => &self.transparency_label,
             13 => &self.window_type_dd,
-            14 => &self.window_shape_dd,
-            15 => &self.enable_toggle,
-            16 => &self.width_spin,
-            17 => &self.height_spin,
-            18 => &self.surface_plate,
-            19 => &self.surface_info_label,
-            20 => &self.surface_desc_label,
-            21 => &self.range_slider_demo,
-            22 => &self.trackpad_demo,
-            23 => &self.portal_panel,
-            24 => &self.portal_label,
-            25 => &self.open_dialog_btn,
-            26 => &self.save_dialog_btn,
-            27 => &self.textbox_demo,
-            28 => &self.plate_demo,
-            29 => &self.backplate_toggle,
-            30 => &self.menubar_toggle,
-            31 => &self.statusbar_toggle,
-            32 => &self.border_section,
-            33 => &self.bevel_toggle,
-            34 => &self.border_width_spin,
-            35 => &self.bevel_depth_spin,
-            36 => &self.elements_section,
-            37 => &self.page_selector,
-            38 => &self.color_ramp_btn,
-            39 => &self.bevel_shape_btn,
-            40 => &self.bevel_ramp,
-            41 => &self.ramp_btn,
-            42 => &self.control_panel,
-            43 => &self.layout_dd,
+            14 => &self.enable_toggle,
+            15 => &self.width_spin,
+            16 => &self.height_spin,
+            17 => &self.surface_plate,
+            18 => &self.surface_info_label,
+            19 => &self.surface_desc_label,
+            20 => &self.range_slider_demo,
+            21 => &self.trackpad_demo,
+            22 => &self.portal_panel,
+            23 => &self.portal_label,
+            24 => &self.open_dialog_btn,
+            25 => &self.save_dialog_btn,
+            26 => &self.textbox_demo,
+            27 => &self.plate_demo,
+            28 => &self.backplate_toggle,
+            29 => &self.menubar_toggle,
+            30 => &self.statusbar_toggle,
+            31 => &self.border_section,
+            32 => &self.bevel_toggle,
+            33 => &self.border_width_spin,
+            34 => &self.bevel_depth_spin,
+            35 => &self.elements_section,
+            36 => &self.page_selector,
+            37 => &self.color_ramp_btn,
+            38 => &self.bevel_shape_btn,
+            39 => &self.bevel_ramp,
+            40 => &self.ramp_btn,
+            41 => &self.control_panel,
+            42 => &self.layout_dd,
+            43 => &self.color_selector_demo,
+            44 => &self.font_selector_demo,
+            45 => &self.keybind_demo,
+            46 => &self.button_strip_demo,
+            47 => &self.slider2d_demo,
+            48 => &self.float3_demo,
+            49 => &self.usage_bar_demo,
+            50 => &self.status_dot_demo,
+            51 => &self.info_box_demo,
+            52 => &self.list_item_demo,
+            53 => &self.breadcrumb_demo,
+            54 => &self.tree_list_demo,
+            55 => &self.bevel_preview_demo,
+            56 => &self.ramp_preview_demo,
+            57 => &self.separator_demo,
+            58 => &self.splitter_demo,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -292,36 +566,51 @@ impl GallerySlots {
             11 => &mut self.transparency_slider,
             12 => &mut self.transparency_label,
             13 => &mut self.window_type_dd,
-            14 => &mut self.window_shape_dd,
-            15 => &mut self.enable_toggle,
-            16 => &mut self.width_spin,
-            17 => &mut self.height_spin,
-            18 => &mut self.surface_plate,
-            19 => &mut self.surface_info_label,
-            20 => &mut self.surface_desc_label,
-            21 => &mut self.range_slider_demo,
-            22 => &mut self.trackpad_demo,
-            23 => &mut self.portal_panel,
-            24 => &mut self.portal_label,
-            25 => &mut self.open_dialog_btn,
-            26 => &mut self.save_dialog_btn,
-            27 => &mut self.textbox_demo,
-            28 => &mut self.plate_demo,
-            29 => &mut self.backplate_toggle,
-            30 => &mut self.menubar_toggle,
-            31 => &mut self.statusbar_toggle,
-            32 => &mut self.border_section,
-            33 => &mut self.bevel_toggle,
-            34 => &mut self.border_width_spin,
-            35 => &mut self.bevel_depth_spin,
-            36 => &mut self.elements_section,
-            37 => &mut self.page_selector,
-            38 => &mut self.color_ramp_btn,
-            39 => &mut self.bevel_shape_btn,
-            40 => &mut self.bevel_ramp,
-            41 => &mut self.ramp_btn,
-            42 => &mut self.control_panel,
-            43 => &mut self.layout_dd,
+            14 => &mut self.enable_toggle,
+            15 => &mut self.width_spin,
+            16 => &mut self.height_spin,
+            17 => &mut self.surface_plate,
+            18 => &mut self.surface_info_label,
+            19 => &mut self.surface_desc_label,
+            20 => &mut self.range_slider_demo,
+            21 => &mut self.trackpad_demo,
+            22 => &mut self.portal_panel,
+            23 => &mut self.portal_label,
+            24 => &mut self.open_dialog_btn,
+            25 => &mut self.save_dialog_btn,
+            26 => &mut self.textbox_demo,
+            27 => &mut self.plate_demo,
+            28 => &mut self.backplate_toggle,
+            29 => &mut self.menubar_toggle,
+            30 => &mut self.statusbar_toggle,
+            31 => &mut self.border_section,
+            32 => &mut self.bevel_toggle,
+            33 => &mut self.border_width_spin,
+            34 => &mut self.bevel_depth_spin,
+            35 => &mut self.elements_section,
+            36 => &mut self.page_selector,
+            37 => &mut self.color_ramp_btn,
+            38 => &mut self.bevel_shape_btn,
+            39 => &mut self.bevel_ramp,
+            40 => &mut self.ramp_btn,
+            41 => &mut self.control_panel,
+            42 => &mut self.layout_dd,
+            43 => &mut self.color_selector_demo,
+            44 => &mut self.font_selector_demo,
+            45 => &mut self.keybind_demo,
+            46 => &mut self.button_strip_demo,
+            47 => &mut self.slider2d_demo,
+            48 => &mut self.float3_demo,
+            49 => &mut self.usage_bar_demo,
+            50 => &mut self.status_dot_demo,
+            51 => &mut self.info_box_demo,
+            52 => &mut self.list_item_demo,
+            53 => &mut self.breadcrumb_demo,
+            54 => &mut self.tree_list_demo,
+            55 => &mut self.bevel_preview_demo,
+            56 => &mut self.ramp_preview_demo,
+            57 => &mut self.separator_demo,
+            58 => &mut self.splitter_demo,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -537,27 +826,42 @@ impl Roster {
             10 => s.opacity_toggle.take_click(),
             11 => s.transparency_slider.take_click(),
             13 => s.window_type_dd.take_click(),
-            14 => s.window_shape_dd.take_click(),
-            15 => s.enable_toggle.take_click(),
-            16 => s.width_spin.take_click(),
-            17 => s.height_spin.take_click(),
-            21 => s.range_slider_demo.take_click(),
-            22 => s.trackpad_demo.take_click(),
-            25 => s.open_dialog_btn.take_click(),
-            26 => s.save_dialog_btn.take_click(),
-            27 => s.textbox_demo.take_click(),
-            28 => s.plate_demo.take_click(),
-            29 => s.backplate_toggle.take_click(),
-            30 => s.menubar_toggle.take_click(),
-            31 => s.statusbar_toggle.take_click(),
-            33 => s.bevel_toggle.take_click(),
-            34 => s.border_width_spin.take_click(),
-            35 => s.bevel_depth_spin.take_click(),
-            37 => s.page_selector.take_click(),
-            38 => s.color_ramp_btn.take_click(),
-            39 => s.bevel_shape_btn.take_click(),
-            41 => s.ramp_btn.take_click(),
-            43 => s.layout_dd.take_click(),
+            14 => s.enable_toggle.take_click(),
+            15 => s.width_spin.take_click(),
+            16 => s.height_spin.take_click(),
+            20 => s.range_slider_demo.take_click(),
+            21 => s.trackpad_demo.take_click(),
+            24 => s.open_dialog_btn.take_click(),
+            25 => s.save_dialog_btn.take_click(),
+            26 => s.textbox_demo.take_click(),
+            27 => s.plate_demo.take_click(),
+            28 => s.backplate_toggle.take_click(),
+            29 => s.menubar_toggle.take_click(),
+            30 => s.statusbar_toggle.take_click(),
+            32 => s.bevel_toggle.take_click(),
+            33 => s.border_width_spin.take_click(),
+            34 => s.bevel_depth_spin.take_click(),
+            36 => s.page_selector.take_click(),
+            37 => s.color_ramp_btn.take_click(),
+            38 => s.bevel_shape_btn.take_click(),
+            40 => s.ramp_btn.take_click(),
+            42 => s.layout_dd.take_click(),
+            43 => s.color_selector_demo.take_click(),
+            44 => s.font_selector_demo.take_click(),
+            45 => s.keybind_demo.take_click(),
+            46 => s.button_strip_demo.take_click(),
+            47 => s.slider2d_demo.take_click(),
+            48 => s.float3_demo.take_click(),
+            49 => s.usage_bar_demo.take_click(),
+            50 => s.status_dot_demo.take_click(),
+            51 => s.info_box_demo.take_click(),
+            52 => s.list_item_demo.take_click(),
+            53 => s.breadcrumb_demo.take_click(),
+            54 => s.tree_list_demo.take_click(),
+            55 => s.bevel_preview_demo.take_click(),
+            56 => s.ramp_preview_demo.take_click(),
+            57 => s.separator_demo.take_click(),
+            58 => s.splitter_demo.take_click(),
             _ => panic!("take_click: unwired gallery slot {idx}"),
         }
     }
@@ -567,13 +871,12 @@ impl Roster {
         match idx {
             11 => s.transparency_slider.value(),
             13 => s.window_type_dd.value(),
-            14 => s.window_shape_dd.value(),
-            16 => s.width_spin.value(),
-            17 => s.height_spin.value(),
-            34 => s.border_width_spin.value(),
-            35 => s.bevel_depth_spin.value(),
-            37 => s.page_selector.value(),
-            43 => s.layout_dd.value(),
+            15 => s.width_spin.value(),
+            16 => s.height_spin.value(),
+            33 => s.border_width_spin.value(),
+            34 => s.bevel_depth_spin.value(),
+            36 => s.page_selector.value(),
+            42 => s.layout_dd.value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -582,11 +885,11 @@ impl Roster {
         let s = self.gallery();
         match idx {
             10 => s.opacity_toggle.get_value_string(),
-            15 => s.enable_toggle.get_value_string(),
-            29 => s.backplate_toggle.get_value_string(),
-            30 => s.menubar_toggle.get_value_string(),
-            31 => s.statusbar_toggle.get_value_string(),
-            33 => s.bevel_toggle.get_value_string(),
+            14 => s.enable_toggle.get_value_string(),
+            28 => s.backplate_toggle.get_value_string(),
+            29 => s.menubar_toggle.get_value_string(),
+            30 => s.statusbar_toggle.get_value_string(),
+            32 => s.bevel_toggle.get_value_string(),
             _ => panic!("get_value_string: unwired gallery slot {idx}"),
         }
     }
@@ -594,7 +897,7 @@ impl Roster {
     pub fn set_text(&mut self, idx: usize, text: &str) {
         let s = self.gallery_mut();
         match idx {
-            20 => s.surface_desc_label.set_text(text),
+            19 => s.surface_desc_label.set_text(text),
             _ => panic!("set_text: unwired gallery slot {idx}"),
         }
     }
@@ -620,12 +923,11 @@ struct State {
     use_menubar: bool,
     use_statusbar: bool,
     border_enabled: bool,
-    child_type: Option<String>,
+    child_kind: Option<ChildKind>,
     ui_context: cce_ui::context::UiContext,
     bevel_ramp: Vec<RampKey>,
     bevel_ramp_line_type: String,
     last_ramp_mod: Option<std::time::SystemTime>,
-    child_shape: Option<String>,
 
     sender: calloop::channel::Sender<String>,
     layout_idx: usize,
@@ -766,12 +1068,12 @@ fn push_bevel_slice_corners(
 }
 
 fn is_control_panel_child(i: usize) -> bool {
-    matches!(i, 9..=17 | 29..=36 | 39)
+    matches!(i, 9..=16 | 28..=35 | 38)
 }
 
 /// The control panel's child slots, in arrangement order: the app lays them out, paints
 /// them clamped to the panel viewport, and dispatches them as ordinary roots.
-const CP_CHILDREN: [usize; 18] = [9, 13, 14, 10, 11, 12, 15, 16, 17, 29, 30, 31, 32, 33, 34, 35, 36, 39];
+const CP_CHILDREN: [usize; 17] = [9, 13, 10, 11, 12, 14, 15, 16, 28, 29, 30, 31, 32, 33, 34, 35, 38];
 
 impl State {
     /// The dissolved panel's hit gate: pointer events reach the panel's children only
@@ -837,14 +1139,94 @@ impl State {
     /// Recompute the positions table for the current size, mode and layout.
     fn relayout(&mut self) {
         self.positions = if self.is_child {
-            child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_type.as_deref())
+            child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_kind.is_some_and(ChildKind::is_editor))
         } else {
-            demo_positions(self.width, self.height, self.layout_idx, self.roster.gallery())
+            demo_positions(self.width, self.height)
         };
     }
 
+    /// The Controls exhibits in layout order, each with the content size it is reset to
+    /// before a strategy runs: the toolkit layouts read a child's own rect for its width
+    /// and preferred height, and a previous strategy may have stretched it.
+    fn exhibit_sizes(&self) -> Vec<(usize, f32, f32)> {
+        let bh = cce_ui::layout::button_height();
+        let tgh = cce_ui::layout::toggle_height();
+        let slh = cce_ui::layout::slider_height();
+        let sph = cce_ui::layout::spinbox_height();
+        let ddh = cce_ui::layout::dropdown_height();
+        let raw: [(usize, f32, f32); 29] = [
+            (2, 190.0, bh),                                     // Button
+            (46, 190.0, 28.0),                                  // ButtonStrip
+            (3, 190.0, tgh),                                    // Checkbox
+            (4, 190.0, tgh),                                    // Toggle
+            (6, 190.0, slh),                                    // Slider
+            (20, 190.0, cce_ui::layout::rangeslider_height()),  // RangeSlider
+            (47, 190.0, 100.0),                                 // Slider2D
+            (7, 190.0, sph),                                    // Spinbox
+            (48, 190.0, Float3::preferred_height(false)),       // Float3
+            (26, 190.0, ddh),                                   // TextBox
+            (45, 190.0, 44.0),                                   // KeybindRecorder
+            (43, 190.0, 44.0),                                   // ColorSelector
+            (44, 190.0, 44.0),                                   // FontSelector
+            (5, 190.0, cce_ui::layout::progressbar_height()),   // ProgressBar
+            (49, 190.0, 12.0),                                  // UsageBar
+            (50, 16.0, 16.0),                                   // StatusDot
+            (57, 190.0, 2.0),                                   // Separator
+            (58, 6.0, 80.0),                                    // Splitter
+            (51, 190.0, 70.0),                                  // InfoBox
+            (52, 190.0, 44.0),                                  // InteractiveListItem
+            (53, 190.0, 28.0),                                  // Breadcrumb
+            (54, 190.0, 150.0),                                 // TreeList
+            (21, 190.0, 100.0),                                 // Trackpad
+            (27, 190.0, 120.0),                                 // Plate
+            (55, 190.0, 100.0),                                 // BevelPreview
+            (56, 190.0, 60.0),                                  // RampPreview
+            (39, 190.0, 150.0),                                 // Ramp
+            (37, 190.0, bh),                                    // Color Ramp...
+            (40, 190.0, bh),                                    // Ramp...
+        ];
+        raw.to_vec()
+    }
+
+    /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
+    /// (`LAYOUTS`), then clip whatever runs past the status bar.
+    fn layout_exhibits(&mut self) {
+        // Below the Layout dropdown, which stays put so every strategy leaves it usable.
+        let (dx, dy, _, dh) = self.roster.get_dyn(42).rect();
+        let (x, y) = (dx, dy + dh + 24.0);
+        let w = (self.width - 2.0 * x).max(300.0);
+        let limit_y = self.height - 24.0;
+        let h = (limit_y - y).max(100.0);
+        let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
+        for (idx, cw, ch) in self.exhibit_sizes() {
+            if self.roster.is_dragging(idx) {
+                continue;
+            }
+            let widget = self.roster.get_dyn_mut(idx);
+            widget.set_rect(0.0, 0.0, cw, ch);
+            children.push(widget as *mut (dyn WidgetHost + 'static));
+        }
+        let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
+        strategy.layout(x, y, w, h, &children, &mut self.ui_context);
+        for &child in &children {
+            let widget = unsafe { &mut *child };
+            let (cx, cy, cw, mut ch) = widget.rect();
+            // The adapter inflates a detached-label widget's rect by its label on every
+            // set_rect. A strategy sizes a child without an intrinsic height from that
+            // inflated rect and assigns it back through set_rect, so the label lands twice;
+            // take it back out (a widget with an intrinsic height is sized from that).
+            if widget.preferred_height().is_none() {
+                ch -= 2.0 * cce_ui::widget::label_offset(widget);
+            }
+            if cy + ch > limit_y {
+                ch = (limit_y - cy).max(0.0);
+            }
+            widget.set_rect(cx, cy, cw, ch);
+        }
+    }
+
     fn preview_style(&self) -> PreviewStyle {
-        let backplate = self.toggled(29);
+        let backplate = self.toggled(28);
         let transparency = if self.toggled(10) { self.roster.value(11) as f32 / 100.0 } else { 1.0 };
         let bg_color = if backplate {
             let mut col = cce_ui::color::page_low_color();
@@ -880,9 +1262,9 @@ impl State {
             if self.roster.is_dragging(i) {
                 continue;
             }
-            // The page selector (37) is placed inside the status bar below; the panel's
+            // The page selector (36) is placed inside the status bar below; the panel's
             // children are laid out by arrange_control_panel at real screen coordinates.
-            if !self.is_child && (i == 37 || is_control_panel_child(i)) {
+            if !self.is_child && (i == 36 || is_control_panel_child(i)) {
                 continue;
             }
             let visible = self.is_widget_visible(i);
@@ -890,7 +1272,7 @@ impl State {
             let widget = self.roster.get_dyn_mut(i);
             if visible {
                 // Everything but the chrome and the panel clips at the status bar.
-                let clipped = i != 0 && i != 1 && i != 42 && y + h > limit_y;
+                let clipped = i != 0 && i != 1 && i != 41 && y + h > limit_y;
                 let final_h = if clipped { (limit_y - y).max(0.0) } else { h };
                 widget.set_rect(x, y, w, final_h);
             } else {
@@ -899,8 +1281,8 @@ impl State {
         }
 
         if !self.is_child {
-            let (x, y, w, h) = self.positions[42];
-            self.roster.get_dyn_mut(42).set_rect(x, y, w, h);
+            let (x, y, w, h) = self.positions[41];
+            self.roster.get_dyn_mut(41).set_rect(x, y, w, h);
 
             let sb_rect = self.roster.get_dyn_mut(1).rect();
             let ddh = cce_ui::layout::dropdown_height();
@@ -909,8 +1291,11 @@ impl State {
             let dw = 120.0;
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
-            self.roster.get_dyn_mut(37).set_rect(dx, dy, dw, ddh);
+            self.roster.get_dyn_mut(36).set_rect(dx, dy, dw, ddh);
 
+            if self.current_page == Page::Controls {
+                self.layout_exhibits();
+            }
             self.arrange_control_panel();
         }
     }
@@ -931,7 +1316,6 @@ impl State {
         let height_p: *mut (dyn WidgetHost + 'static) = &mut s.height_spin;
         col.add_row(&[width_p, height_p], 42.0, 12.0);
         col.add_widget(&mut s.window_type_dd, 44.0);
-        col.add_widget(&mut s.window_shape_dd, 44.0);
         col.add_widget(&mut s.opacity_toggle, 28.0);
         col.add_widget(&mut s.enable_toggle, 28.0);
         col.add_widget(&mut s.transparency_label, 12.0);
@@ -980,63 +1364,39 @@ impl cce_ui::engine::Application for State {
         let use_backplate = if is_child { flag("--backplate") } else { !flag("--no-backplate") };
         let use_menubar = flag("--menubar");
         let use_statusbar = flag("--statusbar");
-        let child_type = value("--type");
-        let child_shape = value("--shape");
+        let child_kind = if is_child {
+            Some(value("--type").and_then(|t| ChildKind::from_arg(&t)).unwrap_or(ChildKind::Floating))
+        } else {
+            None
+        };
         let opacity = flag("--opacity");
         let transparency = number("--transparency").unwrap_or(1.0);
         let border_enabled = !flag("--no-border");
         let custom_width = number("--width");
         let custom_height = number("--height");
 
-        let (mut c_w, mut c_h): (f32, f32) = if is_child {
-            if let (Some(w), Some(h)) = (custom_width, custom_height) {
-                (w, h)
-            } else {
-                match child_type.as_deref() {
-                    Some("Toplevel") => (400.0, 250.0),
-                    Some("Popup") => (250.0, 150.0),
-                    Some("LayerTop") => (800.0, 40.0),
-                    Some("LayerOverlay") => (300.0, 180.0),
-                    Some("LayerBackground") => (800.0, 600.0),
-                    Some("Ramp") | Some("ColorRamp") => (450.0, 350.0),
-                    _ => (400.0, 250.0),
-                }
-            }
-        } else {
-            (800.0, 600.0)
+        let (c_w, c_h): (f32, f32) = match (child_kind, custom_width, custom_height) {
+            (_, Some(w), Some(h)) => (w, h),
+            (Some(kind), _, _) => kind.default_size(),
+            (None, _, _) => (1000.0, 680.0),
         };
-        if is_child && child_shape.as_deref() == Some("circular") {
-            let side = c_w.min(c_h);
-            c_w = side;
-            c_h = side;
-        }
 
-        let is_ramp_child = is_child && matches!(child_type.as_deref(), Some("Ramp") | Some("ColorRamp"));
-        let opacity = opacity || is_ramp_child;
+        let opacity = opacity || child_kind.is_some_and(ChildKind::is_editor);
         let status_text = "Ready.".to_string();
 
-        let roster = if is_child {
-            let desc_label = match child_type.as_deref() {
-                Some("Toplevel") => "This is an active simulated Toplevel window.".to_string(),
-                Some("Popup") => "This is an active simulated Popup window.".to_string(),
-                Some("LayerTop") => "This is an active simulated Layer Top surface.".to_string(),
-                Some("LayerOverlay") => "This is an active simulated Layer Overlay surface.".to_string(),
-                Some("LayerBackground") => "This is an active simulated Layer Background surface.".to_string(),
-                Some(other) => format!("This is an active simulated {} window.", other),
-                None => "This is an active simulated window in the window manager.".to_string(),
-            };
+        let roster = if let Some(kind) = child_kind {
             let bg = if use_backplate {
                 ChildBg::Backplate(Backplate::new(0.0, 0.0, c_w, c_h))
             } else {
                 ChildBg::ContentBg(ContentBg::new())
             };
-            let (main, aux3, aux4) = if child_type.as_deref() == Some("ColorRamp") {
+            let (main, aux3, aux4) = if kind == ChildKind::ColorRamp {
                 (
                     ChildMain::ColorRamp(ColorRamp::new()),
                     ChildAux3::Label(Label::new("").with_font_size(12.0)),
                     ChildAux4::Label(Label::new("").with_font_size(12.0)),
                 )
-            } else if child_type.as_deref() == Some("Ramp") {
+            } else if kind == ChildKind::Ramp {
                 (
                     ChildMain::Ramp({
                         let mut ramp = Ramp::new();
@@ -1057,7 +1417,7 @@ impl cce_ui::engine::Application for State {
                     .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"])
                     .with_right_aligned_title(true);
                 (
-                    ChildMain::Desc(Label::new(&desc_label).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])),
+                    ChildMain::Desc(Label::new(kind.child_text()).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])),
                     ChildAux3::MenuBar(menu_bar),
                     ChildAux4::StatusBar(StatusBar::new()),
                 )
@@ -1089,17 +1449,10 @@ impl cce_ui::engine::Application for State {
                 opacity_toggle: Toggle::new().with_label("Opacity"),
                 transparency_slider: Slider::new(),
                 transparency_label: Label::new("Transparency Level").with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4]),
-                window_type_dd: Dropdown::new(vec![
-                    "Toplevel".to_string(),
-                    "Popup".to_string(),
-                    "Layer: Top".to_string(),
-                    "Layer: Overlay".to_string(),
-                    "Layer: Background".to_string(),
-                ], 0).with_label("Window Type"),
-                window_shape_dd: Dropdown::new(vec![
-                    "Rectangular".to_string(),
-                    "Circular".to_string(),
-                ], 0).with_label("Window Shape"),
+                window_type_dd: Dropdown::new(
+                    ChildKind::WINDOW_KINDS.iter().map(|k| k.label().to_string()).collect(),
+                    0,
+                ).with_label("Window Type"),
                 enable_toggle: {
                     let mut t = Toggle::new().with_label("Enable");
                     t.set_toggled(true);
@@ -1109,7 +1462,7 @@ impl cce_ui::engine::Application for State {
                 height_spin: Spinbox::new(250, 100, 2000, 10).with_label("Height"),
                 surface_plate: Plate::new(0.0, 0.0, 190.0, 250.0, true),
                 surface_info_label: Label::new("Surface Info").with_font_size(12.0),
-                surface_desc_label: Label::new(window_type_description(0)).with_font_size(10.0),
+                surface_desc_label: Label::new(ChildKind::WINDOW_KINDS[0].description()).with_font_size(10.0),
                 range_slider_demo: RangeSlider::new().with_label("RangeSlider"),
                 trackpad_demo: Trackpad::new().with_label("Trackpad"),
                 portal_panel: Panel::new(0.0, 0.0, 450.0, 200.0).with_label("File chooser"),
@@ -1139,19 +1492,43 @@ impl cce_ui::engine::Application for State {
                 bevel_ramp: Ramp::new(),
                 ramp_btn: Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp..."),
                 control_panel: ControlPanel::new().with_label("ControlPanel"),
-                layout_dd: Dropdown::new(vec![
-                    "Vertical".to_string(),
-                    "Columns".to_string(),
-                    "Grid".to_string(),
-                    "Adaptive Grid".to_string(),
-                    "Overlay".to_string(),
-                    "Flex".to_string(),
-                    "Splitter".to_string(),
-                    "Radial".to_string(),
-                    "Circular Pane".to_string(),
-                    "Mosaic".to_string(),
-                    "Reverse Mosaic".to_string(),
-                ], 9).with_label("Layout"),
+                layout_dd: Dropdown::new(
+                    LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
+                    DEFAULT_LAYOUT,
+                ).with_label("Layout"),
+                color_selector_demo: ColorSelector::new([64, 128, 255]).with_label("ColorSelector"),
+                font_selector_demo: FontSelector::new("Sans".to_string()).with_label("FontSelector"),
+                keybind_demo: KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder"),
+                button_strip_demo: Adapted::new(
+                    ButtonStrip::new(0.0, 0.0, 200.0, 28.0)
+                        .with_buttons(vec!["One".to_string(), "Two".to_string(), "Three".to_string()])
+                        .with_selected(Some(0)),
+                ).with_label("ButtonStrip"),
+                slider2d_demo: Slider2D::new().with_label("Slider2D"),
+                float3_demo: Float3::new().with_label("Float3"),
+                usage_bar_demo: UsageBar::new(0.62).with_label("UsageBar"),
+                status_dot_demo: StatusDot::new(DotStatus::Active).with_label("StatusDot"),
+                info_box_demo: InfoBox::new("InfoBox", vec!["A titled box of".to_string(), "plain text lines.".to_string()]),
+                list_item_demo: InteractiveListItem::new("InteractiveListItem"),
+                breadcrumb_demo: {
+                    let mut b = Breadcrumb::new();
+                    b.path = vec!["home".to_string(), "lsgalante".to_string(), "projects".to_string()];
+                    b.with_label("Breadcrumb")
+                },
+                tree_list_demo: {
+                    let mut t = TreeList::new();
+                    t.set_flat_keys(vec![
+                        ("layout/bar_height".to_string(), serde_json::json!(24)),
+                        ("layout/gap".to_string(), serde_json::json!(12)),
+                        ("theme/name".to_string(), serde_json::json!("cce")),
+                    ]);
+                    t.rebuild_tree();
+                    t.with_label("TreeList")
+                },
+                bevel_preview_demo: BevelPreview::new().with_label("BevelPreview"),
+                ramp_preview_demo: RampPreview::new().with_label("RampPreview"),
+                separator_demo: Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator"),
+                splitter_demo: Splitter::new(200.0).with_label("Splitter"),
             }))
         };
 
@@ -1173,20 +1550,19 @@ impl cce_ui::engine::Application for State {
             use_menubar,
             use_statusbar,
             border_enabled,
-            child_type: child_type.clone(),
+            child_kind,
             ui_context: cce_ui::context::UiContext::new(),
             bevel_ramp: loaded_keys,
             bevel_ramp_line_type: loaded_type,
             last_ramp_mod: None,
-            child_shape: child_shape.clone(),
             sender,
-            layout_idx: 9,
+            layout_idx: DEFAULT_LAYOUT,
         };
 
         if !is_child {
-            // Link the page selector (37) under the status bar (1) in the ui tree.
+            // Link the page selector (36) under the status bar (1) in the ui tree.
             let statusbar_ptr = state.roster.get_dyn_mut(1) as *mut (dyn WidgetHost + 'static);
-            let dropdown_ptr = state.roster.get_dyn_mut(37) as *mut (dyn WidgetHost + 'static);
+            let dropdown_ptr = state.roster.get_dyn_mut(36) as *mut (dyn WidgetHost + 'static);
             unsafe {
                 cce_ui::widget::focus::link_parent_child(
                     &mut *statusbar_ptr,
@@ -1217,24 +1593,15 @@ impl cce_ui::engine::Application for State {
     }
 
     fn settings(&self) -> cce_ui::engine::WindowSettings {
-        let title = if self.is_child {
-            child_title(self.child_type.as_deref())
-        } else {
-            "Gallery".to_string()
+        let title = match self.child_kind {
+            Some(kind) => kind.title().to_string(),
+            None => "Gallery".to_string(),
         };
 
-        let mut app_id = if self.is_child {
-            if let Some(ref t) = self.child_type {
-                format!("cce-gallery-child-{}", t.to_lowercase())
-            } else {
-                "cce-gallery-child".to_string()
-            }
-        } else {
-            "cce-gallery".to_string()
+        let mut app_id = match self.child_kind {
+            Some(kind) => kind.app_id(),
+            None => "cce-gallery".to_string(),
         };
-        if self.is_child && self.child_shape.as_deref() == Some("circular") {
-            app_id.push_str("-circular");
-        }
         if !self.border_enabled {
             app_id.push_str("-noborder");
         }
@@ -1244,13 +1611,21 @@ impl cce_ui::engine::Application for State {
             app_id,
             width: self.width as u32,
             height: self.height as u32,
-            fullscreen: false,
+            fullscreen: self.child_kind == Some(ChildKind::Fullscreen),
             min_size: if self.is_child {
                 Some((self.width as u32, self.height as u32))
             } else {
                 Some((100, 100))
             },
         }
+    }
+
+    fn layer(&self) -> Option<LayerSettings> {
+        self.child_kind.and_then(|kind| kind.layer(self.height as i32))
+    }
+
+    fn utility(&self) -> bool {
+        self.child_kind == Some(ChildKind::Utility)
     }
 
     fn update(&mut self, msg: Self::Message, needs_rebuild: &mut bool, exit: &mut bool) {
@@ -1288,7 +1663,7 @@ impl cce_ui::engine::Application for State {
             if is_visible(i) {
                 if w.tick(dt, &mut self.ui_context) {
                     changed = true;
-                    if self.is_child && self.child_type.as_deref() == Some("Ramp") && i == 1 {
+                    if self.child_kind == Some(ChildKind::Ramp) && i == 1 {
                         if let Some(ramp) = w.as_any().downcast_ref::<Ramp>() {
                             let line_type_str = match ramp.line_type_dropdown.selected {
                                 1 => "bezier",
@@ -1359,12 +1734,12 @@ impl cce_ui::engine::Application for State {
             if !self.is_child && i == 8 {
                 let r = cce_ui::color::root_plate_corner_radius();
                 let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
-                let border_bevel = self.toggled(33);
+                let border_bevel = self.toggled(32);
 
                 let (wx, wy, ww, wh) = w.rect();
                 if backplate_enabled {
                     if border_bevel {
-                        let t = self.roster.value(34) as f32;
+                        let t = self.roster.value(33) as f32;
                         let r_inner = (r - t).max(0.0);
                         push_rounded(&mut pc, wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true));
                     } else {
@@ -1372,7 +1747,7 @@ impl cce_ui::engine::Application for State {
                     }
                 }
 
-                let menubar_enabled = self.toggled(30);
+                let menubar_enabled = self.toggled(29);
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::root_plate_menubar_color();
                     menu_color[3] = transparency_val;
@@ -1383,7 +1758,7 @@ impl cce_ui::engine::Application for State {
                     }
                 }
 
-                let statusbar_enabled = self.toggled(31);
+                let statusbar_enabled = self.toggled(30);
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::root_plate_statusbar_color();
                     status_color[3] = transparency_val;
@@ -1545,10 +1920,9 @@ impl cce_ui::engine::Application for State {
         }
 
         // ── Text ──
-        let label_text = if self.is_child {
-            child_title(self.child_type.as_deref())
-        } else {
-            format!("Gallery - {}", self.current_page.label())
+        let label_text = match self.child_kind {
+            Some(kind) => kind.title().to_string(),
+            None => format!("Gallery - {}", self.current_page.label()),
         };
         let mut has_menu_bar = false;
         for i in 0..self.roster.len() {
@@ -1659,14 +2033,14 @@ impl cce_ui::engine::Application for State {
             }
 
             if !self.is_child && i == 8 {
-                let border_enabled = self.toggled(15);
+                let border_enabled = self.toggled(14);
                 if border_enabled {
                     let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
-                    let t = self.roster.value(34) as f32;
-                    let border_bevel = self.toggled(33);
+                    let t = self.roster.value(33) as f32;
+                    let border_bevel = self.toggled(32);
                     let r = cce_ui::color::root_plate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
 
@@ -1683,7 +2057,7 @@ impl cce_ui::engine::Application for State {
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
 
                                 let d_h = h_inner - h_outer;
-                                let bevel_depth = self.roster.value(35) as f32 / 100.0;
+                                let bevel_depth = self.roster.value(34) as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
 
                                  let rad = cce_ui::layout::light_source_position();
@@ -1877,21 +2251,21 @@ impl cce_ui::engine::Application for State {
                         return Some("exit".to_string());
                     }
                 } else {
-                    if self.roster.take_click(37) {
-                        self.go_to_page(Page::from_index(self.roster.value(37) as usize));
+                    if self.roster.take_click(36) {
+                        self.go_to_page(Page::from_index(self.roster.value(36) as usize));
                         changed = true;
-                    } else if self.roster.take_click(43) {
-                        self.layout_idx = self.roster.value(43) as usize;
+                    } else if self.roster.take_click(42) {
+                        self.layout_idx = self.roster.value(42) as usize;
                         self.relayout();
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
-                        if self.roster.take_click(38) {
+                        if self.roster.take_click(37) {
                             spawn_editor("ColorRamp");
-                        } else if self.roster.take_click(41) {
+                        } else if self.roster.take_click(40) {
                             spawn_editor("Ramp");
                         } else {
-                            for i in [2, 3, 4, 6, 7, 21, 22, 27, 28] {
+                            for i in [2, 3, 4, 6, 7, 20, 21, 26, 27, 43, 44, 45, 46, 47, 48, 52, 53, 54, 55, 56] {
                                 if self.roster.take_click(i) {
                                     changed = true;
                                 }
@@ -1902,18 +2276,18 @@ impl cce_ui::engine::Application for State {
 
                         if self.roster.take_click(9) {
                             create_window = true;
-                        } else if self.roster.take_click(39) {
+                        } else if self.roster.take_click(38) {
                             spawn_editor("Ramp");
                         } else {
                             let mut dropdown_clicked = false;
-                            for i in [10, 11, 13, 14, 15, 16, 17, 29, 30, 31, 33, 34, 35] {
+                            for i in [10, 11, 13, 14, 15, 16, 28, 29, 30, 32, 33, 34] {
                                 if self.roster.take_click(i) {
                                     changed = true;
                                     if i == 13 {
                                         dropdown_clicked = true;
                                     }
-                                    if i == 35 {
-                                        let depth = self.roster.value(35) as f32 / 100.0;
+                                    if i == 34 {
+                                        let depth = self.roster.value(34) as f32 / 100.0;
                                         if let Ok(mut registry) = cce_ui::layout::get_style_registry().write() {
                                             registry.set_float("bevel_depth", depth);
                                         }
@@ -1921,47 +2295,34 @@ impl cce_ui::engine::Application for State {
                                 }
                             }
                             if dropdown_clicked {
-                                let desc = window_type_description(self.roster.value(13));
-                                self.roster.set_text(20, desc);
+                                let desc = ChildKind::from_dropdown(self.roster.value(13)).description();
+                                self.roster.set_text(19, desc);
                             }
                         }
 
                         if create_window {
-                            let window_type = match self.roster.value(13) {
-                                0 => "Toplevel",
-                                1 => "Popup",
-                                2 => "LayerTop",
-                                3 => "LayerOverlay",
-                                4 => "LayerBackground",
-                                _ => "Toplevel",
-                            };
-                            let shape = match self.roster.value(14) {
-                                0 => "rectangular",
-                                1 => "circular",
-                                _ => "rectangular",
-                            };
+                            let kind = ChildKind::from_dropdown(self.roster.value(13));
                             let opacity_enabled = self.toggled(10);
-                            let transparency_pct = self.roster.value(11);
-                            let transparency_val = transparency_pct as f32 / 100.0;
-                            let border_enabled = self.toggled(15);
-                            let custom_width = self.roster.value(16);
-                            let custom_height = self.roster.value(17);
+                            let transparency_val = self.roster.value(11) as f32 / 100.0;
+                            let border_enabled = self.toggled(14);
+                            let custom_width = self.roster.value(15);
+                            let custom_height = self.roster.value(16);
 
-                            self.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
+                            self.update_status_text(&format!("Spawning a {} child window...", kind.label()));
                             if let Some(mut cmd) = child_command() {
-                                cmd.args(["--type", window_type, "--shape", shape]);
+                                cmd.args(["--type", kind.arg()]);
                                 if opacity_enabled {
                                     cmd.args(["--opacity", "--transparency", &transparency_val.to_string()]);
                                 }
                                 if !border_enabled {
                                     cmd.arg("--no-border");
                                 } else {
-                                    cmd.args(["--border-width", &self.roster.value(34).to_string()]);
-                                    if self.toggled(33) {
+                                    cmd.args(["--border-width", &self.roster.value(33).to_string()]);
+                                    if self.toggled(32) {
                                         cmd.arg("--border-bevel");
                                     }
                                 }
-                                for (flag, on) in [("--backplate", self.toggled(29)), ("--menubar", self.toggled(30)), ("--statusbar", self.toggled(31))] {
+                                for (flag, on) in [("--backplate", self.toggled(28)), ("--menubar", self.toggled(29)), ("--statusbar", self.toggled(30))] {
                                     if on {
                                         cmd.arg(flag);
                                     }
@@ -1972,9 +2333,9 @@ impl cce_ui::engine::Application for State {
                             changed = true;
                         }
                     } else if self.current_page == Page::Xdg {
-                        let save = if self.roster.take_click(25) {
+                        let save = if self.roster.take_click(24) {
                             Some(false)
-                        } else if self.roster.take_click(26) {
+                        } else if self.roster.take_click(25) {
                             Some(true)
                         } else {
                             None
@@ -2004,8 +2365,8 @@ impl cce_ui::engine::Application for State {
         // The panel's scroll frame gets the wheel first; a consumed wheel never reaches
         // its children.
         let mut cp_took_wheel = false;
-        if !self.is_child && is_visible(42) {
-            let root = self.roster.get_dyn(42).base().id();
+        if !self.is_child && is_visible(41) {
+            let root = self.roster.get_dyn(41).base().id();
             if self.ui_context.propagate_event(&ev, root) {
                 changed = true;
                 cp_took_wheel = true;
@@ -2013,7 +2374,7 @@ impl cce_ui::engine::Application for State {
         }
         let cp_wheel_ok = !self.is_child && self.cp_gate(lx, ly);
         for i in 0..self.roster.len() {
-            if i == 42 {
+            if i == 41 {
                 continue;
             }
             if !is_visible(i) {
@@ -2100,69 +2461,6 @@ impl cce_ui::engine::Application for State {
         None
     }
 
-    fn adjust_size(&self, w: f32, h: f32) -> (f32, f32) {
-        if self.is_child && self.child_shape.as_deref() == Some("circular") {
-            let side = w.min(h);
-            (side, side)
-        } else {
-            (w, h)
-        }
-    }
-}
-
-/// A child window's title, from its `--type`.
-fn child_title(child_type: Option<&str>) -> String {
-    match child_type {
-        Some("Toplevel") => "Simulated Toplevel Window".to_string(),
-        Some("Popup") => "Simulated Popup Window".to_string(),
-        Some("LayerTop") => "Simulated Layer Shell (Top) Surface".to_string(),
-        Some("LayerOverlay") => "Simulated Layer Shell (Overlay) Surface".to_string(),
-        Some("LayerBackground") => "Simulated Layer Shell (Background) Surface".to_string(),
-        Some(other) => format!("Simulated {} Window", other),
-        None => "Simulated Window".to_string(),
-    }
-}
-
-/// The Windows page's description of a window-type dropdown entry.
-fn window_type_description(idx: i32) -> &'static str {
-    match idx {
-        0 => "A standard application\n\
-window (xdg_toplevel).\n\
-It supports tiling (cascade,\n\
-split, grid), fullscreening,\n\
-dragging, and resizing.\n\n\
-Testing layout:\n\
-cascades in cce.",
-        1 => "An anchored sub-surface\n\
-popup (xdg_popup).\n\
-Usually transient context\n\
-menus, tooltips, or dropdown\n\
-lists. Bypasses tiling.\n\n\
-Testing layout:\n\
-maps floating on top.",
-        2 => "A high-level Layer Shell\n\
-surface (anchored to top).\n\
-Typically status bars, menus,\n\
-or docks. Reserves panel\n\
-space, limiting workspace.\n\n\
-Testing layout:\n\
-full width at top.",
-        3 => "A high-priority Layer Shell\n\
-surface (overlay layer).\n\
-Used for screensavers, lock\n\
-screens, or overlay HUDs.\n\
-Sits above tiling windows.\n\n\
-Testing layout:\n\
-center floating window.",
-        4 => "A bottom-level Layer Shell\n\
-surface (background layer).\n\
-Used for desktop wallpaper.\n\
-Renders below all other\n\
-client windows.\n\n\
-Testing layout:\n\
-full screen background.",
-        _ => "",
-    }
 }
 
 /// A `Command` that re-runs this binary as a child window; the caller adds the flags.
@@ -2182,7 +2480,25 @@ fn spawn_editor(kind: &str) {
     }
 }
 
-fn demo_positions(sw: f32, sh: f32, layout_idx: usize, slots: &GallerySlots) -> Vec<(f32, f32, f32, f32)> {
+/// The toolkit container layouts the Layout dropdown offers, by name.
+const LAYOUTS: [(&str, fn() -> Box<dyn cce_ui::layout::LayoutStrategy>); 7] = [
+    ("Vertical", || {
+        let mut v = VerticalLayout::default();
+        v.spacing = 24.0;
+        Box::new(v)
+    }),
+    ("Columns", || Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, spacing: 24.0 })),
+    ("Grid", || Box::new(GridLayout { columns: 3, gap: 24.0, padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: 24.0, padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Mosaic", || Box::new(MosaicLayout { gap: 24.0, padding_x: 0.0, padding_y: 0.0 })),
+    ("Reverse Mosaic", || Box::new(ReverseMosaicLayout { gap: 24.0, padding_x: 0.0, padding_y: 0.0 })),
+    ("Overlay", || Box::new(OverlayLayout::default())),
+];
+const DEFAULT_LAYOUT: usize = 4;
+
+/// The fixed positions: the chrome, the Layout dropdown, and the Windows and XDG pages.
+/// The Controls exhibits are laid out by `layout_exhibits` instead.
+fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
     let base_x = 20.0;
     let sph = cce_ui::layout::spinbox_height();
     let tgh = cce_ui::layout::toggle_height();
@@ -2190,11 +2506,15 @@ fn demo_positions(sw: f32, sh: f32, layout_idx: usize, slots: &GallerySlots) -> 
     let bh = cce_ui::layout::button_height();
     let ddh = cce_ui::layout::dropdown_height();
 
-    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 44];
+    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); GALLERY_COUNT];
 
     // Common layout elements
     vec[0] = (0.0, 0.0, sw, 40.0); // 0 MenuBar
     vec[1] = (0.0, sh - 24.0, sw, 24.0); // 1 StatusBar
+
+    // Page 0 (Controls): the Layout dropdown; the exhibits below it are laid out by
+    // `layout_exhibits` with the strategy it selects.
+    vec[42] = (base_x, 60.0, 190.0, ddh); // 42 Dropdown (Layout)
 
     // Page 1 (Windows)
     vec[8] = (base_x, 60.0, 400.0, 250.0); // 8 Panel (Window simulation area)
@@ -2203,290 +2523,31 @@ fn demo_positions(sw: f32, sh: f32, layout_idx: usize, slots: &GallerySlots) -> 
     vec[11] = (base_x + 420.0, 210.0, 140.0, slh); // 11 Slider
     vec[12] = (base_x + 420.0, 250.0, 140.0, 20.0); // 12 Label
     vec[13] = (base_x + 580.0, 60.0, 180.0, ddh); // 13 Dropdown (Window Type)
-    vec[14] = (base_x + 580.0, 115.0, 180.0, ddh); // 14 Dropdown (Window Shape)
-    vec[15] = (base_x + 580.0, 170.0, 120.0, tgh); // 15 Toggle (Enable)
-    vec[16] = (base_x + 580.0, 210.0, 140.0, sph); // 16 Spinbox (Width)
-    vec[17] = (base_x + 580.0, 255.0, 140.0, sph); // 17 Spinbox (Height)
-    vec[18] = (base_x, 320.0, 190.0, 250.0); // 18 Plate
-    vec[19] = (base_x + 10.0, 330.0, 170.0, 20.0); // 19 Label
-    vec[20] = (base_x + 10.0, 360.0, 170.0, 180.0); // 20 Label
+    vec[14] = (base_x + 580.0, 170.0, 120.0, tgh); // 14 Toggle (Enable)
+    vec[15] = (base_x + 580.0, 210.0, 140.0, sph); // 15 Spinbox (Width)
+    vec[16] = (base_x + 580.0, 255.0, 140.0, sph); // 16 Spinbox (Height)
+    vec[17] = (base_x, 320.0, 190.0, 250.0); // 17 Plate
+    vec[18] = (base_x + 10.0, 330.0, 170.0, 20.0); // 18 Label
+    vec[19] = (base_x + 10.0, 360.0, 170.0, 180.0); // 19 Label
 
     // Page 2 (XDG)
-    vec[23] = (base_x, 60.0, 450.0, 200.0); // 23 Panel
-    vec[24] = (base_x + 20.0, 80.0, 410.0, 60.0); // 24 Label
-    vec[25] = (base_x + 20.0, 160.0, 180.0, bh); // 25 Button
-    vec[26] = (base_x + 220.0, 160.0, 180.0, bh); // 26 Button
+    vec[22] = (base_x, 60.0, 450.0, 200.0); // 22 Panel
+    vec[23] = (base_x + 20.0, 80.0, 410.0, 60.0); // 23 Label
+    vec[24] = (base_x + 20.0, 160.0, 180.0, bh); // 24 Button
+    vec[25] = (base_x + 220.0, 160.0, 180.0, bh); // 25 Button
 
     // Window Simulation options (visible when Page::Windows is active)
-    vec[29] = (base_x + 420.0, 300.0, 140.0, tgh); // 29 Toggle: Backplate
-    vec[30] = (base_x + 420.0, 340.0, 140.0, tgh); // 30 Toggle: MenuBar
-    vec[31] = (base_x + 420.0, 380.0, 140.0, tgh); // 31 Toggle: StatusBar
-    vec[32] = (base_x + 420.0, 420.0, 140.0, 20.0); // 32 SectionContainer: Border
-    vec[33] = (base_x + 420.0, 450.0, 140.0, tgh); // 33 Toggle: Bevel
-    vec[34] = (base_x + 420.0, 490.0, 140.0, sph); // 34 Spinbox: Border Width
-    vec[35] = (base_x + 420.0, 535.0, 140.0, sph); // 35 Spinbox: Bevel Depth
-    vec[36] = (base_x + 420.0, 270.0, 140.0, 20.0); // 36 SectionContainer: Window Elements
-    // 37 (page selector) is placed by apply_layout, inside the status bar.
-    vec[39] = (base_x + 420.0, 580.0, 140.0, bh); // 39 Button: Bevel Shape
-    vec[42] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 42 ControlPanel
-
-    // Dynamically position Page 0 (Controls) elements using the selected layout index
-    let available_w = (sw - base_x - 290.0).max(300.0);
-
-    struct DemoPacker {
-        free_rects: Vec<(f32, f32, f32, f32)>,
-        max_w: f32,
-        max_h: f32,
-        gap: f32,
-    }
-
-    impl DemoPacker {
-        fn new(start_x: f32, start_y: f32, max_width: f32, max_height: f32, gap: f32) -> Self {
-            Self {
-                free_rects: vec![(start_x, start_y, max_width, max_height)],
-                max_w: max_width,
-                max_h: 0.0,
-                gap,
-            }
-        }
-
-        fn pack(&mut self, cw: f32, ch: f32) -> (f32, f32) {
-            let cw_clamped = cw.min(self.max_w);
-
-            let mut best_idx = None;
-            let mut best_y = f32::MAX;
-            let mut best_x = f32::MAX;
-
-            for (idx, &(rx, ry, rw, rh)) in self.free_rects.iter().enumerate() {
-                if rw >= cw_clamped && rh >= ch {
-                    if ry < best_y || (ry == best_y && rx < best_x) {
-                        best_y = ry;
-                        best_x = rx;
-                        best_idx = Some(idx);
-                    }
-                }
-            }
-
-            let chosen_idx = match best_idx {
-                Some(idx) => idx,
-                None => {
-                    let new_y = self.max_h + self.gap;
-                    let new_rect = (self.free_rects[0].0, new_y, self.max_w, 100000.0);
-                    self.free_rects.push(new_rect);
-                    self.free_rects.len() - 1
-                }
-            };
-
-            let (fx, fy, fw, fh) = self.free_rects.remove(chosen_idx);
-            let px = fx;
-            let py = fy;
-
-            let rx = fx + cw_clamped + self.gap;
-            let rw = fw - cw_clamped - self.gap;
-            let by = py + ch + self.gap;
-            let bh = fh - ch - self.gap;
-
-            let split_horizontally = rw * fh > fw * bh;
-
-            if split_horizontally {
-                if rw > 0.0 && fh > 0.0 {
-                    self.free_rects.push((rx, py, rw, fh));
-                }
-                if cw_clamped > 0.0 && bh > 0.0 {
-                    self.free_rects.push((fx, by, cw_clamped, bh));
-                }
-            } else {
-                if rw > 0.0 && ch > 0.0 {
-                    self.free_rects.push((rx, py, rw, ch));
-                }
-                if fw > 0.0 && bh > 0.0 {
-                    self.free_rects.push((fx, by, fw, bh));
-                }
-            }
-
-            self.max_h = self.max_h.max(py + ch);
-
-            (px, py)
-        }
-    }
-
-    let label_off = |idx: usize| -> f32 {
-        cce_ui::widget::label_offset(slots.get_dyn(idx))
-    };
-
-    let mut items: Vec<(usize, f32, f32, f32)> = vec![
-        // Button
-        (2, 200.0, bh + label_off(2), bh),
-        // Progress Bar
-        (5, 415.0, cce_ui::layout::progressbar_height() + label_off(5), cce_ui::layout::progressbar_height()),
-        // Inputs
-        (43, 200.0, ddh + label_off(43), ddh),
-        (3, 200.0, tgh + label_off(3), tgh),
-        (4, 200.0, tgh + label_off(4), tgh),
-        (6, 200.0, slh + label_off(6), slh),
-        (7, 200.0, sph + label_off(7), sph),
-        (27, 200.0, ddh + label_off(27), ddh),
-        (21, 200.0, cce_ui::layout::rangeslider_height() + label_off(21), cce_ui::layout::rangeslider_height()),
-        (22, 200.0, 100.0 + label_off(22), 100.0),
-        (28, 200.0, 120.0 + label_off(28), 120.0),
-        (38, 200.0, bh + label_off(38), bh),
-        (41, 200.0, bh + label_off(41), bh),
-        (40, 200.0, 150.0 + label_off(40), 150.0),
-    ];
-    items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-    match layout_idx {
-        0 => {
-            // Vertical Layout
-            let mut cur_y = 60.0;
-            for (idx, _w_item, h_item_total, h_item_content) in items {
-                vec[idx] = (base_x, cur_y, available_w, h_item_content);
-                cur_y += h_item_total + 15.0;
-            }
-        }
-        1 => {
-            // Columns Layout
-            let num_cols = 3;
-            let col_w = (available_w - (num_cols - 1) as f32 * 15.0) / num_cols as f32;
-            let mut col_y = vec![60.0; num_cols];
-            for (i, (idx, _w_item, h_item_total, h_item_content)) in items.into_iter().enumerate() {
-                let col = i % num_cols;
-                let cx = base_x + col as f32 * (col_w + 15.0);
-                let cy = col_y[col];
-                vec[idx] = (cx, cy, col_w, h_item_content);
-                col_y[col] += h_item_total + 15.0;
-            }
-        }
-        2 | 3 => {
-            // Grid Layout and Adaptive Grid Layout
-            let num_cols = if layout_idx == 2 {
-                3
-            } else {
-                let min_col_w = 200.0;
-                (((available_w + 15.0) / (min_col_w + 15.0)).floor().max(1.0)) as usize
-            };
-            let col_w = (available_w - (num_cols - 1) as f32 * 15.0) / num_cols as f32;
-            let mut col_y = vec![60.0; num_cols];
-            for (idx, _w_item, h_item_total, h_item_content) in items {
-                let mut shortest_col = 0;
-                let mut min_h = col_y[0];
-                for col in 1..num_cols {
-                    if col_y[col] < min_h {
-                        min_h = col_y[col];
-                        shortest_col = col;
-                    }
-                }
-                let cx = base_x + shortest_col as f32 * (col_w + 15.0);
-                let cy = col_y[shortest_col];
-                vec[idx] = (cx, cy, col_w, h_item_content);
-                col_y[shortest_col] += h_item_total + 15.0;
-            }
-        }
-        4 => {
-            // Overlay Layout
-            for (idx, _w_item, _h_item_total, h_item_content) in items {
-                vec[idx] = (base_x, 60.0, available_w, h_item_content);
-            }
-        }
-        5 => {
-            // Flex Layout
-            let mut cur_x = base_x;
-            let mut cur_y = 60.0;
-            let mut row_h = 0.0f32;
-            for (idx, w_item, h_item_total, h_item_content) in items {
-                let target_w = w_item.min(available_w);
-                if cur_x + target_w > base_x + available_w && cur_x > base_x {
-                    cur_x = base_x;
-                    cur_y += row_h + 15.0;
-                    row_h = 0.0;
-                }
-                vec[idx] = (cur_x, cur_y, target_w, h_item_content);
-                cur_x += target_w + 15.0;
-                row_h = row_h.max(h_item_total);
-            }
-        }
-        6 => {
-            // Splitter Layout
-            let count = items.len();
-            let total_h = (sh - 120.0).max(300.0);
-            let single_h = (total_h - (count - 1) as f32 * 10.0) / count as f32;
-            let mut cur_y = 60.0;
-            for (idx, _w_item, _h_item_total, _h_item_content) in items {
-                let content_h = (single_h - label_off(idx)).max(10.0);
-                vec[idx] = (base_x, cur_y, available_w, content_h);
-                cur_y += single_h + 10.0;
-            }
-        }
-        7 => {
-            // Radial Layout
-            let cx = base_x + available_w / 2.0;
-            let cy = 300.0;
-            let radius = 180.0;
-            let count = items.len();
-            for (i, (idx, w_item, h_item_total, h_item_content)) in items.into_iter().enumerate() {
-                let angle = (i as f32 / count as f32) * 2.0 * std::f32::consts::PI;
-                let px = cx + radius * angle.cos() - w_item / 2.0;
-                let py = cy + radius * angle.sin() - h_item_total / 2.0;
-                vec[idx] = (px, py, w_item, h_item_content);
-            }
-        }
-        8 => {
-            // Circular Pane Layout
-            let cx = base_x + available_w / 2.0;
-            let cy = 300.0;
-            let count = items.len();
-            for (i, (idx, w_item, h_item_total, h_item_content)) in items.into_iter().enumerate() {
-                let radius = 100.0 + (i as f32 * 12.0);
-                let angle = (i as f32 / count as f32) * 2.0 * std::f32::consts::PI;
-                let px = cx + radius * angle.cos() - w_item / 2.0;
-                let py = cy + radius * angle.sin() - h_item_total / 2.0;
-                vec[idx] = (px, py, w_item, h_item_content);
-            }
-        }
-        9 => {
-            // Mosaic Layout (Guillotine Packer)
-            let max_h = (sh - 99.0).max(300.0);
-            let mut packer = DemoPacker::new(base_x, 60.0, available_w, max_h, 15.0);
-            for (idx, w_item, h_item_total, h_item_content) in items {
-                let (px, py) = packer.pack(w_item, h_item_total);
-                vec[idx] = (px, py, w_item.min(available_w), h_item_content);
-            }
-        }
-        _ => {
-            // Reverse Mosaic Layout
-            let max_h = (sh - 99.0).max(300.0);
-            let mut packer = DemoPacker::new(base_x, 60.0, available_w, max_h, 15.0);
-            let mut temp = Vec::with_capacity(items.len());
-            for &(idx, w_item, h_item_total, h_item_content) in &items {
-                let (px, py) = packer.pack(w_item, h_item_total);
-                temp.push((px, py, w_item, h_item_total, h_item_content, idx));
-            }
-            let mut x_min = f32::MAX;
-            let mut x_max = f32::MIN;
-            let mut y_min = f32::MAX;
-            let mut y_max = f32::MIN;
-            for &(px, py, pw, ph_total, _, _) in &temp {
-                x_min = x_min.min(px);
-                x_max = x_max.max(px + pw);
-                y_min = y_min.min(py);
-                y_max = y_max.max(py + ph_total);
-            }
-            let src_w = (x_max - x_min).max(1.0);
-            let src_h = (y_max - y_min).max(1.0);
-            let dst_w = available_w;
-            let dst_h = (sh - 120.0).max(300.0);
-            let scale_x = dst_w / src_w;
-            let scale_y = dst_h / src_h;
-            for (px, py, pw, _ph_total, ph_content, idx) in temp {
-                let new_x = base_x + (px - x_min) * scale_x;
-                let new_y = 60.0 + (py - y_min) * scale_y;
-                let new_w = pw * scale_x;
-                let new_h = ph_content * scale_y;
-                vec[idx] = (new_x, new_y, new_w, new_h);
-            }
-        }
-    }
-
+    vec[28] = (base_x + 420.0, 300.0, 140.0, tgh); // 28 Toggle: Backplate
+    vec[29] = (base_x + 420.0, 340.0, 140.0, tgh); // 29 Toggle: MenuBar
+    vec[30] = (base_x + 420.0, 380.0, 140.0, tgh); // 30 Toggle: StatusBar
+    vec[31] = (base_x + 420.0, 420.0, 140.0, 20.0); // 31 SectionContainer: Border
+    vec[32] = (base_x + 420.0, 450.0, 140.0, tgh); // 32 Toggle: Bevel
+    vec[33] = (base_x + 420.0, 490.0, 140.0, sph); // 33 Spinbox: Border Width
+    vec[34] = (base_x + 420.0, 535.0, 140.0, sph); // 34 Spinbox: Bevel Depth
+    vec[35] = (base_x + 420.0, 270.0, 140.0, 20.0); // 35 SectionContainer: Window Elements
+    // 36 (page selector) is placed by apply_layout, inside the status bar.
+    vec[38] = (base_x + 420.0, 580.0, 140.0, bh); // 38 Button: Bevel Shape
+    vec[41] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 41 ControlPanel
 
     vec
 }
@@ -2494,7 +2555,7 @@ fn demo_positions(sw: f32, sh: f32, layout_idx: usize, slots: &GallerySlots) -> 
 /// The five `ChildSlots` rects for a child window of `sw`x`sh`: 0 background,
 /// 1 main (editor or description), 2 Close, 3 and 4 the MenuBar / StatusBar of a
 /// simulated window or the two aux Labels of a Ramp / ColorRamp editor.
-fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, child_type: Option<&str>) -> Vec<(f32, f32, f32, f32)> {
+fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, editor: bool) -> Vec<(f32, f32, f32, f32)> {
     let dy = if use_menubar { 40.0 } else { 0.0 };
     let dh = if use_statusbar { 24.0 } else { 0.0 };
     let inner_h = sh - dy - dh;
@@ -2508,7 +2569,7 @@ fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, chi
     }
 
     vec[0] = (0.0, dy, sw, inner_h);
-    if matches!(child_type, Some("Ramp") | Some("ColorRamp")) {
+    if editor {
         vec[1] = (20.0, dy + 20.0, sw - 40.0, inner_h - 90.0);
         vec[2] = ((sw - 100.0) / 2.0, dy + inner_h - 55.0, 100.0, 35.0);
         vec[3] = (20.0, dy + inner_h - 90.0, 200.0, 20.0);
