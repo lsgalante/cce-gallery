@@ -344,14 +344,8 @@ name = "cce-gallery"
 version = "0.1.0"
 dependencies = [
  "calloop",
- "calloop-wayland-source",
  "cce-ui",
- "resvg",
- "smithay-client-toolkit",
- "tokio",
  "wayland-client",
- "xkeysym",
- "zbus",
 ]
 
 [[package]]
@@ -370,6 +364,7 @@ dependencies = [
  "libc",
  "log",
  "naga",
+ "png",
  "raw-window-handle",
  "resvg",
  "rfd",

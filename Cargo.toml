@@ -5,12 +5,6 @@ edition = "2021"
 
 [dependencies]
 cce-ui = { path = "../cce-ui" }
-tokio = { version = "1", features = ["full"] }
-smithay-client-toolkit = { version = "0.19.2", features = ["calloop"] }
 calloop = "0.13.0"
-calloop-wayland-source = "0.3.0"
 wayland-client = { version = "0.31", features = ["system"] }
-xkeysym = "0.2"
-resvg = "0.41.0"
-zbus = "5"
 
