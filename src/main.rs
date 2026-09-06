@@ -1243,10 +1243,17 @@ cascades in cce."
                     &mut state.ui_context,
                 );
             }
-        } else {
-            state.focused_widget = Some(1);
-            let ramp = state.roster.get_dyn_mut(1).as_any_mut().downcast_mut::<Ramp>().expect("child ramp widget");
+        } else if let Some(ramp) = state.roster.get_dyn_mut(1).as_any_mut().downcast_mut::<Ramp>() {
+            // Only a `--type Ramp` child hosts a Ramp in slot 1: it opens with the
+            // preset dropdown focused so the keyboard drives it at once. Every other
+            // child kind (ColorRamp, or the description Label of the Toplevel /
+            // Popup / Layer* windows) starts with nothing focused — the key sweep
+            // in handle_key reaches every visible child slot anyway, and a click
+            // focuses whatever it lands on. This used to downcast unconditionally
+            // and panic for those kinds ("child ramp widget"), which is why Create
+            // Window on the Windows page spawned children that died at startup.
             let preset_ptr = ramp.preset_dropdown.as_ptr_mut();
+            state.focused_widget = Some(1);
             state.ui_context.set_focused_ptr(preset_ptr);
             unsafe {
                 (*preset_ptr).focus();
