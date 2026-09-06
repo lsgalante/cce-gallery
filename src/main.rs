@@ -17,7 +17,7 @@ enum Page {
 }
 
 
-/// The gallery roster, concretely typed (Phase 6bb): 53 named slots replacing the erased
+/// The gallery roster, concretely typed (Phase 6bb): 52 named slots replacing the erased
 /// `Vec<Box<dyn WidgetHost>>`. The historical numeric indexes (positions vec, dispatch loops,
 /// page layouts) keep addressing the same slots through `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
@@ -37,7 +37,6 @@ pub struct GallerySlots {
     pub spinbox_demo: Adapted<Spinbox>,
     pub panel_demo: Adapted<Panel>,
     pub create_window_btn: Adapted<Button>,
-    pub tile_windows_btn: Adapted<Button>,
     pub opacity_toggle: Adapted<Toggle>,
     pub label18: Adapted<Label>,
     pub transparency_slider: Adapted<Slider>,
@@ -76,7 +75,7 @@ pub struct GallerySlots {
     pub layout_dd: Adapted<Dropdown>,
 }
 
-pub const GALLERY_COUNT: usize = 53;
+pub const GALLERY_COUNT: usize = 52;
 
 impl GallerySlots {
 
@@ -100,43 +99,42 @@ impl GallerySlots {
             13 => self.spinbox_demo.draggable(),
             14 => self.panel_demo.draggable(),
             15 => self.create_window_btn.draggable(),
-            16 => self.tile_windows_btn.draggable(),
-            17 => self.opacity_toggle.draggable(),
-            18 => self.label18.draggable(),
-            19 => self.transparency_slider.draggable(),
-            20 => self.transparency_label.draggable(),
-            21 => self.window_type_dd.draggable(),
-            22 => self.window_shape_dd.draggable(),
-            23 => self.enable_toggle.draggable(),
-            24 => self.label24.draggable(),
-            25 => self.width_spin.draggable(),
-            26 => self.height_spin.draggable(),
-            27 => self.surface_plate.draggable(),
-            28 => self.surface_info_label.draggable(),
-            29 => self.surface_desc_label.draggable(),
-            30 => self.range_slider_demo.draggable(),
-            31 => self.trackpad_demo.draggable(),
-            32 => self.portal_panel.draggable(),
-            33 => self.portal_label.draggable(),
-            34 => self.open_dialog_btn.draggable(),
-            35 => self.save_dialog_btn.draggable(),
-            36 => self.textbox_demo.draggable(),
-            37 => self.plate_demo.draggable(),
-            38 => self.backplate_toggle.draggable(),
-            39 => self.menubar_toggle.draggable(),
-            40 => self.statusbar_toggle.draggable(),
-            41 => self.border_section.draggable(),
-            42 => self.bevel_toggle.draggable(),
-            43 => self.border_width_spin.draggable(),
-            44 => self.bevel_depth_spin.draggable(),
-            45 => self.elements_section.draggable(),
-            46 => self.page_selector.draggable(),
-            47 => self.color_ramp_btn.draggable(),
-            48 => self.bevel_shape_btn.draggable(),
-            49 => self.bevel_ramp.draggable(),
-            50 => self.ramp_btn.draggable(),
-            51 => self.control_panel.draggable(),
-            52 => self.layout_dd.draggable(),
+            16 => self.opacity_toggle.draggable(),
+            17 => self.label18.draggable(),
+            18 => self.transparency_slider.draggable(),
+            19 => self.transparency_label.draggable(),
+            20 => self.window_type_dd.draggable(),
+            21 => self.window_shape_dd.draggable(),
+            22 => self.enable_toggle.draggable(),
+            23 => self.label24.draggable(),
+            24 => self.width_spin.draggable(),
+            25 => self.height_spin.draggable(),
+            26 => self.surface_plate.draggable(),
+            27 => self.surface_info_label.draggable(),
+            28 => self.surface_desc_label.draggable(),
+            29 => self.range_slider_demo.draggable(),
+            30 => self.trackpad_demo.draggable(),
+            31 => self.portal_panel.draggable(),
+            32 => self.portal_label.draggable(),
+            33 => self.open_dialog_btn.draggable(),
+            34 => self.save_dialog_btn.draggable(),
+            35 => self.textbox_demo.draggable(),
+            36 => self.plate_demo.draggable(),
+            37 => self.backplate_toggle.draggable(),
+            38 => self.menubar_toggle.draggable(),
+            39 => self.statusbar_toggle.draggable(),
+            40 => self.border_section.draggable(),
+            41 => self.bevel_toggle.draggable(),
+            42 => self.border_width_spin.draggable(),
+            43 => self.bevel_depth_spin.draggable(),
+            44 => self.elements_section.draggable(),
+            45 => self.page_selector.draggable(),
+            46 => self.color_ramp_btn.draggable(),
+            47 => self.bevel_shape_btn.draggable(),
+            48 => self.bevel_ramp.draggable(),
+            49 => self.ramp_btn.draggable(),
+            50 => self.control_panel.draggable(),
+            51 => self.layout_dd.draggable(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -159,43 +157,42 @@ impl GallerySlots {
             13 => self.spinbox_demo.is_dragging(),
             14 => self.panel_demo.is_dragging(),
             15 => self.create_window_btn.is_dragging(),
-            16 => self.tile_windows_btn.is_dragging(),
-            17 => self.opacity_toggle.is_dragging(),
-            18 => self.label18.is_dragging(),
-            19 => self.transparency_slider.is_dragging(),
-            20 => self.transparency_label.is_dragging(),
-            21 => self.window_type_dd.is_dragging(),
-            22 => self.window_shape_dd.is_dragging(),
-            23 => self.enable_toggle.is_dragging(),
-            24 => self.label24.is_dragging(),
-            25 => self.width_spin.is_dragging(),
-            26 => self.height_spin.is_dragging(),
-            27 => self.surface_plate.is_dragging(),
-            28 => self.surface_info_label.is_dragging(),
-            29 => self.surface_desc_label.is_dragging(),
-            30 => self.range_slider_demo.is_dragging(),
-            31 => self.trackpad_demo.is_dragging(),
-            32 => self.portal_panel.is_dragging(),
-            33 => self.portal_label.is_dragging(),
-            34 => self.open_dialog_btn.is_dragging(),
-            35 => self.save_dialog_btn.is_dragging(),
-            36 => self.textbox_demo.is_dragging(),
-            37 => self.plate_demo.is_dragging(),
-            38 => self.backplate_toggle.is_dragging(),
-            39 => self.menubar_toggle.is_dragging(),
-            40 => self.statusbar_toggle.is_dragging(),
-            41 => self.border_section.is_dragging(),
-            42 => self.bevel_toggle.is_dragging(),
-            43 => self.border_width_spin.is_dragging(),
-            44 => self.bevel_depth_spin.is_dragging(),
-            45 => self.elements_section.is_dragging(),
-            46 => self.page_selector.is_dragging(),
-            47 => self.color_ramp_btn.is_dragging(),
-            48 => self.bevel_shape_btn.is_dragging(),
-            49 => self.bevel_ramp.is_dragging(),
-            50 => self.ramp_btn.is_dragging(),
-            51 => self.control_panel.is_dragging(),
-            52 => self.layout_dd.is_dragging(),
+            16 => self.opacity_toggle.is_dragging(),
+            17 => self.label18.is_dragging(),
+            18 => self.transparency_slider.is_dragging(),
+            19 => self.transparency_label.is_dragging(),
+            20 => self.window_type_dd.is_dragging(),
+            21 => self.window_shape_dd.is_dragging(),
+            22 => self.enable_toggle.is_dragging(),
+            23 => self.label24.is_dragging(),
+            24 => self.width_spin.is_dragging(),
+            25 => self.height_spin.is_dragging(),
+            26 => self.surface_plate.is_dragging(),
+            27 => self.surface_info_label.is_dragging(),
+            28 => self.surface_desc_label.is_dragging(),
+            29 => self.range_slider_demo.is_dragging(),
+            30 => self.trackpad_demo.is_dragging(),
+            31 => self.portal_panel.is_dragging(),
+            32 => self.portal_label.is_dragging(),
+            33 => self.open_dialog_btn.is_dragging(),
+            34 => self.save_dialog_btn.is_dragging(),
+            35 => self.textbox_demo.is_dragging(),
+            36 => self.plate_demo.is_dragging(),
+            37 => self.backplate_toggle.is_dragging(),
+            38 => self.menubar_toggle.is_dragging(),
+            39 => self.statusbar_toggle.is_dragging(),
+            40 => self.border_section.is_dragging(),
+            41 => self.bevel_toggle.is_dragging(),
+            42 => self.border_width_spin.is_dragging(),
+            43 => self.bevel_depth_spin.is_dragging(),
+            44 => self.elements_section.is_dragging(),
+            45 => self.page_selector.is_dragging(),
+            46 => self.color_ramp_btn.is_dragging(),
+            47 => self.bevel_shape_btn.is_dragging(),
+            48 => self.bevel_ramp.is_dragging(),
+            49 => self.ramp_btn.is_dragging(),
+            50 => self.control_panel.is_dragging(),
+            51 => self.layout_dd.is_dragging(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -218,43 +215,42 @@ impl GallerySlots {
             13 => &self.spinbox_demo,
             14 => &self.panel_demo,
             15 => &self.create_window_btn,
-            16 => &self.tile_windows_btn,
-            17 => &self.opacity_toggle,
-            18 => &self.label18,
-            19 => &self.transparency_slider,
-            20 => &self.transparency_label,
-            21 => &self.window_type_dd,
-            22 => &self.window_shape_dd,
-            23 => &self.enable_toggle,
-            24 => &self.label24,
-            25 => &self.width_spin,
-            26 => &self.height_spin,
-            27 => &self.surface_plate,
-            28 => &self.surface_info_label,
-            29 => &self.surface_desc_label,
-            30 => &self.range_slider_demo,
-            31 => &self.trackpad_demo,
-            32 => &self.portal_panel,
-            33 => &self.portal_label,
-            34 => &self.open_dialog_btn,
-            35 => &self.save_dialog_btn,
-            36 => &self.textbox_demo,
-            37 => &self.plate_demo,
-            38 => &self.backplate_toggle,
-            39 => &self.menubar_toggle,
-            40 => &self.statusbar_toggle,
-            41 => &self.border_section,
-            42 => &self.bevel_toggle,
-            43 => &self.border_width_spin,
-            44 => &self.bevel_depth_spin,
-            45 => &self.elements_section,
-            46 => &self.page_selector,
-            47 => &self.color_ramp_btn,
-            48 => &self.bevel_shape_btn,
-            49 => &self.bevel_ramp,
-            50 => &self.ramp_btn,
-            51 => &self.control_panel,
-            52 => &self.layout_dd,
+            16 => &self.opacity_toggle,
+            17 => &self.label18,
+            18 => &self.transparency_slider,
+            19 => &self.transparency_label,
+            20 => &self.window_type_dd,
+            21 => &self.window_shape_dd,
+            22 => &self.enable_toggle,
+            23 => &self.label24,
+            24 => &self.width_spin,
+            25 => &self.height_spin,
+            26 => &self.surface_plate,
+            27 => &self.surface_info_label,
+            28 => &self.surface_desc_label,
+            29 => &self.range_slider_demo,
+            30 => &self.trackpad_demo,
+            31 => &self.portal_panel,
+            32 => &self.portal_label,
+            33 => &self.open_dialog_btn,
+            34 => &self.save_dialog_btn,
+            35 => &self.textbox_demo,
+            36 => &self.plate_demo,
+            37 => &self.backplate_toggle,
+            38 => &self.menubar_toggle,
+            39 => &self.statusbar_toggle,
+            40 => &self.border_section,
+            41 => &self.bevel_toggle,
+            42 => &self.border_width_spin,
+            43 => &self.bevel_depth_spin,
+            44 => &self.elements_section,
+            45 => &self.page_selector,
+            46 => &self.color_ramp_btn,
+            47 => &self.bevel_shape_btn,
+            48 => &self.bevel_ramp,
+            49 => &self.ramp_btn,
+            50 => &self.control_panel,
+            51 => &self.layout_dd,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -277,43 +273,42 @@ impl GallerySlots {
             13 => &mut self.spinbox_demo,
             14 => &mut self.panel_demo,
             15 => &mut self.create_window_btn,
-            16 => &mut self.tile_windows_btn,
-            17 => &mut self.opacity_toggle,
-            18 => &mut self.label18,
-            19 => &mut self.transparency_slider,
-            20 => &mut self.transparency_label,
-            21 => &mut self.window_type_dd,
-            22 => &mut self.window_shape_dd,
-            23 => &mut self.enable_toggle,
-            24 => &mut self.label24,
-            25 => &mut self.width_spin,
-            26 => &mut self.height_spin,
-            27 => &mut self.surface_plate,
-            28 => &mut self.surface_info_label,
-            29 => &mut self.surface_desc_label,
-            30 => &mut self.range_slider_demo,
-            31 => &mut self.trackpad_demo,
-            32 => &mut self.portal_panel,
-            33 => &mut self.portal_label,
-            34 => &mut self.open_dialog_btn,
-            35 => &mut self.save_dialog_btn,
-            36 => &mut self.textbox_demo,
-            37 => &mut self.plate_demo,
-            38 => &mut self.backplate_toggle,
-            39 => &mut self.menubar_toggle,
-            40 => &mut self.statusbar_toggle,
-            41 => &mut self.border_section,
-            42 => &mut self.bevel_toggle,
-            43 => &mut self.border_width_spin,
-            44 => &mut self.bevel_depth_spin,
-            45 => &mut self.elements_section,
-            46 => &mut self.page_selector,
-            47 => &mut self.color_ramp_btn,
-            48 => &mut self.bevel_shape_btn,
-            49 => &mut self.bevel_ramp,
-            50 => &mut self.ramp_btn,
-            51 => &mut self.control_panel,
-            52 => &mut self.layout_dd,
+            16 => &mut self.opacity_toggle,
+            17 => &mut self.label18,
+            18 => &mut self.transparency_slider,
+            19 => &mut self.transparency_label,
+            20 => &mut self.window_type_dd,
+            21 => &mut self.window_shape_dd,
+            22 => &mut self.enable_toggle,
+            23 => &mut self.label24,
+            24 => &mut self.width_spin,
+            25 => &mut self.height_spin,
+            26 => &mut self.surface_plate,
+            27 => &mut self.surface_info_label,
+            28 => &mut self.surface_desc_label,
+            29 => &mut self.range_slider_demo,
+            30 => &mut self.trackpad_demo,
+            31 => &mut self.portal_panel,
+            32 => &mut self.portal_label,
+            33 => &mut self.open_dialog_btn,
+            34 => &mut self.save_dialog_btn,
+            35 => &mut self.textbox_demo,
+            36 => &mut self.plate_demo,
+            37 => &mut self.backplate_toggle,
+            38 => &mut self.menubar_toggle,
+            39 => &mut self.statusbar_toggle,
+            40 => &mut self.border_section,
+            41 => &mut self.bevel_toggle,
+            42 => &mut self.border_width_spin,
+            43 => &mut self.bevel_depth_spin,
+            44 => &mut self.elements_section,
+            45 => &mut self.page_selector,
+            46 => &mut self.color_ramp_btn,
+            47 => &mut self.bevel_shape_btn,
+            48 => &mut self.bevel_ramp,
+            49 => &mut self.ramp_btn,
+            50 => &mut self.control_panel,
+            51 => &mut self.layout_dd,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -524,31 +519,30 @@ impl Roster {
             12 => s.slider_demo.take_click(),
             13 => s.spinbox_demo.take_click(),
             15 => s.create_window_btn.take_click(),
-            16 => s.tile_windows_btn.take_click(),
-            17 => s.opacity_toggle.take_click(),
-            19 => s.transparency_slider.take_click(),
-            21 => s.window_type_dd.take_click(),
-            22 => s.window_shape_dd.take_click(),
-            23 => s.enable_toggle.take_click(),
-            25 => s.width_spin.take_click(),
-            26 => s.height_spin.take_click(),
-            30 => s.range_slider_demo.take_click(),
-            31 => s.trackpad_demo.take_click(),
-            34 => s.open_dialog_btn.take_click(),
-            35 => s.save_dialog_btn.take_click(),
-            36 => s.textbox_demo.take_click(),
-            37 => s.plate_demo.take_click(),
-            38 => s.backplate_toggle.take_click(),
-            39 => s.menubar_toggle.take_click(),
-            40 => s.statusbar_toggle.take_click(),
-            42 => s.bevel_toggle.take_click(),
-            43 => s.border_width_spin.take_click(),
-            44 => s.bevel_depth_spin.take_click(),
-            46 => s.page_selector.take_click(),
-            47 => s.color_ramp_btn.take_click(),
-            48 => s.bevel_shape_btn.take_click(),
-            50 => s.ramp_btn.take_click(),
-            52 => s.layout_dd.take_click(),
+            16 => s.opacity_toggle.take_click(),
+            18 => s.transparency_slider.take_click(),
+            20 => s.window_type_dd.take_click(),
+            21 => s.window_shape_dd.take_click(),
+            22 => s.enable_toggle.take_click(),
+            24 => s.width_spin.take_click(),
+            25 => s.height_spin.take_click(),
+            29 => s.range_slider_demo.take_click(),
+            30 => s.trackpad_demo.take_click(),
+            33 => s.open_dialog_btn.take_click(),
+            34 => s.save_dialog_btn.take_click(),
+            35 => s.textbox_demo.take_click(),
+            36 => s.plate_demo.take_click(),
+            37 => s.backplate_toggle.take_click(),
+            38 => s.menubar_toggle.take_click(),
+            39 => s.statusbar_toggle.take_click(),
+            41 => s.bevel_toggle.take_click(),
+            42 => s.border_width_spin.take_click(),
+            43 => s.bevel_depth_spin.take_click(),
+            45 => s.page_selector.take_click(),
+            46 => s.color_ramp_btn.take_click(),
+            47 => s.bevel_shape_btn.take_click(),
+            49 => s.ramp_btn.take_click(),
+            51 => s.layout_dd.take_click(),
             _ => panic!("take_click: unwired gallery slot {idx}"),
         }
     }
@@ -556,15 +550,15 @@ impl Roster {
     pub fn value(&self, idx: usize) -> i32 {
         let s = self.gallery();
         match idx {
-            19 => s.transparency_slider.value(),
-            21 => s.window_type_dd.value(),
-            22 => s.window_shape_dd.value(),
-            25 => s.width_spin.value(),
-            26 => s.height_spin.value(),
-            43 => s.border_width_spin.value(),
-            44 => s.bevel_depth_spin.value(),
-            46 => s.page_selector.value(),
-            52 => s.layout_dd.value(),
+            18 => s.transparency_slider.value(),
+            20 => s.window_type_dd.value(),
+            21 => s.window_shape_dd.value(),
+            24 => s.width_spin.value(),
+            25 => s.height_spin.value(),
+            42 => s.border_width_spin.value(),
+            43 => s.bevel_depth_spin.value(),
+            45 => s.page_selector.value(),
+            51 => s.layout_dd.value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -572,12 +566,12 @@ impl Roster {
     pub fn get_value_string(&self, idx: usize) -> Option<String> {
         let s = self.gallery();
         match idx {
-            17 => s.opacity_toggle.get_value_string(),
-            23 => s.enable_toggle.get_value_string(),
-            38 => s.backplate_toggle.get_value_string(),
-            39 => s.menubar_toggle.get_value_string(),
-            40 => s.statusbar_toggle.get_value_string(),
-            42 => s.bevel_toggle.get_value_string(),
+            16 => s.opacity_toggle.get_value_string(),
+            22 => s.enable_toggle.get_value_string(),
+            37 => s.backplate_toggle.get_value_string(),
+            38 => s.menubar_toggle.get_value_string(),
+            39 => s.statusbar_toggle.get_value_string(),
+            41 => s.bevel_toggle.get_value_string(),
             _ => panic!("get_value_string: unwired gallery slot {idx}"),
         }
     }
@@ -585,7 +579,7 @@ impl Roster {
     pub fn set_text(&mut self, idx: usize, text: &str) {
         let s = self.gallery_mut();
         match idx {
-            29 => s.surface_desc_label.set_text(text),
+            28 => s.surface_desc_label.set_text(text),
             _ => panic!("set_text: unwired gallery slot {idx}"),
         }
     }
@@ -762,13 +756,13 @@ fn push_bevel_slice_corners(
 }
 
 fn is_control_panel_child(i: usize) -> bool {
-    matches!(i, 15..=26 | 38..=45 | 48)
+    matches!(i, 15..=25 | 37..=44 | 47)
 }
 
 /// The panel's child slots in the legacy arrangement/aggregation order (the ControlPanel
 /// endgame: the panel no longer stores pointers to them — the app lays them out, emits
 /// them clamped to the panel viewport, and dispatches them as ordinary routed roots).
-const CP_CHILDREN: [usize; 19] = [15, 16, 21, 22, 17, 19, 20, 23, 25, 26, 38, 39, 40, 41, 42, 43, 44, 45, 48];
+const CP_CHILDREN: [usize; 18] = [15, 20, 21, 16, 18, 19, 22, 24, 25, 37, 38, 39, 40, 41, 42, 43, 44, 47];
 
 impl State {
     /// The dissolved panel's hit gate: pointer events reach the panel's children only
@@ -820,10 +814,10 @@ impl State {
             };
         }
         match index {
-            0..=2 | 46 => true,
-            3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => self.current_page == Page::Controls,
-            14..=29 | 38..=45 | 48 | 51 => self.current_page == Page::Windows,
-            32..=35 => self.current_page == Page::Xdg,
+            0..=2 | 45 => true,
+            3..=13 | 29 | 30 | 35 | 36 | 46 | 48 | 49 | 51 => self.current_page == Page::Controls,
+            14..=28 | 37..=44 | 47 | 50 => self.current_page == Page::Windows,
+            31..=34 => self.current_page == Page::Xdg,
             _ => false,
         }
     }
@@ -858,7 +852,7 @@ impl State {
                 }
                 let widget = self.roster.get_dyn_mut(i);
                 
-                if !self.is_child && i == 46 {
+                if !self.is_child && i == 45 {
                     continue;
                 }
 
@@ -871,7 +865,7 @@ impl State {
                 if visible {
                     let (x, y, w, h) = pos;
                     let mut final_h = h;
-                    if i != 0 && i != 1 && i != 2 && i != 51 {
+                    if i != 0 && i != 1 && i != 2 && i != 50 {
                         if y + h > limit_y {
                             final_h = (limit_y - y).max(0.0);
                         }
@@ -884,8 +878,8 @@ impl State {
         }
         
         if !self.is_child {
-            let (x, y, w, h) = self.positions[51];
-            self.roster.get_dyn_mut(51).set_rect(x, y, w, h);
+            let (x, y, w, h) = self.positions[50];
+            self.roster.get_dyn_mut(50).set_rect(x, y, w, h);
 
             let sb_rect = self.roster.get_dyn_mut(2).rect();
             let ddh = cce_ui::layout::dropdown_height();
@@ -894,7 +888,7 @@ impl State {
             let dw = 120.0;
             let dx = sb_rect.0 + sb_rect.2 - dw - pad_x;
             let dy = sb_rect.1 + pad_y;
-            self.roster.get_dyn_mut(46).set_rect(dx, dy, dw, ddh);
+            self.roster.get_dyn_mut(45).set_rect(dx, dy, dw, ddh);
 
             self.arrange_control_panel();
         }
@@ -913,9 +907,7 @@ impl State {
         // 12px reserved for the scrollbar track, like the legacy arrangement.
         let mut col = cce_ui::widget::ColumnLayout::new(x, y, w - 12.0, gap, padding);
 
-        let create_p: *mut (dyn WidgetHost + 'static) = &mut s.create_window_btn;
-        let tile_p: *mut (dyn WidgetHost + 'static) = &mut s.tile_windows_btn;
-        col.add_row(&[create_p, tile_p], 28.0, 12.0);
+        col.add_widget(&mut s.create_window_btn, 28.0);
         let width_p: *mut (dyn WidgetHost + 'static) = &mut s.width_spin;
         let height_p: *mut (dyn WidgetHost + 'static) = &mut s.height_spin;
         col.add_row(&[width_p, height_p], 42.0, 12.0);
@@ -1107,7 +1099,6 @@ impl cce_ui::engine::Application for State {
                 spinbox_demo: Spinbox::new(10, 1, 100, 5).with_label("Spinbox"),
                 panel_demo: Panel::new(0.0, 0.0, 400.0, 250.0),
                 create_window_btn: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Create Window"),
-                tile_windows_btn: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Tile Windows"),
                 opacity_toggle: Toggle::new().with_label("Opacity"),
                 label18: Label::new("").with_font_size(12.0),
                 transparency_slider: Slider::new(),
@@ -1241,10 +1232,10 @@ cascades in cce."
         };
 
         if !is_child {
-            // Link page selector (46) under StatusBar (2) — the old set_parent + add_child
+            // Link page selector (45) under StatusBar (2) — the old set_parent + add_child
             // pair as the one tree link it always was (6bd batch 4).
             let statusbar_ptr = state.roster.get_dyn_mut(2) as *mut (dyn WidgetHost + 'static);
-            let dropdown_ptr = state.roster.get_dyn_mut(46) as *mut (dyn WidgetHost + 'static);
+            let dropdown_ptr = state.roster.get_dyn_mut(45) as *mut (dyn WidgetHost + 'static);
             unsafe {
                 cce_ui::widget::focus::link_parent_child(
                     &mut *statusbar_ptr,
@@ -1353,10 +1344,10 @@ cascades in cce."
                 }
             } else {
                 match index {
-                    0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
-                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
-                    32..=35 => current_page == Page::Xdg,
+                    0..=2 | 45 => true,
+                    3..=13 | 29 | 30 | 35 | 36 | 46 | 48 | 49 | 51 => current_page == Page::Controls,
+                    14..=28 | 37..=44 | 47 | 50 => current_page == Page::Windows,
+                    31..=34 => current_page == Page::Xdg,
                     _ => false,
                 }
             }
@@ -1447,10 +1438,10 @@ cascades in cce."
             }
             if !self.is_child && i == 14 {
                 let r = cce_ui::color::root_plate_corner_radius();
-                let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
-                let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
-                let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.roster.value(19) as f32 / 100.0 } else { 1.0 };
+                let backplate_enabled = self.roster.get_value_string(37) == Some("true".to_string());
+                let border_bevel = self.roster.get_value_string(41) == Some("true".to_string());
+                let opacity_enabled = self.roster.get_value_string(16) == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.roster.value(18) as f32 / 100.0 } else { 1.0 };
                 let bg_color = if backplate_enabled {
                     let mut col = cce_ui::color::page_low_color();
                     col[3] = transparency_val;
@@ -1462,7 +1453,7 @@ cascades in cce."
                 let (wx, wy, ww, wh) = w.rect();
                 if backplate_enabled {
                     if border_bevel {
-                        let t = self.roster.value(43) as f32;
+                        let t = self.roster.value(42) as f32;
                         let r_inner = (r - t).max(0.0);
                         push_rounded(&mut pc, wx + t, wy + t, ww - 2.0 * t, wh - 2.0 * t, r_inner, bg_color, (true, true, true, true));
                     } else {
@@ -1470,7 +1461,7 @@ cascades in cce."
                     }
                 }
 
-                let menubar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
+                let menubar_enabled = self.roster.get_value_string(38) == Some("true".to_string());
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::root_plate_menubar_color();
                     menu_color[3] = transparency_val;
@@ -1481,7 +1472,7 @@ cascades in cce."
                     }
                 }
 
-                let statusbar_enabled = self.roster.get_value_string(40) == Some("true".to_string());
+                let statusbar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::root_plate_statusbar_color();
                     status_color[3] = transparency_val;
@@ -1589,9 +1580,9 @@ cascades in cce."
                 continue;
             }
             if !self.is_child && i == 14 {
-                let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
-                let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
-                let transparency_val = if opacity_enabled { self.roster.value(19) as f32 / 100.0 } else { 1.0 };
+                let backplate_enabled = self.roster.get_value_string(37) == Some("true".to_string());
+                let opacity_enabled = self.roster.get_value_string(16) == Some("true".to_string());
+                let transparency_val = if opacity_enabled { self.roster.value(18) as f32 / 100.0 } else { 1.0 };
                 let bg_color = if backplate_enabled {
                     let mut col = cce_ui::color::page_low_color();
                     col[3] = transparency_val;
@@ -1785,11 +1776,11 @@ cascades in cce."
             }
 
             if !self.is_child && i == 14 {
-                let border_enabled = self.roster.get_value_string(23) == Some("true".to_string());
+                let border_enabled = self.roster.get_value_string(22) == Some("true".to_string());
                 if border_enabled {
-                    let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
-                    let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
-                    let transparency_val = if opacity_enabled { self.roster.value(19) as f32 / 100.0 } else { 1.0 };
+                    let backplate_enabled = self.roster.get_value_string(37) == Some("true".to_string());
+                    let opacity_enabled = self.roster.get_value_string(16) == Some("true".to_string());
+                    let transparency_val = if opacity_enabled { self.roster.value(18) as f32 / 100.0 } else { 1.0 };
                     let bg_color = if backplate_enabled {
                         let mut col = cce_ui::color::page_low_color();
                         col[3] = transparency_val;
@@ -1800,8 +1791,8 @@ cascades in cce."
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
-                    let t = self.roster.value(43) as f32;
-                    let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
+                    let t = self.roster.value(42) as f32;
+                    let border_bevel = self.roster.get_value_string(41) == Some("true".to_string());
                     let r = cce_ui::color::root_plate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
                     
@@ -1818,7 +1809,7 @@ cascades in cce."
                                 let h_inner = interpolate_ramp_value(&self.bevel_ramp, u_next, &self.bevel_ramp_line_type);
                                 
                                 let d_h = h_inner - h_outer;
-                                let bevel_depth = self.roster.value(44) as f32 / 100.0;
+                                let bevel_depth = self.roster.value(43) as f32 / 100.0;
                                 let color_offset = d_h * bevel_depth * 2.667;
                                 
                                  let rad = cce_ui::layout::light_source_position();
@@ -1920,10 +1911,10 @@ cascades in cce."
                     }
                 } else {
                     match index {
-                        0..=2 | 46 => true,
-                        3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
-                        14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
-                        32..=35 => current_page == Page::Xdg,
+                        0..=2 | 45 => true,
+                        3..=13 | 29 | 30 | 35 | 36 | 46 | 48 | 49 | 51 => current_page == Page::Controls,
+                        14..=28 | 37..=44 | 47 | 50 => current_page == Page::Windows,
+                        31..=34 => current_page == Page::Xdg,
                         _ => false,
                     }
                 }
@@ -1966,10 +1957,10 @@ cascades in cce."
                 }
             } else {
                 match index {
-                    0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
-                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
-                    32..=35 => current_page == Page::Xdg,
+                    0..=2 | 45 => true,
+                    3..=13 | 29 | 30 | 35 | 36 | 46 | 48 | 49 | 51 => current_page == Page::Controls,
+                    14..=28 | 37..=44 | 47 | 50 => current_page == Page::Windows,
+                    31..=34 => current_page == Page::Xdg,
                     _ => false,
                 }
             }
@@ -2059,8 +2050,8 @@ cascades in cce."
                 } else {
                     let mut page_changed = false;
                     let mut selected = 0;
-                    if self.roster.take_click(46) {
-                        selected = self.roster.value(46);
+                    if self.roster.take_click(45) {
+                        selected = self.roster.value(45);
                         page_changed = true;
                     }
                     
@@ -2077,15 +2068,15 @@ cascades in cce."
                         }
                         self.apply_layout();
                         changed = true;
-                    } else if self.roster.take_click(52) {
-                        self.layout_idx = self.roster.value(52) as usize;
+                    } else if self.roster.take_click(51) {
+                        self.layout_idx = self.roster.value(51) as usize;
                         self.positions = demo_positions(self.width, self.height, cce_ui::widget::PageSelector::sidebar_w(self.roster.gallery().paginator.as_any().downcast_ref::<cce_ui::widget::Paginator>().expect("slot 1 must be the Paginator")), self.layout_idx, self.roster.gallery());
                         self.apply_layout();
                         changed = true;
                     } else if self.current_page == Page::Controls {
                         if self.roster.take_click(3) {
                             // Does nothing
-                        } else if self.roster.take_click(47) {
+                        } else if self.roster.take_click(46) {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -2098,7 +2089,7 @@ cascades in cce."
                                    .arg("--backplate");
                                 let _ = cmd.spawn();
                             }
-                        } else if self.roster.take_click(50) {
+                        } else if self.roster.take_click(49) {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -2112,7 +2103,7 @@ cascades in cce."
                                 let _ = cmd.spawn();
                             }
                         } else {
-                            for i in [9, 10, 12, 13, 30, 31, 36, 37] {
+                            for i in [9, 10, 12, 13, 29, 30, 35, 36] {
                                 if self.roster.take_click(i) {
                                     changed = true;
                                 }
@@ -2120,13 +2111,10 @@ cascades in cce."
                         }
                     } else if self.current_page == Page::Windows {
                         let mut create_window = false;
-                        let mut tile_windows = false;
                         
                         if self.roster.take_click(15) {
                             create_window = true;
-                        } else if self.roster.take_click(16) {
-                            tile_windows = true;
-                        } else if self.roster.take_click(48) {
+                        } else if self.roster.take_click(47) {
                             if let Ok(exe) = std::env::current_exe() {
                                 let mut cmd = std::process::Command::new(exe);
                                 cmd.arg("--child")
@@ -2141,14 +2129,14 @@ cascades in cce."
                             }
                         } else {
                             let mut dropdown_clicked = false;
-                            for i in [17, 19, 21, 22, 23, 25, 26, 38, 39, 40, 42, 43, 44] {
+                            for i in [16, 18, 20, 21, 22, 24, 25, 37, 38, 39, 41, 42, 43] {
                                 if self.roster.take_click(i) {
                                     changed = true;
-                                    if i == 21 {
+                                    if i == 20 {
                                         dropdown_clicked = true;
                                     }
-                                    if i == 44 {
-                                        let depth = self.roster.value(44) as f32 / 100.0;
+                                    if i == 43 {
+                                        let depth = self.roster.value(43) as f32 / 100.0;
                                         if let Ok(mut registry) = cce_ui::layout::get_style_registry().write() {
                                             registry.set_float("bevel_depth", depth);
                                         }
@@ -2156,7 +2144,7 @@ cascades in cce."
                                 }
                             }
                             if dropdown_clicked {
-                                let desc = match self.roster.value(21) {
+                                let desc = match self.roster.value(20) {
                                     0 => "A standard application\n\
 window (xdg_toplevel).\n\
 It supports tiling (cascade,\n\
@@ -2194,12 +2182,12 @@ Testing layout:\n\
 full screen background.",
                                     _ => "",
                                 };
-                                self.roster.set_text(29, desc);
+                                self.roster.set_text(28, desc);
                             }
                         }
                         
                         if create_window {
-                            let window_type = match self.roster.value(21) {
+                            let window_type = match self.roster.value(20) {
                                 0 => "Toplevel",
                                 1 => "Popup",
                                 2 => "LayerTop",
@@ -2207,17 +2195,17 @@ full screen background.",
                                 4 => "LayerBackground",
                                 _ => "Toplevel",
                             };
-                            let shape = match self.roster.value(22) {
+                            let shape = match self.roster.value(21) {
                                 0 => "rectangular",
                                 1 => "circular",
                                 _ => "rectangular",
                             };
-                            let opacity_enabled = self.roster.get_value_string(17) == Some("true".to_string());
-                            let transparency_pct = self.roster.value(19);
+                            let opacity_enabled = self.roster.get_value_string(16) == Some("true".to_string());
+                            let transparency_pct = self.roster.value(18);
                             let transparency_val = transparency_pct as f32 / 100.0;
-                            let border_enabled = self.roster.get_value_string(23) == Some("true".to_string());
-                            let custom_width = self.roster.value(25);
-                            let custom_height = self.roster.value(26);
+                            let border_enabled = self.roster.get_value_string(22) == Some("true".to_string());
+                            let custom_width = self.roster.value(24);
+                            let custom_height = self.roster.value(25);
      
                             self.update_status_text(&format!("Spawning simulated {} {} window...", shape, window_type));
                             if let Ok(exe) = std::env::current_exe() {
@@ -2227,9 +2215,9 @@ full screen background.",
                                    .arg(window_type)
                                    .arg("--shape")
                                    .arg(shape);
-                                let backplate_enabled = self.roster.get_value_string(38) == Some("true".to_string());
-                                let menubar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
-                                let statusbar_enabled = self.roster.get_value_string(40) == Some("true".to_string());
+                                let backplate_enabled = self.roster.get_value_string(37) == Some("true".to_string());
+                                let menubar_enabled = self.roster.get_value_string(38) == Some("true".to_string());
+                                let statusbar_enabled = self.roster.get_value_string(39) == Some("true".to_string());
                                 if opacity_enabled {
                                     cmd.arg("--opacity")
                                        .arg("--transparency")
@@ -2238,8 +2226,8 @@ full screen background.",
                                 if !border_enabled {
                                     cmd.arg("--no-border");
                                 } else {
-                                    let border_width = self.roster.value(43) as f32;
-                                    let border_bevel = self.roster.get_value_string(42) == Some("true".to_string());
+                                    let border_width = self.roster.value(42) as f32;
+                                    let border_bevel = self.roster.get_value_string(41) == Some("true".to_string());
                                     cmd.arg("--border-width")
                                        .arg(border_width.to_string());
                                     if border_bevel {
@@ -2262,16 +2250,13 @@ full screen background.",
                                  let _ = cce_ui::process::spawn_tracked(cmd);
                              }
                             changed = true;
-                        } else if tile_windows {
-                            self.update_status_text("Window Action: Tile active client windows");
-                            changed = true;
                         }
                     } else if self.current_page == Page::Xdg {
                         let mut open_file = false;
                         let mut save_file = false;
-                        if self.roster.take_click(34) {
+                        if self.roster.take_click(33) {
                             open_file = true;
-                        } else if self.roster.take_click(35) {
+                        } else if self.roster.take_click(34) {
                             save_file = true;
                         }
  
@@ -2318,10 +2303,10 @@ full screen background.",
                 }
             } else {
                 match index {
-                    0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
-                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
-                    32..=35 => current_page == Page::Xdg,
+                    0..=2 | 45 => true,
+                    3..=13 | 29 | 30 | 35 | 36 | 46 | 48 | 49 | 51 => current_page == Page::Controls,
+                    14..=28 | 37..=44 | 47 | 50 => current_page == Page::Windows,
+                    31..=34 => current_page == Page::Xdg,
                     _ => false,
                 }
             }
@@ -2330,8 +2315,8 @@ full screen background.",
         // Panel scroll first (legacy: the panel's scroll frame consumed the wheel before
         // its children saw it); a consumed wheel never reaches the panel's children.
         let mut cp_took_wheel = false;
-        if !self.is_child && is_visible(51) {
-            let root = self.roster.get_dyn(51).base().id();
+        if !self.is_child && is_visible(50) {
+            let root = self.roster.get_dyn(50).base().id();
             if self.ui_context.propagate_event(&ev, root) {
                 changed = true;
                 cp_took_wheel = true;
@@ -2339,7 +2324,7 @@ full screen background.",
         }
         let cp_wheel_ok = !self.is_child && self.cp_gate(lx, ly);
         for i in 0..self.roster.len() {
-            if i == 51 {
+            if i == 50 {
                 continue;
             }
             if !is_visible(i) {
@@ -2374,10 +2359,10 @@ full screen background.",
                 }
             } else {
                 match index {
-                    0..=2 | 46 => true,
-                    3..=13 | 30 | 31 | 36 | 37 | 47 | 49 | 50 | 52 => current_page == Page::Controls,
-                    14..=29 | 38..=45 | 48 | 51 => current_page == Page::Windows,
-                    32..=35 => current_page == Page::Xdg,
+                    0..=2 | 45 => true,
+                    3..=13 | 29 | 30 | 35 | 36 | 46 | 48 | 49 | 51 => current_page == Page::Controls,
+                    14..=28 | 37..=44 | 47 | 50 => current_page == Page::Windows,
+                    31..=34 => current_page == Page::Xdg,
                     _ => false,
                 }
             }
@@ -2480,7 +2465,7 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     let bh = cce_ui::layout::button_height();
     let ddh = cce_ui::layout::dropdown_height();
     
-    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 53];
+    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); 52];
     
     // Common layout elements
     vec[0] = (0.0, 0.0, sw, 40.0); // 0 MenuBar
@@ -2490,39 +2475,38 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
     // Page 1 (Windows)
     vec[14] = (base_x, 60.0, 400.0, 250.0); // 14 Panel (Window simulation area)
     vec[15] = (base_x + 420.0, 60.0, 140.0, bh); // 15 Button (Create Window)
-    vec[16] = (base_x + 420.0, 110.0, 140.0, bh); // 16 Button (Tile Windows)
-    vec[17] = (base_x + 420.0, 160.0, 140.0, tgh); // 17 Toggle (Opacity)
-    vec[18] = (-1000.0, -1000.0, 0.0, 0.0); // 18
-    vec[19] = (base_x + 420.0, 210.0, 140.0, slh); // 19 Slider
-    vec[20] = (base_x + 420.0, 250.0, 140.0, 20.0); // 20 Label
-    vec[21] = (base_x + 580.0, 60.0, 180.0, ddh); // 21 Dropdown (Window Type)
-    vec[22] = (base_x + 580.0, 115.0, 180.0, ddh); // 22 Dropdown (Window Shape)
-    vec[23] = (base_x + 580.0, 170.0, 120.0, tgh); // 23 Toggle (Enable)
-    vec[24] = (-1000.0, -1000.0, 0.0, 0.0); // 24
-    vec[25] = (base_x + 580.0, 210.0, 140.0, sph); // 25 Spinbox (Width)
-    vec[26] = (base_x + 580.0, 255.0, 140.0, sph); // 26 Spinbox (Height)
-    vec[27] = (base_x, 320.0, 190.0, 250.0); // 27 Plate
-    vec[28] = (base_x + 10.0, 330.0, 170.0, 20.0); // 28 Label
-    vec[29] = (base_x + 10.0, 360.0, 170.0, 180.0); // 29 Label
+    vec[16] = (base_x + 420.0, 160.0, 140.0, tgh); // 16 Toggle (Opacity)
+    vec[17] = (-1000.0, -1000.0, 0.0, 0.0); // 17
+    vec[18] = (base_x + 420.0, 210.0, 140.0, slh); // 18 Slider
+    vec[19] = (base_x + 420.0, 250.0, 140.0, 20.0); // 19 Label
+    vec[20] = (base_x + 580.0, 60.0, 180.0, ddh); // 20 Dropdown (Window Type)
+    vec[21] = (base_x + 580.0, 115.0, 180.0, ddh); // 21 Dropdown (Window Shape)
+    vec[22] = (base_x + 580.0, 170.0, 120.0, tgh); // 22 Toggle (Enable)
+    vec[23] = (-1000.0, -1000.0, 0.0, 0.0); // 23
+    vec[24] = (base_x + 580.0, 210.0, 140.0, sph); // 24 Spinbox (Width)
+    vec[25] = (base_x + 580.0, 255.0, 140.0, sph); // 25 Spinbox (Height)
+    vec[26] = (base_x, 320.0, 190.0, 250.0); // 26 Plate
+    vec[27] = (base_x + 10.0, 330.0, 170.0, 20.0); // 27 Label
+    vec[28] = (base_x + 10.0, 360.0, 170.0, 180.0); // 28 Label
     
     // Page 2 (XDG FileChooser)
-    vec[32] = (base_x, 60.0, 450.0, 200.0); // 32 Panel
-    vec[33] = (base_x + 20.0, 80.0, 410.0, 60.0); // 33 Label
-    vec[34] = (base_x + 20.0, 160.0, 180.0, bh); // 34 Button
-    vec[35] = (base_x + 220.0, 160.0, 180.0, bh); // 35 Button
+    vec[31] = (base_x, 60.0, 450.0, 200.0); // 31 Panel
+    vec[32] = (base_x + 20.0, 80.0, 410.0, 60.0); // 32 Label
+    vec[33] = (base_x + 20.0, 160.0, 180.0, bh); // 33 Button
+    vec[34] = (base_x + 220.0, 160.0, 180.0, bh); // 34 Button
     
     // Window Simulation options (visible when Page::Windows is active)
-    vec[38] = (base_x + 420.0, 300.0, 140.0, tgh); // 38 Toggle: Backplate
-    vec[39] = (base_x + 420.0, 340.0, 140.0, tgh); // 39 Toggle: MenuBar
-    vec[40] = (base_x + 420.0, 380.0, 140.0, tgh); // 40 Toggle: StatusBar
-    vec[41] = (base_x + 420.0, 420.0, 140.0, 20.0); // 41 SectionContainer: Border
-    vec[42] = (base_x + 420.0, 450.0, 140.0, tgh); // 42 Toggle: Bevel
-    vec[43] = (base_x + 420.0, 490.0, 140.0, sph); // 43 Spinbox: Border Width
-    vec[44] = (base_x + 420.0, 535.0, 140.0, sph); // 44 Spinbox: Bevel Depth
-    vec[45] = (base_x + 420.0, 270.0, 140.0, 20.0); // 45 SectionContainer: Window Elements
-    vec[46] = (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh); // 46 Dropdown: Page selector
-    vec[48] = (base_x + 420.0, 580.0, 140.0, bh); // 48 Button: Bevel Shape
-    vec[51] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 51 ControlPanel
+    vec[37] = (base_x + 420.0, 300.0, 140.0, tgh); // 37 Toggle: Backplate
+    vec[38] = (base_x + 420.0, 340.0, 140.0, tgh); // 38 Toggle: MenuBar
+    vec[39] = (base_x + 420.0, 380.0, 140.0, tgh); // 39 Toggle: StatusBar
+    vec[40] = (base_x + 420.0, 420.0, 140.0, 20.0); // 40 SectionContainer: Border
+    vec[41] = (base_x + 420.0, 450.0, 140.0, tgh); // 41 Toggle: Bevel
+    vec[42] = (base_x + 420.0, 490.0, 140.0, sph); // 42 Spinbox: Border Width
+    vec[43] = (base_x + 420.0, 535.0, 140.0, sph); // 43 Spinbox: Bevel Depth
+    vec[44] = (base_x + 420.0, 270.0, 140.0, 20.0); // 44 SectionContainer: Window Elements
+    vec[45] = (sw - 140.0, sh - 14.0 - ddh / 2.0, 120.0, ddh); // 45 Dropdown: Page selector
+    vec[47] = (base_x + 420.0, 580.0, 140.0, bh); // 47 Button: Bevel Shape
+    vec[50] = (sw - 270.0, 60.0, 250.0, sh - 100.0); // 50 ControlPanel
     
     // Dynamically position Page 0 (Controls) elements using the selected layout index
     let available_w = (sw - base_x - 290.0).max(300.0);
@@ -2614,18 +2598,18 @@ fn demo_positions(sw: f32, sh: f32, sidebar_w: f32, layout_idx: usize, slots: &G
         // Progress Bar
         (11, 415.0, cce_ui::layout::progressbar_height() + label_off(11), cce_ui::layout::progressbar_height()),
         // Inputs
-        (52, 200.0, ddh + label_off(52), ddh),
+        (51, 200.0, ddh + label_off(51), ddh),
         (9, 200.0, tgh + label_off(9), tgh),
         (10, 200.0, tgh + label_off(10), tgh),
         (12, 200.0, slh + label_off(12), slh),
         (13, 200.0, sph + label_off(13), sph),
-        (36, 200.0, ddh + label_off(36), ddh),
-        (30, 200.0, cce_ui::layout::rangeslider_height() + label_off(30), cce_ui::layout::rangeslider_height()),
-        (31, 200.0, 100.0 + label_off(31), 100.0),
-        (37, 200.0, 120.0 + label_off(37), 120.0),
-        (47, 200.0, bh + label_off(47), bh),
-        (50, 200.0, bh + label_off(50), bh),
-        (49, 200.0, 150.0 + label_off(49), 150.0),
+        (35, 200.0, ddh + label_off(35), ddh),
+        (29, 200.0, cce_ui::layout::rangeslider_height() + label_off(29), cce_ui::layout::rangeslider_height()),
+        (30, 200.0, 100.0 + label_off(30), 100.0),
+        (36, 200.0, 120.0 + label_off(36), 120.0),
+        (46, 200.0, bh + label_off(46), bh),
+        (49, 200.0, bh + label_off(49), bh),
+        (48, 200.0, 150.0 + label_off(48), 150.0),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -2825,15 +2809,15 @@ fn child_positions(sw: f32, sh: f32, _use_backplate: bool, use_menubar: bool, us
         (-1000.0, -1000.0, 0.0, 0.0), // 28
         (-1000.0, -1000.0, 0.0, 0.0), // 29
         (-1000.0, -1000.0, 0.0, 0.0), // 30
-        (-1000.0, -1000.0, 0.0, 0.0), // 31
         
         // Page 2
+        (-1000.0, -1000.0, 0.0, 0.0), // 31
         (-1000.0, -1000.0, 0.0, 0.0), // 32
         (-1000.0, -1000.0, 0.0, 0.0), // 33
         (-1000.0, -1000.0, 0.0, 0.0), // 34
-        (-1000.0, -1000.0, 0.0, 0.0), // 35
         
         // New widgets
+        (-1000.0, -1000.0, 0.0, 0.0), // 35
         (-1000.0, -1000.0, 0.0, 0.0), // 36
         (-1000.0, -1000.0, 0.0, 0.0), // 37
         (-1000.0, -1000.0, 0.0, 0.0), // 38
@@ -2849,7 +2833,6 @@ fn child_positions(sw: f32, sh: f32, _use_backplate: bool, use_menubar: bool, us
         (-1000.0, -1000.0, 0.0, 0.0), // 48
         (-1000.0, -1000.0, 0.0, 0.0), // 49
         (-1000.0, -1000.0, 0.0, 0.0), // 50
-        (-1000.0, -1000.0, 0.0, 0.0), // 51
     ];
 
     if use_menubar {

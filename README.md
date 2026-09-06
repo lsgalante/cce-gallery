@@ -37,9 +37,7 @@ of each surface kind can be observed. The control panel on the right chooses:
 `Create Window` re-executes this binary with `--child` and the matching flags
 (see below). A panel in the main window previews the border and bevel that
 the child will be drawn with, and a description plate explains what the
-selected surface type is and how it is expected to be laid out. `Tile Windows`
-currently only reports to the status bar; it does not send anything to the
-compositor.
+selected surface type is and how it is expected to be laid out.
 
 **XDG** — two buttons, `Open File Dialog` and `Save File Dialog`, that call the
 toolkit's `file_dialog` module (the XDG Desktop Portal file chooser) on a
@@ -107,7 +105,7 @@ for example).
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 53 named slots (`GallerySlots`) addressed by numeric index in the
+  roster of 52 named slots (`GallerySlots`) addressed by numeric index in the
   layout tables, visibility filters and dispatch loops; child windows use the
   five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
   layout tables.
