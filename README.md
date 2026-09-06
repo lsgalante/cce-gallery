@@ -36,7 +36,7 @@ on the right chooses:
   wlr-layer-shell layers, and a Status segment (the `cce-status-*` app_id
   convention the compositor docks into the bar)
 - size (width/height spinboxes), opacity on/off with a transparency slider
-- window elements: backplate, menu bar, status bar
+- window elements: root plate, menu bar, status bar
 - border: enabled/disabled, width, bevel on/off, bevel depth, and the bevel
   cross-section shape (`Bevel Shape...` opens the Ramp editor)
 
@@ -68,7 +68,7 @@ cce-gallery --child --type <Floating|Fullscreen|Utility|LayerTop|LayerOverlay|La
                    [--width N --height N]
                    [--opacity --transparency 0.0-1.0]
                    [--no-border | --border-width N [--border-bevel]]
-                   [--backplate] [--menubar] [--statusbar]
+                   [--root-plate] [--menubar] [--statusbar]
 ```
 
 The kind decides how the child asks to be mapped: Fullscreen sets the
@@ -88,7 +88,7 @@ preview lives in the main window's panel.
 
 `--type Ramp` and `--type ColorRamp` are editor windows rather than simulated
 clients: they host the toolkit's `Ramp` and `ColorRamp` widgets on a
-backplate.
+root plate.
 
 ## The bevel ramp file
 
@@ -134,7 +134,7 @@ for example).
   layout tables.
 - `src/gallery_widgets.rs` — gallery-local widgets: `ControlPanel` (scroll chrome
   for the Windows page's option column), and lookalikes of the retired toolkit
-  `Plate`, `SectionContainer` and `Backplate` kept as exhibits.
+  `Plate`, `SectionContainer` and `RootPlate` kept as exhibits.
 
 ## Building and installing
 

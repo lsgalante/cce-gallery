@@ -1,6 +1,6 @@
 //! Gallery-owned copies of containers the toolkit no longer ships: the ControlPanel
 //! (scroll chrome the app lays children into) and passive lookalikes of the old
-//! Plate, SectionContainer and Backplate, kept as exhibits that reproduce their colour
+//! Plate, SectionContainer and root plate container, kept as exhibits that reproduce their colour
 //! rules, corner rounding, borders, separators and labels. All four sit on the narrow
 //! widget traits wrapped in `Adapted<W>`.
 
@@ -255,23 +255,23 @@ impl cce_ui::widget::Paint for SectionContainer {
 }
 
 impl cce_ui::widget::Input for SectionContainer {
-    fn blocks_backplate_drag(&self) -> bool {
+    fn blocks_root_plate_drag(&self) -> bool {
         false
     }
 }
 
-/// Child-window background, a lookalike of the old cce-ui `Backplate`: page colour at
-/// the configured backplate opacity, backplate corner radius, immovable.
-pub struct Backplate;
+/// Child-window background, a lookalike of the old cce-ui root plate container: page colour at
+/// the configured root plate opacity, root plate corner radius, immovable.
+pub struct RootPlate;
 
-impl Backplate {
-    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Adapted<Backplate> {
+impl RootPlate {
+    pub fn new(x: f32, y: f32, w: f32, h: f32) -> Adapted<RootPlate> {
         let mut bp = Adapted::new(Self);
         bp.set_rect(x, y, w, h);
         bp
     }
 
-    fn backplate_color(&self) -> [f32; 4] {
+    fn root_plate_color(&self) -> [f32; 4] {
         let mut c = cce_ui::color::page_low_color();
         if c[3] > 0.001 {
             c[3] = cce_ui::color::root_plate_opacity();
@@ -280,11 +280,11 @@ impl Backplate {
     }
 }
 
-impl cce_ui::widget::Layout for Backplate {}
+impl cce_ui::widget::Layout for RootPlate {}
 
-impl cce_ui::widget::Paint for Backplate {
+impl cce_ui::widget::Paint for RootPlate {
     fn color(&self) -> [f32; 4] {
-        self.backplate_color()
+        self.root_plate_color()
     }
 
     fn corner_style(&self, _rect: Rect) -> Option<(f32, (bool, bool, bool, bool))> {
@@ -296,11 +296,11 @@ impl cce_ui::widget::Paint for Backplate {
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
         // Painted only while the radius is on.
         let radius = cce_ui::color::root_plate_corner_radius();
-        let c = self.backplate_color();
+        let c = self.root_plate_color();
         if radius > 0.1 && c[3].abs() > 0.001 {
             pc.rounded_rect(rect, radius, (true, true, true, true), c);
         }
     }
 }
 
-impl cce_ui::widget::Input for Backplate {}
+impl cce_ui::widget::Input for RootPlate {}

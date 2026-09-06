@@ -7,7 +7,7 @@ use cce_ui::widget::{
     VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout,
 };
 mod gallery_widgets;
-use gallery_widgets::{Backplate, ControlPanel, Plate, SectionContainer};
+use gallery_widgets::{RootPlate, ControlPanel, Plate, SectionContainer};
 use cce_ui::widget::Adapted;
 use cce_ui::widget::input::Slider2D;
 use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
@@ -280,7 +280,7 @@ impl Visibility {
 
 /// The Windows page's preview panel look, shared by its three paint passes.
 struct PreviewStyle {
-    backplate: bool,
+    root_plate: bool,
     transparency: f32,
     bg_color: [f32; 4],
 }
@@ -317,7 +317,7 @@ pub struct GallerySlots {
     pub save_dialog_btn: Adapted<Button>,
     pub textbox_demo: Adapted<TextBox>,
     pub plate_demo: Adapted<Plate>,
-    pub backplate_toggle: Adapted<Toggle>,
+    pub root_plate_toggle: Adapted<Toggle>,
     pub menubar_toggle: Adapted<Toggle>,
     pub statusbar_toggle: Adapted<Toggle>,
     pub border_section: Adapted<SectionContainer>,
@@ -385,7 +385,7 @@ impl GallerySlots {
             25 => self.save_dialog_btn.draggable(),
             26 => self.textbox_demo.draggable(),
             27 => self.plate_demo.draggable(),
-            28 => self.backplate_toggle.draggable(),
+            28 => self.root_plate_toggle.draggable(),
             29 => self.menubar_toggle.draggable(),
             30 => self.statusbar_toggle.draggable(),
             31 => self.border_section.draggable(),
@@ -450,7 +450,7 @@ impl GallerySlots {
             25 => self.save_dialog_btn.is_dragging(),
             26 => self.textbox_demo.is_dragging(),
             27 => self.plate_demo.is_dragging(),
-            28 => self.backplate_toggle.is_dragging(),
+            28 => self.root_plate_toggle.is_dragging(),
             29 => self.menubar_toggle.is_dragging(),
             30 => self.statusbar_toggle.is_dragging(),
             31 => self.border_section.is_dragging(),
@@ -515,7 +515,7 @@ impl GallerySlots {
             25 => &self.save_dialog_btn,
             26 => &self.textbox_demo,
             27 => &self.plate_demo,
-            28 => &self.backplate_toggle,
+            28 => &self.root_plate_toggle,
             29 => &self.menubar_toggle,
             30 => &self.statusbar_toggle,
             31 => &self.border_section,
@@ -580,7 +580,7 @@ impl GallerySlots {
             25 => &mut self.save_dialog_btn,
             26 => &mut self.textbox_demo,
             27 => &mut self.plate_demo,
-            28 => &mut self.backplate_toggle,
+            28 => &mut self.root_plate_toggle,
             29 => &mut self.menubar_toggle,
             30 => &mut self.statusbar_toggle,
             31 => &mut self.border_section,
@@ -617,9 +617,9 @@ impl GallerySlots {
 }
 
 /// Child-window slots: the background and three of the five slots vary by runtime flags
-/// (`--type`, `--backplate`), so those are typed enums rather than fields.
+/// (`--type`, `--root-plate`), so those are typed enums rather than fields.
 pub enum ChildBg {
-    Backplate(Adapted<Backplate>),
+    RootPlate(Adapted<RootPlate>),
     ContentBg(Adapted<ContentBg>),
 }
 
@@ -654,7 +654,7 @@ impl ChildSlots {
     pub fn draggable(&self, idx: usize) -> bool {
         match idx {
             0 => match &self.bg {
-                ChildBg::Backplate(w) => w.draggable(),
+                ChildBg::RootPlate(w) => w.draggable(),
                 ChildBg::ContentBg(w) => w.draggable(),
             },
             1 => match &self.main {
@@ -678,7 +678,7 @@ impl ChildSlots {
     pub fn is_dragging(&self, idx: usize) -> bool {
         match idx {
             0 => match &self.bg {
-                ChildBg::Backplate(w) => w.is_dragging(),
+                ChildBg::RootPlate(w) => w.is_dragging(),
                 ChildBg::ContentBg(w) => w.is_dragging(),
             },
             1 => match &self.main {
@@ -702,7 +702,7 @@ impl ChildSlots {
     pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
         match idx {
             0 => match &self.bg {
-                ChildBg::Backplate(w) => w,
+                ChildBg::RootPlate(w) => w,
                 ChildBg::ContentBg(w) => w,
             },
             1 => match &self.main {
@@ -726,7 +726,7 @@ impl ChildSlots {
     pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
         match idx {
             0 => match &mut self.bg {
-                ChildBg::Backplate(w) => w,
+                ChildBg::RootPlate(w) => w,
                 ChildBg::ContentBg(w) => w,
             },
             1 => match &mut self.main {
@@ -835,7 +835,7 @@ impl Roster {
             25 => s.save_dialog_btn.take_click(),
             26 => s.textbox_demo.take_click(),
             27 => s.plate_demo.take_click(),
-            28 => s.backplate_toggle.take_click(),
+            28 => s.root_plate_toggle.take_click(),
             29 => s.menubar_toggle.take_click(),
             30 => s.statusbar_toggle.take_click(),
             32 => s.bevel_toggle.take_click(),
@@ -886,7 +886,7 @@ impl Roster {
         match idx {
             10 => s.opacity_toggle.get_value_string(),
             14 => s.enable_toggle.get_value_string(),
-            28 => s.backplate_toggle.get_value_string(),
+            28 => s.root_plate_toggle.get_value_string(),
             29 => s.menubar_toggle.get_value_string(),
             30 => s.statusbar_toggle.get_value_string(),
             32 => s.bevel_toggle.get_value_string(),
@@ -919,7 +919,7 @@ struct State {
     is_child: bool,
     opacity: bool,
     transparency: f32,
-    use_backplate: bool,
+    use_root_plate: bool,
     use_menubar: bool,
     use_statusbar: bool,
     border_enabled: bool,
@@ -1226,16 +1226,16 @@ impl State {
     }
 
     fn preview_style(&self) -> PreviewStyle {
-        let backplate = self.toggled(28);
+        let root_plate = self.toggled(28);
         let transparency = if self.toggled(10) { self.roster.value(11) as f32 / 100.0 } else { 1.0 };
-        let bg_color = if backplate {
+        let bg_color = if root_plate {
             let mut col = cce_ui::color::page_low_color();
             col[3] = transparency;
             col
         } else {
             [0.12, 0.12, 0.15, transparency]
         };
-        PreviewStyle { backplate, transparency, bg_color }
+        PreviewStyle { root_plate, transparency, bg_color }
     }
 
     /// Register every roster widget in the ui_context (idempotent — `register` is
@@ -1321,7 +1321,7 @@ impl State {
         col.add_widget(&mut s.transparency_label, 12.0);
         col.add_widget(&mut s.transparency_slider, 20.0);
         col.add_widget(&mut s.elements_section, 20.0);
-        let bp_p: *mut (dyn WidgetHost + 'static) = &mut s.backplate_toggle;
+        let bp_p: *mut (dyn WidgetHost + 'static) = &mut s.root_plate_toggle;
         let mb_p: *mut (dyn WidgetHost + 'static) = &mut s.menubar_toggle;
         let sb_p: *mut (dyn WidgetHost + 'static) = &mut s.statusbar_toggle;
         col.add_row(&[bp_p, mb_p, sb_p], 28.0, 10.0);
@@ -1361,7 +1361,7 @@ impl cce_ui::engine::Application for State {
         let number = |name: &str| value(name).and_then(|s| s.parse::<f32>().ok());
 
         let is_child = flag("--child");
-        let use_backplate = if is_child { flag("--backplate") } else { !flag("--no-backplate") };
+        let use_root_plate = if is_child { flag("--root-plate") } else { !flag("--no-root-plate") };
         let use_menubar = flag("--menubar");
         let use_statusbar = flag("--statusbar");
         let child_kind = if is_child {
@@ -1385,8 +1385,8 @@ impl cce_ui::engine::Application for State {
         let status_text = "Ready.".to_string();
 
         let roster = if let Some(kind) = child_kind {
-            let bg = if use_backplate {
-                ChildBg::Backplate(Backplate::new(0.0, 0.0, c_w, c_h))
+            let bg = if use_root_plate {
+                ChildBg::RootPlate(RootPlate::new(0.0, 0.0, c_w, c_h))
             } else {
                 ChildBg::ContentBg(ContentBg::new())
             };
@@ -1471,8 +1471,8 @@ impl cce_ui::engine::Application for State {
                 save_dialog_btn: Button::new(0.0, 0.0, 180.0, 40.0).with_label("Save File"),
                 textbox_demo: TextBox::new("Interactive TextBox".to_string()),
                 plate_demo: Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate"),
-                backplate_toggle: {
-                    let mut t = Toggle::new().with_label("Backplate");
+                root_plate_toggle: {
+                    let mut t = Toggle::new().with_label("Root plate");
                     t.set_toggled(true);
                     t
                 },
@@ -1546,7 +1546,7 @@ impl cce_ui::engine::Application for State {
             is_child,
             opacity,
             transparency,
-            use_backplate,
+            use_root_plate,
             use_menubar,
             use_statusbar,
             border_enabled,
@@ -1708,7 +1708,7 @@ impl cce_ui::engine::Application for State {
         let mut pc = cce_ui::scene::paint::PaintCtx::new();
 
         // ── Rounded geometry ──
-        if !self.is_child && self.use_backplate {
+        if !self.is_child && self.use_root_plate {
             let r = cce_ui::color::root_plate_corner_radius();
             let bg_color = cce_ui::color::page_low_color();
             pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: sw, height: sh }, r, (true, true, true, true), bg_color);
@@ -1733,11 +1733,11 @@ impl cce_ui::engine::Application for State {
             }
             if !self.is_child && i == 8 {
                 let r = cce_ui::color::root_plate_corner_radius();
-                let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
+                let PreviewStyle { root_plate: root_plate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
                 let border_bevel = self.toggled(32);
 
                 let (wx, wy, ww, wh) = w.rect();
-                if backplate_enabled {
+                if root_plate_enabled {
                     if border_bevel {
                         let t = self.roster.value(33) as f32;
                         let r_inner = (r - t).max(0.0);
@@ -1751,7 +1751,7 @@ impl cce_ui::engine::Application for State {
                 if menubar_enabled {
                     let mut menu_color = cce_ui::color::root_plate_menubar_color();
                     menu_color[3] = transparency_val;
-                    if backplate_enabled {
+                    if root_plate_enabled {
                         push_rounded(&mut pc, wx, wy, ww, 30.0, r, menu_color, (true, true, false, false));
                     } else {
                         push_rounded(&mut pc, wx, wy, ww, 30.0, 0.0, menu_color, (false, false, false, false));
@@ -1762,7 +1762,7 @@ impl cce_ui::engine::Application for State {
                 if statusbar_enabled {
                     let mut status_color = cce_ui::color::root_plate_statusbar_color();
                     status_color[3] = transparency_val;
-                    if backplate_enabled {
+                    if root_plate_enabled {
                         push_rounded(&mut pc, wx, wy + wh - 24.0, ww, 24.0, r, status_color, (false, false, true, true));
                     } else {
                         push_rounded(&mut pc, wx, wy + wh - 24.0, ww, 24.0, 0.0, status_color, (false, false, false, false));
@@ -1866,7 +1866,7 @@ impl cce_ui::engine::Application for State {
             if !self.is_child && i == 8 {
                 let style = self.preview_style();
                 let (wx, wy, ww, wh) = w.rect();
-                if !style.backplate {
+                if !style.root_plate {
                     pc.quad(Rect { x: wx, y: wy, width: ww, height: wh }, style.bg_color);
                 }
             } else {
@@ -2035,7 +2035,7 @@ impl cce_ui::engine::Application for State {
             if !self.is_child && i == 8 {
                 let border_enabled = self.toggled(14);
                 if border_enabled {
-                    let PreviewStyle { backplate: backplate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
+                    let PreviewStyle { root_plate: root_plate_enabled, transparency: transparency_val, bg_color } = self.preview_style();
 
                     let mut border_color = cce_ui::color::plate_border_color().unwrap_or([0.3, 0.3, 0.4, 1.0]);
                     border_color[3] = transparency_val;
@@ -2044,7 +2044,7 @@ impl cce_ui::engine::Application for State {
                     let r = cce_ui::color::root_plate_corner_radius();
                     let (wx, wy, ww, wh) = w.rect();
 
-                    if backplate_enabled {
+                    if root_plate_enabled {
                         let radii = CornerRadii::new(r, r, r, r);
                         if border_bevel {
                             let slices = (t * 2.0).max(10.0) as i32;
@@ -2110,8 +2110,8 @@ impl cce_ui::engine::Application for State {
     }
 
     fn clear_color(&self) -> [f32; 4] {
-        let clear_alpha = if self.opacity || self.use_backplate {
-            if self.use_backplate {
+        let clear_alpha = if self.opacity || self.use_root_plate {
+            if self.use_root_plate {
                 0.0
             } else {
                 self.transparency
@@ -2322,7 +2322,7 @@ impl cce_ui::engine::Application for State {
                                         cmd.arg("--border-bevel");
                                     }
                                 }
-                                for (flag, on) in [("--backplate", self.toggled(28)), ("--menubar", self.toggled(29)), ("--statusbar", self.toggled(30))] {
+                                for (flag, on) in [("--root-plate", self.toggled(28)), ("--menubar", self.toggled(29)), ("--statusbar", self.toggled(30))] {
                                     if on {
                                         cmd.arg(flag);
                                     }
@@ -2475,7 +2475,7 @@ fn child_command() -> Option<std::process::Command> {
 /// the gallery, unlike the simulated windows Create Window spawns.
 fn spawn_editor(kind: &str) {
     if let Some(mut cmd) = child_command() {
-        cmd.args(["--type", kind, "--width", "450", "--height", "350", "--backplate"]);
+        cmd.args(["--type", kind, "--width", "450", "--height", "350", "--root-plate"]);
         let _ = cmd.spawn();
     }
 }
@@ -2537,7 +2537,7 @@ fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
     vec[25] = (base_x + 220.0, 160.0, 180.0, bh); // 25 Button
 
     // Window Simulation options (visible when Page::Windows is active)
-    vec[28] = (base_x + 420.0, 300.0, 140.0, tgh); // 28 Toggle: Backplate
+    vec[28] = (base_x + 420.0, 300.0, 140.0, tgh); // 28 Toggle: root plate container
     vec[29] = (base_x + 420.0, 340.0, 140.0, tgh); // 29 Toggle: MenuBar
     vec[30] = (base_x + 420.0, 380.0, 140.0, tgh); // 30 Toggle: StatusBar
     vec[31] = (base_x + 420.0, 420.0, 140.0, 20.0); // 31 SectionContainer: Border
