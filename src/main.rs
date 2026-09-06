@@ -197,13 +197,12 @@ as maximized. A mode_rule in\n\
 config.kdl can force a mode.",
             ChildKind::Fullscreen => "An xdg_toplevel that sets\n\
 fullscreen before its first\n\
-commit. cce acts only on the\n\
-later request_fullscreen\n\
-signal, so today it maps\n\
-Floating; the fullscreen\n\
-action still toggles it, and\n\
-Fullscreen mode then covers\n\
-the output.",
+commit. cce maps it straight\n\
+into Fullscreen mode, covering\n\
+the output with no border;\n\
+the fullscreen action toggles\n\
+it back to the size it mapped\n\
+at, and in again.",
             ChildKind::Utility => "A toplevel declaring\n\
 set_utility on the cce\n\
 window-management protocol:\n\

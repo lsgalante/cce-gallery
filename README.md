@@ -47,11 +47,10 @@ the selected kind. Tiled is not on the list because a client cannot ask for
 it: the compositor's toggle action tiles a floating window. A `mode_rule` in
 `config.kdl` can force a mode, or circular rendering, for an app_id.
 
-Two kinds show a gap in the current compositor rather than a feature: a
-Fullscreen child maps Floating, because cce acts only on the
-`request_fullscreen` signal and not on a fullscreen state set before the
-first commit, and a Background-layer child is never visible, because cce
-draws its desktop grid natively above that layer.
+One kind shows a gap in the current compositor rather than a feature: a
+Background-layer child is never visible, because cce draws its desktop grid
+natively above that layer. (A Fullscreen child used to map Floating too, until
+cce-compositor learned to honour client fullscreen requests in-process.)
 
 **XDG** — two buttons, `Open File` and `Save File`, that call the toolkit's
 `file_dialog` module (the XDG Desktop Portal file chooser, via `rfd`) on a
