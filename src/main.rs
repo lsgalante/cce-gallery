@@ -1664,25 +1664,30 @@ impl cce_ui::engine::Application for State {
         let vis = self.visibility();
         let is_visible = move |index: usize| vis.is_visible(index);
         let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: lx, y: ly, local_x: lx, local_y: ly };
-        // The exhibit area's scroll frame gets the wheel first; a consumed wheel never
-        // reaches the exhibits.
-        let exhibits_took_wheel = !self.is_child
-            && self.exhibit_scroll.mouse_wheel(delta, lx, ly, &mut self.ui_context);
-        if exhibits_took_wheel {
-            changed = true;
-        }
+        // The control under the pointer gets the wheel first (wheel events are
+        // hit-gated in the toolkit, so only it can take one): a slider, spinbox
+        // or scrolling list adjusts itself and the page stays put. Only an
+        // unclaimed wheel scrolls the exhibit area.
         let in_exhibits = !self.is_child && self.in_exhibit_viewport(lx, ly);
+        let mut widget_took_wheel = false;
         for i in 0..self.roster.len() {
             if !is_visible(i) {
                 continue;
             }
-            if !self.is_child && is_exhibit(i) && (exhibits_took_wheel || !in_exhibits) {
+            if !self.is_child && is_exhibit(i) && !in_exhibits {
                 continue;
             }
             let root = self.roster.get_dyn(i).base().id();
             if self.ui_context.propagate_event(&ev, root) {
+                widget_took_wheel = true;
                 changed = true;
             }
+        }
+        if !widget_took_wheel
+            && !self.is_child
+            && self.exhibit_scroll.mouse_wheel(delta, lx, ly, &mut self.ui_context)
+        {
+            changed = true;
         }
         if changed {
             *needs_rebuild = true;
