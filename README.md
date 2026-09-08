@@ -48,8 +48,11 @@ their default spacing (`layout::CONTROL_GAP`, one control height, the one gap
 every strategy and row builder uses in both axes), so what you see is what a
 container using that strategy does: a strategy places controls' CONTENT boxes,
 a detached label hangs in the gap above its control, mixed labeled and
-unlabeled controls line up by content, and every detached label sits at the
-same `DETACHED_LABEL_INSET`. The exhibit
+unlabeled controls line up by content (a strategy reserves the label row for
+every child of a labeled container), every detached label sits at the same
+`DETACHED_LABEL_INSET`, and every well, trough and raised plateau is carved
+inside its widget's rect (`layout::carve_inside`) so a widget's footprint is
+its rect. The exhibit
 area below the dropdown scrolls (wheel, or the scrollbar at its right edge)
 when a layout runs past the window. `Color Ramp...` and `Ramp...` open the
 ColorRamp and Ramp editors in their own child windows.
