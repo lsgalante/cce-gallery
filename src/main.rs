@@ -737,7 +737,6 @@ fn variant_exhibits() -> Vec<Exhibit> {
     let ddh = cce_ui::layout::dropdown_height();
     let fsh = cce_ui::layout::font_selector_height();
     let csh = cce_ui::layout::color_selector_height();
-    let rsh = cce_ui::layout::rangeslider_height();
     let pbh = cce_ui::layout::progressbar_height();
     // A StatusDot is 12px square; its exhibit is as wide as its label.
     const DOT_W: f32 = 150.0;
@@ -755,9 +754,7 @@ fn variant_exhibits() -> Vec<Exhibit> {
         // Toggle: the slide style (config `style.control.toggle.style`), and flat.
         Exhibit::new(Toggle::new().with_label("Toggle (slide)").with_slide(true), W, tgh),
         Exhibit::new(Toggle::new().with_label("Toggle (flat)").with_raised(false), W, tgh),
-        // Slider: the band style (config `style.control.slider.style`), flat, with a readout.
-        Exhibit::new(Slider::new().with_label("Slider (band)").with_band(true), W, slh),
-        Exhibit::new(Slider::new().with_label("Slider (flat)").with_recessed(false), W, slh),
+        // Slider: with a readout.
         Exhibit::new(Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
         // TextBox: multiline, chromeless, password.
         Exhibit::sized(
@@ -796,7 +793,6 @@ fn variant_exhibits() -> Vec<Exhibit> {
         Exhibit::new(KeybindRecorder::new("ctrl+1".to_string()).with_recessed(false).with_label("KeybindRecorder (flat)"), W, tbh),
         Exhibit::new(ColorSelector::new([64, 128, 255]).with_recessed(false).with_label("ColorSelector (flat)"), W, csh),
         Exhibit::new(ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
-        Exhibit::new(RangeSlider::new().with_recessed(false).with_label("RangeSlider (flat)"), W, rsh),
         Exhibit::new(ProgressBar::new(0.43).with_recessed(false).with_label("ProgressBar (flat)"), W, pbh),
         Exhibit::new(UsageBar::new(0.62).with_recessed(false).with_label("UsageBar (flat)"), W, pbh),
         Exhibit::sized(Trackpad::new().with_recessed(false).with_label("Trackpad (flat)"), W, TABS_H),
