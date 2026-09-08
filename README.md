@@ -24,7 +24,8 @@ TreeList, Plate, BevelPreview, RampPreview, Ramp. The MenuBar and StatusBar
 frame every page. The `Layout` dropdown lays the exhibits out with the
 toolkit's own `ContainerLayout` strategies — Vertical, Columns, Grid, Adaptive
 Grid, Mosaic, Reverse Mosaic, Overlay — so what you see is what a container
-using that strategy does. `Color Ramp...` and `Ramp...` open the ColorRamp and
+using that strategy does. The exhibit area below the dropdown scrolls (wheel,
+or the scrollbar at its right edge) when a layout runs past the window. `Color Ramp...` and `Ramp...` open the ColorRamp and
 Ramp editors in their own child windows.
 
 **Windows** — spawns child windows of each kind a toolkit client can be under

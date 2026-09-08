@@ -4,7 +4,7 @@ use cce_ui::widget::{
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta,
     ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus,
     InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter,
-    VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout,
+    VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout, ScrollBox,
 };
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, ControlPanel, Plate, SectionContainer};
@@ -932,6 +932,9 @@ struct State {
 
     sender: calloop::channel::Sender<String>,
     layout_idx: usize,
+    /// The Controls page's scroll frame: the exhibits below the Layout dropdown scroll
+    /// inside it, the way the Windows page's panel children scroll inside the panel.
+    exhibit_scroll: ScrollBox,
 }
 
 fn save_bevel_ramp(keys: &[RampKey], line_type: &str) {
@@ -1066,6 +1069,12 @@ fn push_bevel_slice_corners(
             );
         }
     }
+}
+
+/// The Controls page's exhibits: every slot `layout_exhibits` lays out under the
+/// Layout dropdown (42), which stays put.
+fn is_exhibit(i: usize) -> bool {
+    matches!(i, 2..=7 | 20 | 21 | 26 | 27 | 37 | 39 | 40 | 43..=58)
 }
 
 fn is_control_panel_child(i: usize) -> bool {
@@ -1206,13 +1215,27 @@ impl State {
 
     /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
     /// (`LAYOUTS`), then clip whatever runs past the status bar.
-    fn layout_exhibits(&mut self) {
-        // Below the Layout dropdown, which stays put so every strategy leaves it usable.
+    /// The exhibits' viewport: below the Layout dropdown, above the status bar.
+    fn exhibit_viewport(&self) -> (f32, f32, f32, f32) {
         let (dx, dy, _, dh) = self.roster.get_dyn(42).rect();
         let (x, y) = (dx, dy + dh + 24.0);
         let w = (self.width - 2.0 * x).max(300.0);
-        let limit_y = self.height - 24.0;
-        let h = (limit_y - y).max(100.0);
+        let h = ((self.height - 24.0) - y).max(100.0);
+        (x, y, w, h)
+    }
+
+    fn in_exhibit_viewport(&self, px: f32, py: f32) -> bool {
+        let (x, y, w, h) = self.exhibit_viewport();
+        px >= x && px <= x + w && py >= y && py <= y + h
+    }
+
+    /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
+    /// (`LAYOUTS`), then shift them by the scroll frame's offset; painting clips them to
+    /// the viewport. Runs from apply_layout and from display_list, which is what
+    /// re-arranges after a scroll.
+    fn layout_exhibits(&mut self) {
+        let (x, y, w, h) = self.exhibit_viewport();
+        self.exhibit_scroll.set_rect(x, y, w, h);
         let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
         for (idx, cw, ch) in self.exhibit_sizes() {
             if self.roster.is_dragging(idx) {
@@ -1223,7 +1246,9 @@ impl State {
             children.push(widget as *mut (dyn WidgetHost + 'static));
         }
         let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
-        strategy.layout(x, y, w, h, &children, &mut self.ui_context);
+        let content_h = strategy.layout(x, y, w, h, &children, &mut self.ui_context);
+        self.exhibit_scroll.update_bounds(content_h, y, h);
+        let scroll_y = self.exhibit_scroll.scroll_y;
         for &child in &children {
             let widget = unsafe { &mut *child };
             // The adapter inflates SOME widgets' rects by their detached label on every
@@ -1239,10 +1264,7 @@ impl State {
             if widget.preferred_height().is_none() {
                 content -= l;
             }
-            if cy + content + l > limit_y {
-                content = (limit_y - cy - l).max(0.0);
-            }
-            widget.set_rect(cx, cy, cw, content);
+            widget.set_rect(cx, cy - scroll_y, cw, content);
         }
     }
 
@@ -1578,6 +1600,12 @@ impl cce_ui::engine::Application for State {
             last_ramp_mod: None,
             sender,
             layout_idx: DEFAULT_LAYOUT,
+            exhibit_scroll: {
+                let mut sb = ScrollBox::new();
+                sb.show_border = false;
+                sb.show_background = false;
+                sb
+            },
         };
 
         if !is_child {
@@ -1677,6 +1705,9 @@ impl cce_ui::engine::Application for State {
         if hover_animation::tick(dt) {
             changed = true;
         }
+        if !self.is_child && self.exhibit_scroll.tick(dt, &mut self.ui_context) {
+            changed = true;
+        }
         let vis = self.visibility();
         let is_visible = move |index: usize| vis.is_visible(index);
         for i in 0..self.roster.len() {
@@ -1710,6 +1741,9 @@ impl cce_ui::engine::Application for State {
         // so a wheel scroll moves the content on the frame it repaints. Idempotent and
         // cheap (~20 set_rects).
         if !self.is_child {
+            if self.current_page == Page::Controls {
+                self.layout_exhibits();
+            }
             self.arrange_control_panel();
         }
         if (self.width - size.width as f32).abs() > 0.001 || (self.height - size.height as f32).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
@@ -1799,8 +1833,15 @@ impl cce_ui::engine::Application for State {
                 btn_color[3] = transparency_val;
                 push_rounded(&mut pc, btn_x, btn_y, btn_w, btn_h, 4.0, btn_color, (true, true, true, true));
             } else {
+                let clip = if !self.is_child && is_exhibit(i) { Some(self.exhibit_viewport()) } else { None };
+                if let Some((vx, vy, vw, vh)) = clip {
+                    pc.push_clip(Rect { x: vx, y: vy, width: vw, height: vh });
+                }
                 for (qx, qy, qw, qh, qr, qc, qcorners) in w.all_rounded_quads(&self.ui_context) {
                     push_rounded(&mut pc, qx, qy, qw, qh, qr, qc, qcorners);
+                }
+                if clip.is_some() {
+                    pc.pop_clip();
                 }
             }
         }
@@ -1891,6 +1932,10 @@ impl cce_ui::engine::Application for State {
                     pc.quad(Rect { x: wx, y: wy, width: ww, height: wh }, style.bg_color);
                 }
             } else {
+                let clip = if !self.is_child && is_exhibit(i) { Some(self.exhibit_viewport()) } else { None };
+                if let Some((vx, vy, vw, vh)) = clip {
+                    pc.push_clip(Rect { x: vx, y: vy, width: vw, height: vh });
+                }
                 for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
                     pc.quad(Rect { x: qx, y: qy, width: qw, height: qh }, qc);
                 }
@@ -1899,6 +1944,15 @@ impl cce_ui::engine::Application for State {
                 // dot, a slider's knob, a button's border) would lose them, so
                 // replay every other own prim; text stays with the text pass.
                 replay_non_quad_prims(w, &self.ui_context, &mut pc);
+                if clip.is_some() {
+                    pc.pop_clip();
+                }
+            }
+        }
+        // The exhibit area's scrollbar, over the exhibits.
+        if !self.is_child && self.current_page == Page::Controls {
+            for (sx, sy, sw, sh, sc) in self.exhibit_scroll.extra_quads() {
+                pc.quad(Rect { x: sx, y: sy, width: sw, height: sh }, sc);
             }
         }
 
@@ -2000,6 +2054,9 @@ impl cce_ui::engine::Application for State {
             let cp_clip = if is_control_panel_child(i) {
                 let (px_, py_, pw_, ph_) = self.roster.gallery().control_panel.rect();
                 Some([px_, py_, px_ + pw_, py_ + ph_])
+            } else if !self.is_child && is_exhibit(i) {
+                let (vx, vy, vw, vh) = self.exhibit_viewport();
+                Some([vx, vy, vx + vw, vy + vh])
             } else {
                 None
             };
@@ -2169,6 +2226,12 @@ impl cce_ui::engine::Application for State {
         let (lx, ly) = (pos.x as f32, pos.y as f32);
 
         let mut changed = false;
+        if !self.is_child
+            && self.current_page == Page::Controls
+            && self.exhibit_scroll.cursor_moved(lx, ly, &mut self.ui_context)
+        {
+            changed = true;
+        }
         // The router owns the drag lifecycle — one
         // PointerMove per visible root forwards DragUpdate to a live drag target and
         // runs hover bookkeeping otherwise.
@@ -2203,6 +2266,13 @@ impl cce_ui::engine::Application for State {
 
         if state == ElementState::Pressed {
             let mut clicked_idx = None;
+            // The exhibit area's scrollbar takes a press on its track before any exhibit.
+            let exhibit_bar = !self.is_child
+                && self.current_page == Page::Controls
+                && self.exhibit_scroll.mouse_input(button, state, lx, ly, &mut self.ui_context);
+            if exhibit_bar {
+                changed = true;
+            }
             // Panel children first: they sit inside the panel's rect, so the plain
             // reverse scan below (where the panel's higher index wins) must only see
             // the panel when no child claims the point.
@@ -2214,12 +2284,16 @@ impl cce_ui::engine::Application for State {
                     }
                 }
             }
-            if clicked_idx.is_none() {
+            if clicked_idx.is_none() && !exhibit_bar {
                 for i in (0..self.roster.len()).rev() {
                     if !is_visible(i) {
                         continue;
                     }
                     if is_control_panel_child(i) {
+                        continue;
+                    }
+                    // An exhibit scrolled out of the viewport is not there to click.
+                    if !self.is_child && is_exhibit(i) && !self.in_exhibit_viewport(lx, ly) {
                         continue;
                     }
                     if self.roster.get_dyn_mut(i).hit_test(lx, ly, &self.ui_context) {
@@ -2262,6 +2336,9 @@ impl cce_ui::engine::Application for State {
                 changed = true;
             }
             let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
+            if !self.is_child && self.current_page == Page::Controls {
+                self.exhibit_scroll.mouse_input(button, state, lx, ly, &mut self.ui_context);
+            }
             let cp_release_ok = !self.is_child && self.cp_gate(lx, ly);
             for i in 0..self.roster.len() {
                 if !is_visible(i) {
@@ -2404,6 +2481,14 @@ impl cce_ui::engine::Application for State {
             }
         }
         let cp_wheel_ok = !self.is_child && self.cp_gate(lx, ly);
+        // The exhibit area's scroll frame likewise, on the Controls page.
+        let exhibits_took_wheel = !self.is_child
+            && self.current_page == Page::Controls
+            && self.exhibit_scroll.mouse_wheel(delta, lx, ly, &mut self.ui_context);
+        if exhibits_took_wheel {
+            changed = true;
+        }
+        let in_exhibits = !self.is_child && self.in_exhibit_viewport(lx, ly);
         for i in 0..self.roster.len() {
             if i == 41 {
                 continue;
@@ -2412,6 +2497,9 @@ impl cce_ui::engine::Application for State {
                 continue;
             }
             if is_control_panel_child(i) && (cp_took_wheel || !cp_wheel_ok) {
+                continue;
+            }
+            if !self.is_child && is_exhibit(i) && (exhibits_took_wheel || !in_exhibits) {
                 continue;
             }
             let root = self.roster.get_dyn(i).base().id();
