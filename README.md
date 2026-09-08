@@ -2,10 +2,10 @@
 
 A widget gallery and compositor-behaviour test bench for the `cce` desktop
 environment. It is a single `cce-ui` client (a real Wayland surface, drawn as
-GPU primitives) that shows the toolkit's widgets on one page, spawns simulated
-client windows of different shell types on another, and exercises the XDG
-file-chooser portal on a third. It ships a `.desktop` entry under
-Utility/Development, so it appears in the launcher.
+GPU primitives) that shows the toolkit's widgets, in every style each can take,
+on one page, and doubles as the binary behind a set of test windows of
+different shell types. It ships a `.desktop` entry under Utility/Development,
+so it appears in the launcher.
 
 It is a *visual* test harness: you look at what it draws and what the
 compositor does with the windows it spawns. It has no automated test suite.
@@ -19,6 +19,18 @@ ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
 TreeList, Plate, BevelPreview, RampPreview, Ramp. The MenuBar and StatusBar
 frame it.
+
+After those come the variants: every further look a widget can take, one
+exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
+constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
+`new_copy_icon`), a builder (`with_raised(false)` on Button, Toggle and
+Dropdown; `with_band`, `with_recessed(false)` and `with_readout` on Slider;
+`with_multiline`, `with_draw_bg_border(false)` and `with_password` on
+TextBox; `with_vertical` on ButtonStrip, and the Paginator built on it), or a
+per-widget override of a config-wide style (`Toggle::with_slide`, the
+`style.control.toggle.style` look, next to `Slider::with_band` for
+`style.control.slider.style`). The four StatusDot statuses and the plain
+Label round it off. When a widget gains a style, it gains an exhibit here.
 
 Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
@@ -86,10 +98,11 @@ for example). Nothing else is bound; the `cce-gallery` domain of
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 32 named slots (`GallerySlots`) addressed by numeric index in the
-  layout tables, visibility filters and dispatch loops; child windows use the
-  five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
-  layout tables.
+  roster of 32 named slots (`GallerySlots`) followed by the variant exhibits
+  (`variant_exhibits`, a `Vec<Exhibit>` of boxed widgets), all addressed by
+  numeric index in the layout tables, visibility filters and dispatch loops;
+  child windows use the five-slot `ChildSlots`. `demo_positions` and
+  `child_positions` are the layout tables.
 - `src/gallery_widgets.rs` — lookalikes of the retired toolkit `Plate` (an
   exhibit) and root plate (the child windows' background).
 

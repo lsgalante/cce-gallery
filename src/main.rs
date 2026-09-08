@@ -3,7 +3,7 @@ use cce_ui::widget::{
     Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar,
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta,
     ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus,
-    InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter,
+    InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator,
     VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout, ScrollBox,
 };
 mod gallery_widgets;
@@ -155,7 +155,7 @@ impl Visibility {
                 _ => false,
             };
         }
-        index < GALLERY_COUNT
+        true
     }
 }
 
@@ -195,14 +195,52 @@ pub struct GallerySlots {
     pub ramp_preview_demo: Adapted<RampPreview>,
     pub separator_demo: Adapted<Separator>,
     pub splitter_demo: Adapted<Splitter>,
+    /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
+    /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
+    pub extra: Vec<Exhibit>,
 }
 
+/// The number of NAMED gallery slots; the variant exhibits follow them, so the roster's
+/// `len` is this plus `GallerySlots::extra.len()`.
 pub const GALLERY_COUNT: usize = 32;
+
+/// A variant exhibit: a widget in a style other than the one its named slot shows, with
+/// the content size `layout_exhibits` resets it to.
+pub struct Exhibit {
+    pub widget: Box<dyn WidgetHost + 'static>,
+    pub w: f32,
+    pub h: f32,
+    /// A content width narrower than `w`: the strategy lays the exhibit out at `w` (room
+    /// for its label) and the widget is then given this width — a StatusDot stays a dot.
+    pub content_w: Option<f32>,
+}
+
+impl Exhibit {
+    /// Sized by the widget's own preferred height, `fallback_h` when it declares none.
+    fn new<W: WidgetHost + 'static>(widget: W, w: f32, fallback_h: f32) -> Self {
+        let h = widget.preferred_height().unwrap_or(fallback_h);
+        Exhibit { widget: Box::new(widget), w, h, content_w: None }
+    }
+
+    /// Sized by hand: for widgets whose declared height is a single row (a multiline
+    /// TextBox, a vertical ButtonStrip) when the exhibit wants several.
+    fn sized<W: WidgetHost + 'static>(widget: W, w: f32, h: f32) -> Self {
+        Exhibit { widget: Box::new(widget), w, h, content_w: None }
+    }
+
+    fn with_content_width(mut self, w: f32) -> Self {
+        self.content_w = Some(w);
+        self
+    }
+}
 
 impl GallerySlots {
 
     // Per-slot drag queries.
     pub fn draggable(&self, idx: usize) -> bool {
+        if idx >= GALLERY_COUNT {
+            return false; // variant exhibits never drag
+        }
         match idx {
             0 => self.menu_bar.draggable(),
             1 => self.status_bar.draggable(),
@@ -241,6 +279,9 @@ impl GallerySlots {
     }
 
     pub fn is_dragging(&self, idx: usize) -> bool {
+        if idx >= GALLERY_COUNT {
+            return false;
+        }
         match idx {
             0 => self.menu_bar.is_dragging(),
             1 => self.status_bar.is_dragging(),
@@ -279,6 +320,9 @@ impl GallerySlots {
     }
 
     pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
+        if idx >= GALLERY_COUNT {
+            return &*self.extra[idx - GALLERY_COUNT].widget;
+        }
         match idx {
             0 => &self.menu_bar,
             1 => &self.status_bar,
@@ -317,6 +361,9 @@ impl GallerySlots {
     }
 
     pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
+        if idx >= GALLERY_COUNT {
+            return &mut *self.extra[idx - GALLERY_COUNT].widget;
+        }
         match idx {
             0 => &mut self.menu_bar,
             1 => &mut self.status_bar,
@@ -495,7 +542,7 @@ pub enum Roster {
 impl Roster {
     pub fn len(&self) -> usize {
         match self {
-            Roster::Gallery(_) => GALLERY_COUNT,
+            Roster::Gallery(s) => GALLERY_COUNT + s.extra.len(),
             Roster::Child(_) => CHILD_COUNT,
         }
     }
@@ -583,6 +630,8 @@ impl Roster {
             29 => s.ramp_preview_demo.take_click(),
             30 => s.separator_demo.take_click(),
             31 => s.splitter_demo.take_click(),
+            // The variant exhibits are looked at, not drained.
+            i if i >= GALLERY_COUNT => false,
             _ => panic!("take_click: unwired gallery slot {idx}"),
         }
     }
@@ -675,10 +724,78 @@ fn load_bevel_ramp() -> (Vec<RampKey>, String) {
     )
 }
 
+/// Every further style of a widget the named slots show once: the toolkit's own
+/// variants — a constructor (`Button::new_reset`), a builder (`with_band`), or a
+/// per-widget override of a config style (`with_slide`) — so the page shows each
+/// look a widget can take, in the toolkit's default size for it.
+fn variant_exhibits() -> Vec<Exhibit> {
+    const W: f32 = 190.0;
+    let bh = cce_ui::layout::button_height();
+    let tgh = cce_ui::layout::toggle_height();
+    let slh = cce_ui::layout::slider_height();
+    let tbh = cce_ui::layout::textbox_height();
+    let ddh = cce_ui::layout::dropdown_height();
+    // A StatusDot is 12px square; its exhibit is as wide as its label.
+    const DOT_W: f32 = 150.0;
+    // A column of three rotated tabs, and the sidebar width a vertical strip is drawn for.
+    const TABS_H: f32 = 120.0;
+    const TAB_COLUMN_W: f32 = 40.0;
+    let three = || vec!["One".to_string(), "Two".to_string(), "Three".to_string()];
+    vec![
+        // Button: the five kinds, and the flat (unraised) face.
+        Exhibit::new(Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
+        Exhibit::new(Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
+        Exhibit::new(Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh),
+        Exhibit::new(Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh),
+        Exhibit::new(Button::new(0.0, 0.0, W, bh).with_label("Button (flat)").with_raised(false), W, bh),
+        // Toggle: the slide style (config `style.control.toggle.style`), and flat.
+        Exhibit::new(Toggle::new().with_label("Toggle (slide)").with_slide(true), W, tgh),
+        Exhibit::new(Toggle::new().with_label("Toggle (flat)").with_raised(false), W, tgh),
+        // Slider: the band style (config `style.control.slider.style`), flat, with a readout.
+        Exhibit::new(Slider::new().with_label("Slider (band)").with_band(true), W, slh),
+        Exhibit::new(Slider::new().with_label("Slider (flat)").with_recessed(false), W, slh),
+        Exhibit::new(Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
+        // TextBox: multiline, chromeless, password.
+        Exhibit::sized(
+            TextBox::new("TextBox (multiline)\nA second line of text.".to_string()).with_multiline(true),
+            W,
+            3.0 * tbh,
+        ),
+        Exhibit::new(TextBox::new("TextBox (chromeless)".to_string()).with_draw_bg_border(false), W, tbh),
+        Exhibit::new(TextBox::new("hunter2".to_string()).with_password(true).with_label("TextBox (password)"), W, tbh),
+        // Dropdown: flat.
+        Exhibit::new(
+            Dropdown::new(vec!["Flat".to_string(), "Raised".to_string()], 0)
+                .with_raised(false)
+                .with_label("Dropdown (flat)"),
+            W,
+            ddh,
+        ),
+        // ButtonStrip: the vertical column (rotated tabs), and the Paginator sidebar built on it.
+        Exhibit::sized(
+            Adapted::new(ButtonStrip::new(0.0, 0.0, W, TABS_H).with_buttons(three()).with_selected(Some(0)).with_vertical(true))
+                .with_label("ButtonStrip (vertical)"),
+            W,
+            TABS_H,
+        )
+        .with_content_width(TAB_COLUMN_W),
+        Exhibit::sized(Paginator::new(three()).with_label("Paginator"), W, TABS_H),
+        // Label: the plain text widget.
+        Exhibit::new(Label::new("Label"), W, ddh),
+        // StatusDot: the other three statuses.
+        Exhibit::new(StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), DOT_W, StatusDot::SIZE)
+            .with_content_width(StatusDot::SIZE),
+        Exhibit::new(StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), DOT_W, StatusDot::SIZE)
+            .with_content_width(StatusDot::SIZE),
+        Exhibit::new(StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), DOT_W, StatusDot::SIZE)
+            .with_content_width(StatusDot::SIZE),
+    ]
+}
+
 /// The exhibits: every slot but the chrome (0, 1) and the Layout dropdown (15),
 /// which `layout_exhibits` lays out under the dropdown.
 fn is_exhibit(i: usize) -> bool {
-    matches!(i, 2..=14 | 16..=31)
+    matches!(i, 2..=14 | 16..=31) || i >= GALLERY_COUNT
 }
 
 impl State {
@@ -699,7 +816,7 @@ impl State {
         self.positions = if self.is_child {
             child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_kind.is_some_and(ChildKind::is_editor))
         } else {
-            demo_positions(self.width, self.height)
+            demo_positions(self.width, self.height, self.roster.len())
         };
     }
 
@@ -727,6 +844,9 @@ impl State {
         // or drag in, sized here and only here.
         const CANVAS_H: f32 = 120.0;
         const W: f32 = 190.0;
+        // A StatusDot is 12px square; its exhibit is as wide as its label
+        // (`content_width` hands the dot its own size back after layout).
+        const DOT_W: f32 = 150.0;
         let raw: [(usize, f32, f32); 29] = [
             (2, W, bh),                                   // Button
             (19, W, bh),                                  // ButtonStrip
@@ -743,7 +863,7 @@ impl State {
             (17, W, fsh),                                 // FontSelector
             (5, W, pbh),                                  // ProgressBar
             (22, W, pbh),                                 // UsageBar
-            (23, StatusDot::SIZE, StatusDot::SIZE),       // StatusDot
+            (23, DOT_W, StatusDot::SIZE),                 // StatusDot (its label needs the width)
             (30, W, 1.0),                                 // Separator (a rule)
             (31, 6.0, CANVAS_H),                          // Splitter (a vertical grip)
             (24, W, 3.0 * ddh),                           // InfoBox (title + two lines)
@@ -758,7 +878,10 @@ impl State {
             (12, W, bh),                                  // Color Ramp...
             (14, W, bh),                                  // Ramp...
         ];
-        raw.to_vec()
+        let mut sizes = raw.to_vec();
+        let extra = &self.roster.gallery().extra;
+        sizes.extend(extra.iter().enumerate().map(|(k, e)| (GALLERY_COUNT + k, e.w, e.h)));
+        sizes
     }
 
     /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
@@ -785,6 +908,7 @@ impl State {
         let (x, y, w, h) = self.exhibit_viewport();
         self.exhibit_scroll.set_rect(x, y, w, h);
         let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
+        let mut indices: Vec<usize> = Vec::new();
         for (idx, cw, ch) in self.exhibit_sizes() {
             if self.roster.is_dragging(idx) {
                 continue;
@@ -792,12 +916,13 @@ impl State {
             let widget = self.roster.get_dyn_mut(idx);
             widget.set_rect(0.0, 0.0, cw, ch);
             children.push(widget as *mut (dyn WidgetHost + 'static));
+            indices.push(idx);
         }
         let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
         let content_h = strategy.layout(x, y, w, h, &children, &mut self.ui_context);
         self.exhibit_scroll.update_bounds(content_h, y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
-        for &child in &children {
+        for (&child, &idx) in children.iter().zip(&indices) {
             let widget = unsafe { &mut *child };
             // The adapter inflates SOME widgets' rects by their detached label on every
             // set_rect and reports the inflated height from rect(); others place the
@@ -812,8 +937,18 @@ impl State {
             if widget.preferred_height().is_none() {
                 content -= l;
             }
+            let cw = self.content_width(idx).unwrap_or(cw);
             widget.set_rect(cx, cy - scroll_y, cw, content);
         }
+    }
+
+    /// An exhibit's content width where it is narrower than the width it is laid out at
+    /// (`Exhibit::content_w`; the named StatusDot slot likewise).
+    fn content_width(&self, idx: usize) -> Option<f32> {
+        if idx == 23 {
+            return Some(StatusDot::SIZE);
+        }
+        idx.checked_sub(GALLERY_COUNT).and_then(|k| self.roster.gallery().extra[k].content_w)
     }
 
     /// Register every roster widget in the ui_context (idempotent — `register` is
@@ -840,6 +975,9 @@ impl State {
             let visible = self.is_widget_visible(i);
             let (x, y, w, h) = self.positions[i];
             let widget = self.roster.get_dyn_mut(i);
+            // The Layout dropdown takes the height the toolkit says a labeled
+            // dropdown needs — its default height plus the label strip.
+            let h = if i == 15 { widget.preferred_height().unwrap_or(h) } else { h };
             if visible {
                 widget.set_rect(x, y, w, h);
             } else {
@@ -993,6 +1131,7 @@ impl cce_ui::engine::Application for State {
                 ramp_preview_demo: RampPreview::new().with_label("RampPreview"),
                 separator_demo: Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator"),
                 splitter_demo: Splitter::new(200.0).with_label("Splitter"),
+                extra: variant_exhibits(),
             }))
         };
 
@@ -1623,14 +1762,14 @@ const DEFAULT_LAYOUT: usize = 4;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
 /// by `layout_exhibits` instead.
-fn demo_positions(sw: f32, sh: f32) -> Vec<(f32, f32, f32, f32)> {
-    let ddh = cce_ui::layout::dropdown_height();
-    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); GALLERY_COUNT];
+fn demo_positions(sw: f32, sh: f32, count: usize) -> Vec<(f32, f32, f32, f32)> {
+    let mut vec = vec![(0.0, 0.0, 0.0, 0.0); count];
     vec[0] = (0.0, 0.0, sw, 40.0); // MenuBar
     vec[1] = (0.0, sh - 24.0, sw, 24.0); // StatusBar
     // The Layout dropdown; the exhibits below it are laid out by `layout_exhibits`
-    // with the strategy it selects.
-    vec[15] = (20.0, 60.0, 190.0, ddh);
+    // with the strategy it selects. Its height is the widget's own preferred
+    // height (`apply_layout`); the one here is a placeholder.
+    vec[15] = (20.0, 60.0, 190.0, 0.0);
     vec
 }
 
