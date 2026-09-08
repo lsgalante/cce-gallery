@@ -11,6 +11,7 @@ use gallery_widgets::{RootPlate, ControlPanel, Plate, SectionContainer};
 use cce_ui::widget::Adapted;
 use cce_ui::widget::input::Slider2D;
 use cce_ui::engine::{Vertex, quad_vertices, LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
+use cce_ui::scene::paint::Prim;
 use wayland_client::QueueHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1885,6 +1886,11 @@ impl cce_ui::engine::Application for State {
                 for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
                     pc.quad(Rect { x: qx, y: qy, width: qw, height: qh }, qc);
                 }
+                // The quad bridges above carry only quads. A widget that paints
+                // borders, circles, arcs or vectors (the round Checkbox's ring and
+                // dot, a slider's knob, a button's border) would lose them, so
+                // replay every other own prim; text stays with the text pass.
+                replay_non_quad_prims(w, &self.ui_context, &mut pc);
             }
         }
 
@@ -1914,6 +1920,11 @@ impl cce_ui::engine::Application for State {
                         }
                     }
                 }
+                // The child's non-quad prims, clipped to the panel viewport like its quads.
+                let (px, _, pw, _) = self.roster.gallery().control_panel.rect();
+                pc.push_clip(Rect { x: px, y: y_start, width: pw, height: y_end - y_start });
+                replay_non_quad_prims(w, &self.ui_context, &mut pc);
+                pc.pop_clip();
             }
         }
 
@@ -2473,6 +2484,23 @@ impl cce_ui::engine::Application for State {
         None
     }
 
+}
+
+/// Re-emit a widget's own prims other than quads, rounded rects and text: the
+/// gallery's paint loop bridges quads through `all_quads`/`all_rounded_quads` and
+/// text through the text pass, and would otherwise drop a widget's borders,
+/// circles, arcs and vectors.
+fn replay_non_quad_prims(w: &(dyn WidgetHost + 'static), ui: &cce_ui::context::UiContext, pc: &mut cce_ui::scene::paint::PaintCtx) {
+    let mut scratch = cce_ui::scene::paint::PaintCtx::new();
+    w.paint_self(ui, &mut scratch);
+    for item in scratch.finish().items {
+        match item.prim {
+            Prim::Quad { .. } | Prim::RoundedRect { .. } | Prim::Text { .. } => {}
+            prim => {
+                let _ = pc.replay(prim);
+            }
+        }
+    }
 }
 
 /// A `Command` that re-runs this binary as a child window; the caller adds the flags.
