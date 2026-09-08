@@ -8,7 +8,7 @@ use cce_ui::widget::{
 };
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, Plate};
-use cce_ui::widget::Adapted;
+use cce_ui::widget::{Adapted, LayoutConstraints, Point};
 use cce_ui::widget::input::Slider2D;
 use cce_ui::engine::{LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
 use cce_ui::scene::paint::Prim;
@@ -216,10 +216,9 @@ pub struct Exhibit {
 }
 
 impl Exhibit {
-    /// Sized by the widget's own preferred content height (its occupied height less the
-    /// label strip an inflating widget adds back), `fallback_h` when it declares none.
+    /// Sized by the widget's own preferred (content) height, `fallback_h` when it declares none.
     fn new<W: WidgetHost + 'static>(widget: W, w: f32, fallback_h: f32) -> Self {
-        let h = widget.preferred_height().map(|p| p - widget.label_inflation()).unwrap_or(fallback_h);
+        let h = widget.preferred_height().unwrap_or(fallback_h);
         Exhibit { widget: Box::new(widget), w, h, content_w: None }
     }
 
@@ -865,6 +864,11 @@ impl State {
         // or drag in, sized here and only here.
         const CANVAS_H: f32 = 120.0;
         const W: f32 = 190.0;
+        let s2d_w = self
+            .roster
+            .get_dyn(20)
+            .measure(LayoutConstraints::new(0.0, f32::MAX, 0.0, f32::MAX), &self.ui_context)
+            .width;
         // A StatusDot is 12px square; its exhibit is as wide as its label
         // (`content_width` hands the dot its own size back after layout).
         const DOT_W: f32 = 150.0;
@@ -875,7 +879,7 @@ impl State {
             (4, W, tgh),                                  // Toggle
             (6, W, slh),                                  // Slider
             (8, W, rsh),                                 // RangeSlider
-            (20, 64.0, 64.0),                             // Slider2D (its intrinsic square)
+            (20, s2d_w, 64.0),                            // Slider2D (a 64px pad, wide enough for its label)
             (7, W, sph),                                  // Spinbox
             (21, W, Float3::preferred_height(false)),     // Float3 (three slider rows)
             (10, W, tbh),                                 // TextBox
@@ -945,13 +949,19 @@ impl State {
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&child, &idx) in children.iter().zip(&indices) {
             let widget = unsafe { &mut *child };
-            // The strategy landed each exhibit in exactly the box it allotted; shift it
-            // by the scroll and hand `set_rect` the content height (it re-adds the
-            // label strip an inflating widget grows by — `label_inflation`).
+            // The strategy placed each exhibit's content box (its label hanging in the
+            // strip above); re-land it through `layout` shifted by the scroll — the
+            // landed rect is the occupied one, so the content origin is `strip` below
+            // its top and the content height is the rest.
             let (cx, cy, cw, ch) = widget.rect();
-            let content = ch - widget.label_inflation();
+            let strip = widget.label_strip();
+            let content = ch - strip;
             let cw = self.content_width(idx).unwrap_or(cw);
-            widget.set_rect(cx, cy - scroll_y, cw, content);
+            widget.layout(
+                Point { x: cx, y: cy + strip - scroll_y },
+                LayoutConstraints::new(cw, cw, content, content),
+                &mut self.ui_context,
+            );
         }
     }
 
@@ -988,9 +998,14 @@ impl State {
             let visible = self.is_widget_visible(i);
             let (x, y, w, h) = self.positions[i];
             let widget = self.roster.get_dyn_mut(i);
-            // The Layout dropdown takes the height the toolkit says a labeled
-            // dropdown needs — its default height plus the label strip.
-            let h = if i == 15 { widget.preferred_height().unwrap_or(h) } else { h };
+            if visible && i == 15 {
+                // The Layout dropdown lands through `layout` at its own preferred
+                // height: `y` is where its label goes, the content sits a strip below.
+                let h = widget.preferred_height().unwrap_or(h);
+                let strip = widget.label_strip();
+                widget.layout(Point { x, y: y + strip }, LayoutConstraints::new(w, w, h, h), &mut self.ui_context);
+                continue;
+            }
             if visible {
                 widget.set_rect(x, y, w, h);
             } else {
