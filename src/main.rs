@@ -270,7 +270,7 @@ impl Visibility {
         }
         match index {
             0..=1 | 36 => true,
-            2..=7 | 20 | 21 | 26 | 27 | 37 | 39 | 40 | 42..=58 => self.page == Page::Controls,
+            2..=7 | 20 | 21 | 26 | 27 | 37 | 39 | 40 | 42..=59 => self.page == Page::Controls,
             8..=19 | 28..=35 | 38 | 41 => self.page == Page::Windows,
             22..=25 => self.page == Page::Xdg,
             _ => false,
@@ -285,7 +285,7 @@ struct PreviewStyle {
     bg_color: [f32; 4],
 }
 
-/// The gallery roster: 59 named slots. The numeric indexes used by the positions
+/// The gallery roster: 60 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
@@ -348,9 +348,10 @@ pub struct GallerySlots {
     pub ramp_preview_demo: Adapted<RampPreview>,
     pub separator_demo: Adapted<Separator>,
     pub splitter_demo: Adapted<Splitter>,
+    pub checkbox_round_demo: Adapted<Checkbox>,
 }
 
-pub const GALLERY_COUNT: usize = 59;
+pub const GALLERY_COUNT: usize = 60;
 
 impl GallerySlots {
 
@@ -416,6 +417,7 @@ impl GallerySlots {
             56 => self.ramp_preview_demo.draggable(),
             57 => self.separator_demo.draggable(),
             58 => self.splitter_demo.draggable(),
+            59 => self.checkbox_round_demo.draggable(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -481,6 +483,7 @@ impl GallerySlots {
             56 => self.ramp_preview_demo.is_dragging(),
             57 => self.separator_demo.is_dragging(),
             58 => self.splitter_demo.is_dragging(),
+            59 => self.checkbox_round_demo.is_dragging(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -546,6 +549,7 @@ impl GallerySlots {
             56 => &self.ramp_preview_demo,
             57 => &self.separator_demo,
             58 => &self.splitter_demo,
+            59 => &self.checkbox_round_demo,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -611,6 +615,7 @@ impl GallerySlots {
             56 => &mut self.ramp_preview_demo,
             57 => &mut self.separator_demo,
             58 => &mut self.splitter_demo,
+            59 => &mut self.checkbox_round_demo,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -862,6 +867,7 @@ impl Roster {
             56 => s.ramp_preview_demo.take_click(),
             57 => s.separator_demo.take_click(),
             58 => s.splitter_demo.take_click(),
+            59 => s.checkbox_round_demo.take_click(),
             _ => panic!("take_click: unwired gallery slot {idx}"),
         }
     }
@@ -1154,10 +1160,11 @@ impl State {
         let slh = cce_ui::layout::slider_height();
         let sph = cce_ui::layout::spinbox_height();
         let ddh = cce_ui::layout::dropdown_height();
-        let raw: [(usize, f32, f32); 29] = [
+        let raw: [(usize, f32, f32); 30] = [
             (2, 190.0, bh),                                     // Button
             (46, 190.0, 28.0),                                  // ButtonStrip
             (3, 190.0, tgh),                                    // Checkbox
+            (59, 190.0, tgh),                                   // Checkbox (round)
             (4, 190.0, tgh),                                    // Toggle
             (6, 190.0, slh),                                    // Slider
             (20, 190.0, cce_ui::layout::rangeslider_height()),  // RangeSlider
@@ -1529,6 +1536,11 @@ impl cce_ui::engine::Application for State {
                 ramp_preview_demo: RampPreview::new().with_label("RampPreview"),
                 separator_demo: Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator"),
                 splitter_demo: Splitter::new(200.0).with_label("Splitter"),
+                checkbox_round_demo: {
+                    let mut c = Checkbox::new().with_label("Checkbox (round)");
+                    c.set_round(true);
+                    c
+                },
             }))
         };
 
@@ -2265,7 +2277,7 @@ impl cce_ui::engine::Application for State {
                         } else if self.roster.take_click(40) {
                             spawn_editor("Ramp");
                         } else {
-                            for i in [2, 3, 4, 6, 7, 20, 21, 26, 27, 43, 44, 45, 46, 47, 48, 52, 53, 54, 55, 56] {
+                            for i in [2, 3, 4, 6, 7, 20, 21, 26, 27, 43, 44, 45, 46, 47, 48, 52, 53, 54, 55, 56, 59] {
                                 if self.roster.take_click(i) {
                                     changed = true;
                                 }
