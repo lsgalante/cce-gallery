@@ -735,6 +735,10 @@ fn variant_exhibits() -> Vec<Exhibit> {
     let slh = cce_ui::layout::slider_height();
     let tbh = cce_ui::layout::textbox_height();
     let ddh = cce_ui::layout::dropdown_height();
+    let fsh = cce_ui::layout::font_selector_height();
+    let csh = cce_ui::layout::color_selector_height();
+    let rsh = cce_ui::layout::rangeslider_height();
+    let pbh = cce_ui::layout::progressbar_height();
     // A StatusDot is 12px square; its exhibit is as wide as its label.
     const DOT_W: f32 = 150.0;
     // A column of three rotated tabs, and the sidebar width a vertical strip is drawn for.
@@ -780,6 +784,22 @@ fn variant_exhibits() -> Vec<Exhibit> {
         )
         .with_content_width(TAB_COLUMN_W),
         Exhibit::sized(Paginator::new(three()).with_label("Paginator"), W, TABS_H),
+        // The flat (relief-off) looks of the controls whose default is a well or a
+        // trough carved into the plate: what `control_relief = 0` renders.
+        Exhibit::sized(
+            Adapted::new(ButtonStrip::new(0.0, 0.0, W, bh).with_buttons(three()).with_selected(Some(0)).with_recessed(false))
+                .with_label("ButtonStrip (flat)"),
+            W,
+            bh,
+        ),
+        Exhibit::new(FontSelector::new("Sans".to_string()).with_raised(false).with_label("FontSelector (flat)"), W, fsh),
+        Exhibit::new(KeybindRecorder::new("ctrl+1".to_string()).with_recessed(false).with_label("KeybindRecorder (flat)"), W, tbh),
+        Exhibit::new(ColorSelector::new([64, 128, 255]).with_recessed(false).with_label("ColorSelector (flat)"), W, csh),
+        Exhibit::new(ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
+        Exhibit::new(RangeSlider::new().with_recessed(false).with_label("RangeSlider (flat)"), W, rsh),
+        Exhibit::new(ProgressBar::new(0.43).with_recessed(false).with_label("ProgressBar (flat)"), W, pbh),
+        Exhibit::new(UsageBar::new(0.62).with_recessed(false).with_label("UsageBar (flat)"), W, pbh),
+        Exhibit::sized(Trackpad::new().with_recessed(false).with_label("Trackpad (flat)"), W, TABS_H),
         // Label: the plain text widget.
         Exhibit::new(Label::new("Label"), W, ddh),
         // StatusDot: the other three statuses.

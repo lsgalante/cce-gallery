@@ -29,8 +29,14 @@ Dropdown; `with_band`, `with_recessed(false)` and `with_readout` on Slider;
 TextBox; `with_vertical` on ButtonStrip, and the Paginator built on it), or a
 per-widget override of a config-wide style (`Toggle::with_slide`, the
 `style.control.toggle.style` look, next to `Slider::with_band` for
-`style.control.slider.style`). The four StatusDot statuses and the plain
-Label round it off. When a widget gains a style, it gains an exhibit here.
+`style.control.slider.style`). The controls whose default look is worked
+into the plate — ButtonStrip's well with its raised selected segment,
+FontSelector's flush trough, the wells of KeybindRecorder, ColorSelector's
+hex field, RangeSlider, ProgressBar, UsageBar and Trackpad — show their flat
+look too (`with_recessed(false)` / `with_raised(false)`, what
+`control_relief = 0` renders), and ColorSelector its alpha swatch. The four
+StatusDot statuses and the plain Label round it off. When a widget gains a
+style, it gains an exhibit here.
 
 Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
