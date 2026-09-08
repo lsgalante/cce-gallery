@@ -9,16 +9,15 @@ use cce_ui::scene::paint::PaintCtx;
 use cce_ui::widget::*;
 
 /// Exhibit lookalike of the old cce-ui `Plate`: config plate colour (else page colour)
-/// at plate opacity, alpha negated under blur, plate corner radius, config border, and a
-/// detached-top label with the background shifted below it.
+/// at plate opacity, alpha negated under blur, plate corner radius, config border, and the
+/// adapter's detached control label above it.
 pub struct Plate {
     blur: bool,
-    label: Option<String>,
 }
 
 impl Plate {
     pub fn new(x: f32, y: f32, w: f32, h: f32, blur: bool) -> Adapted<Plate> {
-        let mut plate = Adapted::new(Self { blur, label: None });
+        let mut plate = Adapted::new(Self { blur });
         plate.set_rect(x, y, w, h);
         plate
     }
@@ -36,27 +35,11 @@ impl Plate {
         c
     }
 
-    /// Label offset for the model-held label copy.
-    fn label_offset(&self) -> f32 {
-        if cce_ui::layout::control_label_layout() == "side" {
-            return 0.0;
-        }
-        if self.label.is_some() {
-            let (_, font_size) = cce_ui::layout::control_label_font_detached_parsed();
-            font_size + cce_ui::layout::control_label_margin()
-        } else {
-            0.0
-        }
-    }
 }
 
-impl cce_ui::widget::Layout for Plate {
-    // The rect is not inflated for the label; the background shifts below it instead
-    // (see `paint`).
-    fn inline_label(&self) -> bool {
-        true
-    }
-}
+// The label is the adapter's detached control label, in the strip above the content rect
+// `paint` fills — the one label convention every control follows.
+impl cce_ui::widget::Layout for Plate {}
 
 impl cce_ui::widget::Paint for Plate {
     fn color(&self) -> [f32; 4] {
@@ -73,27 +56,13 @@ impl cce_ui::widget::Paint for Plate {
         colors::plate_border_color().map(|bc| (bc, colors::plate_border_thickness()))
     }
 
-    fn sync_label(&mut self, label: &str) {
-        self.label = Some(label.to_string());
-    }
-
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
-        // Rounded background below the label region, only while corners are on and the
+        // Rounded background over the content rect, only while corners are on and the
         // colour has alpha.
         let radius = cce_ui::layout::plate_corner_radius();
         let c = self.plate_color();
         if radius > 0.0 && c[3].abs() > 0.001 {
-            let label_off = self.label_offset();
-            pc.rounded_rect(
-                Rect { x: rect.x, y: rect.y + label_off, width: rect.width, height: rect.height - label_off },
-                radius,
-                (true, true, true, true),
-                c,
-            );
-        }
-        if let Some(ref label) = self.label {
-            let (_, font_size) = cce_ui::layout::control_label_font_parsed();
-            pc.text(label.clone(), rect.x, rect.y, font_size, colors::control_label_color_u8());
+            pc.rounded_rect(rect, radius, (true, true, true, true), c);
         }
     }
 }

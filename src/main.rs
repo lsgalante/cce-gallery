@@ -935,7 +935,9 @@ impl State {
                 continue;
             }
             let widget = self.roster.get_dyn_mut(idx);
-            widget.set_rect(0.0, 0.0, cw, ch);
+            // Seed the block: the content height plus the label strip above it.
+            let strip = widget.label_strip();
+            widget.set_rect(0.0, 0.0, cw, ch + strip);
             children.push(widget as *mut (dyn WidgetHost + 'static));
             indices.push(idx);
         }
