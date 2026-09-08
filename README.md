@@ -10,59 +10,31 @@ Utility/Development, so it appears in the launcher.
 It is a *visual* test harness: you look at what it draws and what the
 compositor does with the windows it spawns. It has no automated test suite.
 
-## Pages
+## The page
 
-The dropdown at the right of the status bar switches between three pages; the
-keyboard does the same (see Keybindings).
-
-**Controls** — the widget gallery: one of each widget `cce_ui::widget`
-exports that stands on its own. Inputs: Button, ButtonStrip, Checkbox, Toggle,
-Slider, RangeSlider, Slider2D, Spinbox, Float3, TextBox, KeybindRecorder,
+One page, the widget gallery: one of each widget `cce_ui::widget` exports
+that stands on its own. Inputs: Button, ButtonStrip, Checkbox, Toggle, Slider,
+RangeSlider, Slider2D, Spinbox, Float3, TextBox, KeybindRecorder,
 ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
 TreeList, Plate, BevelPreview, RampPreview, Ramp. The MenuBar and StatusBar
-frame every page. The `Layout` dropdown lays the exhibits out with the
-toolkit's own `ContainerLayout` strategies — Vertical, Columns, Grid, Adaptive
-Grid, Mosaic, Reverse Mosaic, Overlay — so what you see is what a container
-using that strategy does. The exhibit area below the dropdown scrolls (wheel,
-or the scrollbar at its right edge) when a layout runs past the window. `Color Ramp...` and `Ramp...` open the ColorRamp and
-Ramp editors in their own child windows.
+frame it.
 
-**Windows** — spawns child windows of each kind a toolkit client can be under
-cce, so the compositor's handling of each can be observed. The control panel
-on the right chooses:
-
-- window kind: Floating (a plain toplevel), Fullscreen, Utility (declared
-  over the cce window-management protocol), the Top, Overlay and Background
-  wlr-layer-shell layers, and a Status segment (the `cce-status-*` app_id
-  convention the compositor docks into the bar)
-- size (width/height spinboxes), opacity on/off with a transparency slider
-- window elements: root plate, menu bar, status bar
-- border: enabled/disabled, width, bevel on/off, bevel depth, and the bevel
-  cross-section shape (`Bevel Shape...` opens the Ramp editor)
-
-`Create Window` re-executes this binary with `--child` and the matching flags
-(see below). A panel in the main window previews the border and bevel that
-the child will be drawn with, and a description plate says what cce does with
-the selected kind. Tiled is not on the list because a client cannot ask for
-it: the compositor's toggle action tiles a floating window. A `mode_rule` in
-`config.kdl` can force a mode, or circular rendering, for an app_id.
-
-Two of these kinds doubled as compositor tests: a Fullscreen child used to
-map Floating, and a Background-layer child used to be buried under the
-natively drawn desktop grid, until cce-compositor learned to honour client
-fullscreen requests in-process and to paint client backgrounds between its
-grid backdrop and the cells.
-
-**XDG** — two buttons, `Open File` and `Save File`, that call the toolkit's
-`file_dialog` module (the XDG Desktop Portal file chooser, via `rfd`) on a
-worker thread and report the chosen path, or the cancellation, in the status
-bar.
+Every exhibit is drawn at its toolkit default size — the control's configured
+`style.control.<name>.height`, or the intrinsic size the widget declares — so
+the page is a record of the defaults; only the draw-in canvases (Trackpad,
+Plate, TreeList, the previews, the Ramp) are sized here. The `Layout` dropdown
+lays the exhibits out with the toolkit's own `ContainerLayout` strategies —
+Vertical, Columns, Grid, Adaptive Grid, Mosaic, Reverse Mosaic, Overlay — so
+what you see is what a container using that strategy does, and the exhibit
+area below the dropdown scrolls (wheel, or the scrollbar at its right edge)
+when a layout runs past the window. `Color Ramp...` and `Ramp...` open the
+ColorRamp and Ramp editors in their own child windows.
 
 ## Child windows
 
-The child windows spawned from the Windows page are the same binary run with
-`--child`. The flags mirror the control panel:
+The editors, and a set of test windows with no button of their own, are the
+same binary run with `--child`:
 
 ```
 cce-gallery --child --type <Floating|Fullscreen|Utility|LayerTop|LayerOverlay|LayerBackground|Status|Ramp|ColorRamp>
@@ -72,24 +44,20 @@ cce-gallery --child --type <Floating|Fullscreen|Utility|LayerTop|LayerOverlay|La
                    [--root-plate] [--menubar] [--statusbar]
 ```
 
-The kind decides how the child asks to be mapped: Fullscreen sets the
-toplevel's fullscreen flag, Utility answers the toolkit's `utility` hook, the
-three Layer kinds answer its `layer` hook with a `LayerSettings` (Top is
-anchored left-top-right with an exclusive zone of its height, Overlay is
-unanchored, Background is anchored on every edge), and Status uses the app_id
-`cce-status-right-gallery`. Every other kind's app_id is
+`--type Ramp` and `--type ColorRamp` host the toolkit's `Ramp` and `ColorRamp`
+widgets on a root plate; the gallery's two buttons spawn them. The other seven
+are the kinds of surface a toolkit client can be under cce, kept for driving
+the compositor from a shadow session: Fullscreen sets the toplevel's
+fullscreen flag, Utility answers the toolkit's `utility` hook, the three Layer
+kinds answer its `layer` hook with a `LayerSettings` (Top anchored
+left-top-right with an exclusive zone of its height, Overlay unanchored,
+Background on every edge), and Status uses the app_id `cce-status-right-gallery`
+so the compositor docks it into the bar. Every other kind's app_id is
 `cce-gallery-child-<type>`, with `-noborder` appended when the border is
 disabled, so `mode_rule`s can target it. The main window's `app_id` is
-`cce-gallery`.
-
-A child shows a one-line description, a `Close` button, and the optional menu
-bar and status bar. `--border-width` and `--border-bevel` are accepted so the
-argv mirrors the panel, but the child does not draw a bevel yet; the bevel
-preview lives in the main window's panel.
-
-`--type Ramp` and `--type ColorRamp` are editor windows rather than simulated
-clients: they host the toolkit's `Ramp` and `ColorRamp` widgets on a
-root plate.
+`cce-gallery`. A test window shows a one-line description, a `Close` button,
+and the optional menu bar and status bar; `--border-width` and `--border-bevel`
+are accepted but the child does not draw a bevel.
 
 ## The bevel ramp file
 
@@ -106,36 +74,24 @@ keys {
 line_type "linear"   // or "bezier"
 ```
 
-The Ramp child writes the file on every edit. The main window watches its
-mtime each tick and reloads, so the bevel preview on the Windows page follows
-the editor live.
+The Ramp child writes the file on every edit; the compositor and the other
+apps that draw bevels read it.
 
 ## Keybindings
 
-Page navigation is resolved through the `cce-gallery` domain of
-`~/.config/cce/input.kdl`; the defaults are `ctrl+1`, `ctrl+2`, `ctrl+3`:
-
-```kdl
-cce-gallery {
-    page_1 "ctrl+1"
-    page_2 "ctrl+2"
-    page_3 "ctrl+3"
-}
-```
-
 Escape quits, unless a widget consumed it first (a dropdown closing its menu,
-for example).
+for example). Nothing else is bound; the `cce-gallery` domain of
+`~/.config/cce/input.kdl` is free for the toolkit-wide chords.
 
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 59 named slots (`GallerySlots`) addressed by numeric index in the
+  roster of 32 named slots (`GallerySlots`) addressed by numeric index in the
   layout tables, visibility filters and dispatch loops; child windows use the
   five-slot `ChildSlots`. `demo_positions` and `child_positions` are the
   layout tables.
-- `src/gallery_widgets.rs` — gallery-local widgets: `ControlPanel` (scroll chrome
-  for the Windows page's option column), and lookalikes of the retired toolkit
-  `Plate`, `SectionContainer` and `RootPlate` kept as exhibits.
+- `src/gallery_widgets.rs` — lookalikes of the retired toolkit `Plate` (an
+  exhibit) and root plate (the child windows' background).
 
 ## Building and installing
 
