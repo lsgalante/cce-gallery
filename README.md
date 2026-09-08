@@ -43,8 +43,12 @@ Every exhibit is drawn at its toolkit default size — the control's configured
 the page is a record of the defaults; only the draw-in canvases (Trackpad,
 Plate, TreeList, the previews, the Ramp) are sized here. The `Layout` dropdown
 lays the exhibits out with the toolkit's own `ContainerLayout` strategies —
-Vertical, Columns, Grid, Adaptive Grid, Mosaic, Reverse Mosaic, Overlay — so
-what you see is what a container using that strategy does, and the exhibit
+Vertical, Columns, Grid, Adaptive Grid, Mosaic, Reverse Mosaic, Overlay — at
+their default spacing (`layout::CONTROL_GAP`, the one gap every strategy and
+row builder uses), so what you see is what a container using that strategy
+does: every control lands in exactly the box it is allotted, label included,
+whichever label convention it follows, and every detached label sits at the
+same `DETACHED_LABEL_INSET`. The exhibit
 area below the dropdown scrolls (wheel, or the scrollbar at its right edge)
 when a layout runs past the window. `Color Ramp...` and `Ramp...` open the
 ColorRamp and Ramp editors in their own child windows.

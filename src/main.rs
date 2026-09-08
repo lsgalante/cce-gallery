@@ -216,9 +216,10 @@ pub struct Exhibit {
 }
 
 impl Exhibit {
-    /// Sized by the widget's own preferred height, `fallback_h` when it declares none.
+    /// Sized by the widget's own preferred content height (its occupied height less the
+    /// label strip an inflating widget adds back), `fallback_h` when it declares none.
     fn new<W: WidgetHost + 'static>(widget: W, w: f32, fallback_h: f32) -> Self {
-        let h = widget.preferred_height().unwrap_or(fallback_h);
+        let h = widget.preferred_height().map(|p| p - widget.label_inflation()).unwrap_or(fallback_h);
         Exhibit { widget: Box::new(widget), w, h, content_w: None }
     }
 
@@ -909,7 +910,7 @@ impl State {
     /// The exhibits' viewport: below the Layout dropdown, above the status bar.
     fn exhibit_viewport(&self) -> (f32, f32, f32, f32) {
         let (dx, dy, _, dh) = self.roster.get_dyn(15).rect();
-        let (x, y) = (dx, dy + dh + 24.0);
+        let (x, y) = (dx, dy + dh + GAP);
         let w = (self.width - 2.0 * x).max(300.0);
         let h = ((self.height - 24.0) - y).max(100.0);
         (x, y, w, h)
@@ -944,19 +945,11 @@ impl State {
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&child, &idx) in children.iter().zip(&indices) {
             let widget = unsafe { &mut *child };
-            // The adapter inflates SOME widgets' rects by their detached label on every
-            // set_rect and reports the inflated height from rect(); others place the
-            // label inside their rect and get no inflation. Measure it — the height a
-            // zero-height set_rect comes back as — and work in content height from there.
+            // The strategy landed each exhibit in exactly the box it allotted; shift it
+            // by the scroll and hand `set_rect` the content height (it re-adds the
+            // label strip an inflating widget grows by — `label_inflation`).
             let (cx, cy, cw, ch) = widget.rect();
-            widget.set_rect(cx, cy, cw, 0.0);
-            let l = widget.rect().3;
-            let mut content = ch - l;
-            // A strategy sizes a child without an intrinsic height from its inflated
-            // rect and assigns that back through set_rect, so the label landed twice.
-            if widget.preferred_height().is_none() {
-                content -= l;
-            }
+            let content = ch - widget.label_inflation();
             let cw = self.content_width(idx).unwrap_or(cw);
             widget.set_rect(cx, cy - scroll_y, cw, content);
         }
@@ -1765,19 +1758,19 @@ fn spawn_editor(kind: &str) {
 }
 
 /// The toolkit container layouts the Layout dropdown offers, by name.
+/// The strategies at the toolkit's own spacing (`layout::CONTROL_GAP`, every strategy's
+/// default gap), no padding — the exhibit viewport is already inset — so the page shows
+/// the rhythm a container gets by default.
 const LAYOUTS: [(&str, fn() -> Box<dyn cce_ui::layout::LayoutStrategy>); 7] = [
-    ("Vertical", || {
-        let mut v = VerticalLayout::default();
-        v.spacing = 24.0;
-        Box::new(v)
-    }),
-    ("Columns", || Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, spacing: 24.0 })),
-    ("Grid", || Box::new(GridLayout { columns: 3, gap: 24.0, padding_x: 0.0, padding_y: 0.0, grid: None })),
-    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: 24.0, padding_x: 0.0, padding_y: 0.0, grid: None })),
-    ("Mosaic", || Box::new(MosaicLayout { gap: 24.0, padding_x: 0.0, padding_y: 0.0 })),
-    ("Reverse Mosaic", || Box::new(ReverseMosaicLayout { gap: 24.0, padding_x: 0.0, padding_y: 0.0 })),
+    ("Vertical", || Box::new(VerticalLayout::default())),
+    ("Columns", || Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, ..ColumnsLayout::default() })),
+    ("Grid", || Box::new(GridLayout { columns: 3, gap: GAP, padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: GAP, padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Mosaic", || Box::new(MosaicLayout { padding_x: 0.0, padding_y: 0.0, ..MosaicLayout::default() })),
+    ("Reverse Mosaic", || Box::new(ReverseMosaicLayout { padding_x: 0.0, padding_y: 0.0, ..ReverseMosaicLayout::default() })),
     ("Overlay", || Box::new(OverlayLayout::default())),
 ];
+const GAP: f32 = cce_ui::layout::CONTROL_GAP;
 const DEFAULT_LAYOUT: usize = 4;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
