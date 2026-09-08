@@ -1150,41 +1150,56 @@ impl State {
     /// before a strategy runs: the toolkit layouts read a child's own rect for its width
     /// and preferred height, and a previous strategy may have stretched it.
     fn exhibit_sizes(&self) -> Vec<(usize, f32, f32)> {
+        // Every height below is the toolkit's default for that control — its
+        // configured `style.control.<name>.height`, or the intrinsic size the
+        // widget declares — so the page is a record of the defaults, not of
+        // numbers chosen here. The strategies read a widget's own intrinsic
+        // height anyway; the table only has to agree with it.
         let bh = cce_ui::layout::button_height();
         let tgh = cce_ui::layout::toggle_height();
         let slh = cce_ui::layout::slider_height();
+        let rsh = cce_ui::layout::rangeslider_height();
+        let pbh = cce_ui::layout::progressbar_height();
         let sph = cce_ui::layout::spinbox_height();
         let ddh = cce_ui::layout::dropdown_height();
+        let tbh = cce_ui::layout::textbox_height();
+        let csh = cce_ui::layout::color_selector_height();
+        let fsh = cce_ui::layout::font_selector_height();
+        let rmh = cce_ui::layout::ramp_height();
+        // The few exhibits with no toolkit default are canvases: an area to draw
+        // or drag in, sized here and only here.
+        const CANVAS_H: f32 = 120.0;
+        const W: f32 = 190.0;
         let raw: [(usize, f32, f32); 29] = [
-            (2, 190.0, bh),                                     // Button
-            (46, 190.0, 28.0),                                  // ButtonStrip
-            (3, 190.0, tgh),                                    // Checkbox
-            (4, 190.0, tgh),                                    // Toggle
-            (6, 190.0, slh),                                    // Slider
-            (20, 190.0, cce_ui::layout::rangeslider_height()),  // RangeSlider
-            (47, 190.0, 100.0),                                 // Slider2D
-            (7, 190.0, sph),                                    // Spinbox
-            (48, 190.0, Float3::preferred_height(false)),       // Float3
-            (26, 190.0, ddh),                                   // TextBox
-            (45, 190.0, 44.0),                                   // KeybindRecorder
-            (43, 190.0, 44.0),                                   // ColorSelector
-            (44, 190.0, 44.0),                                   // FontSelector
-            (5, 190.0, cce_ui::layout::progressbar_height()),   // ProgressBar
-            (49, 190.0, 12.0),                                  // UsageBar
-            (50, 16.0, 16.0),                                   // StatusDot
-            (57, 190.0, 2.0),                                   // Separator
-            (58, 6.0, 80.0),                                    // Splitter
-            (51, 190.0, 70.0),                                  // InfoBox
-            (52, 190.0, 44.0),                                  // InteractiveListItem
-            (53, 190.0, 28.0),                                  // Breadcrumb
-            (54, 190.0, 150.0),                                 // TreeList
-            (21, 190.0, 100.0),                                 // Trackpad
-            (27, 190.0, 120.0),                                 // Plate
-            (55, 190.0, 100.0),                                 // BevelPreview
-            (56, 190.0, 60.0),                                  // RampPreview
-            (39, 190.0, 150.0),                                 // Ramp
-            (37, 190.0, bh),                                    // Color Ramp...
-            (40, 190.0, bh),                                    // Ramp...
+            (2, W, bh),                                   // Button
+            (46, W, bh),                                  // ButtonStrip
+            (3, W, tgh),                                  // Checkbox (a toggle row)
+            (4, W, tgh),                                  // Toggle
+            (6, W, slh),                                  // Slider
+            (20, W, rsh),                                 // RangeSlider
+            (47, 64.0, 64.0),                             // Slider2D (its intrinsic square)
+            (7, W, sph),                                  // Spinbox
+            (48, W, Float3::preferred_height(false)),     // Float3 (three slider rows)
+            (26, W, tbh),                                 // TextBox
+            (45, W, tbh),                                 // KeybindRecorder (a textbox)
+            (43, W, csh),                                 // ColorSelector
+            (44, W, fsh),                                 // FontSelector
+            (5, W, pbh),                                  // ProgressBar
+            (49, W, pbh),                                 // UsageBar
+            (50, StatusDot::SIZE, StatusDot::SIZE),       // StatusDot
+            (57, W, 1.0),                                 // Separator (a rule)
+            (58, 6.0, CANVAS_H),                          // Splitter (a vertical grip)
+            (51, W, 3.0 * ddh),                           // InfoBox (title + two lines)
+            (52, W, 2.0 * ddh),                           // InteractiveListItem (title + subtitle)
+            (53, W, bh),                                  // Breadcrumb (button plates)
+            (54, W, CANVAS_H),                            // TreeList
+            (21, W, CANVAS_H),                            // Trackpad
+            (27, W, CANVAS_H),                            // Plate
+            (55, W, CANVAS_H),                            // BevelPreview
+            (56, W, 2.0 * rmh),                           // RampPreview (a ramp's curve)
+            (39, W, CANVAS_H),                            // Ramp (its editor declares 150)
+            (37, W, bh),                                  // Color Ramp...
+            (40, W, bh),                                  // Ramp...
         ];
         raw.to_vec()
     }
@@ -1211,18 +1226,23 @@ impl State {
         strategy.layout(x, y, w, h, &children, &mut self.ui_context);
         for &child in &children {
             let widget = unsafe { &mut *child };
-            let (cx, cy, cw, mut ch) = widget.rect();
-            // The adapter inflates a detached-label widget's rect by its label on every
-            // set_rect. A strategy sizes a child without an intrinsic height from that
-            // inflated rect and assigns it back through set_rect, so the label lands twice;
-            // take it back out (a widget with an intrinsic height is sized from that).
+            // The adapter inflates SOME widgets' rects by their detached label on every
+            // set_rect and reports the inflated height from rect(); others place the
+            // label inside their rect and get no inflation. Measure it — the height a
+            // zero-height set_rect comes back as — and work in content height from there.
+            let (cx, cy, cw, ch) = widget.rect();
+            widget.set_rect(cx, cy, cw, 0.0);
+            let l = widget.rect().3;
+            let mut content = ch - l;
+            // A strategy sizes a child without an intrinsic height from its inflated
+            // rect and assigns that back through set_rect, so the label landed twice.
             if widget.preferred_height().is_none() {
-                ch -= 2.0 * cce_ui::widget::label_offset(widget);
+                content -= l;
             }
-            if cy + ch > limit_y {
-                ch = (limit_y - cy).max(0.0);
+            if cy + content + l > limit_y {
+                content = (limit_y - cy - l).max(0.0);
             }
-            widget.set_rect(cx, cy, cw, ch);
+            widget.set_rect(cx, cy, cw, content);
         }
     }
 
