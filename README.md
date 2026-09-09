@@ -65,8 +65,12 @@ one label convention: drawn in the strip above the control at the same
 tab for its label; the recess is the control alone) — and every well, trough and raised plateau is carved
 inside its widget's rect (`layout::carve_inside`) so a widget's footprint is
 its rect. The exhibit
-area below the dropdown scrolls (wheel, or the scrollbar at its right edge)
-when a layout runs past the window. `Color Ramp...` and `Ramp...` open the
+area below the dropdowns is a well sunk into the root plate (`well_floor` under
+the exhibits, `well_rim` over them; flat, the shared hairline frame): the
+exhibits are laid out on its floor inside the wall, and the area scrolls (wheel,
+or the scrollbar at its right edge) when a layout runs past the window — an
+exhibit scrolled to the edge slides under the wall, its text cut at the wall's
+foot. `Color Ramp...` and `Ramp...` open the
 ColorRamp and Ramp editors in their own child windows.
 
 ## Child windows

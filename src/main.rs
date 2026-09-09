@@ -914,12 +914,34 @@ impl State {
     /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
     /// (`LAYOUTS`), then clip whatever runs past the status bar.
     /// The exhibits' viewport: below the Layout dropdown, above the status bar.
+    /// The exhibit area: a well sunk into the root plate, one side margin in from
+    /// the window's sides and the same margin above the status bar.
     fn exhibit_viewport(&self) -> (f32, f32, f32, f32) {
         let (dx, dy, _, dh) = self.roster.get_dyn(15).rect();
         let (x, y) = (dx, dy + dh + GAP);
         let w = (self.width - 2.0 * x).max(300.0);
-        let h = ((self.height - 24.0) - y).max(100.0);
+        let h = ((self.height - 24.0 - x) - y).max(100.0);
         (x, y, w, h)
+    }
+
+    /// The well's rect, outer corner radius and wall depth. The wall is every
+    /// well's rule (`well_rim`: the DE bevel width capped at a fifth of the
+    /// height), taken in both styles so the page lays out the same whichever the
+    /// Style dropdown selects — flat, it is the margin inside the hairline frame.
+    fn exhibit_well(&self) -> (cce_ui::scene::layout::Rect, f32, f32) {
+        let (x, y, w, h) = self.exhibit_viewport();
+        let rect = cce_ui::scene::layout::Rect { x, y, width: w, height: h };
+        let radius = cce_ui::layout::plate_corner_radius();
+        let wall = cce_ui::layout::bevel_width().min(h * 0.2);
+        (rect, radius, wall)
+    }
+
+    /// The well's floor inside its wall — the plate the exhibits sit on and the
+    /// fitted lasso snaps to — with the floor's corner radius.
+    fn exhibit_floor(&self) -> (cce_ui::scene::layout::Rect, f32) {
+        let (rect, radius, wall) = self.exhibit_well();
+        let (floor, radii) = cce_ui::layout::carve_inside(rect, (radius, radius, radius, radius), wall);
+        (floor, radii.0)
     }
 
     fn in_exhibit_viewport(&self, px: f32, py: f32) -> bool {
@@ -934,9 +956,11 @@ impl State {
     fn layout_exhibits(&mut self) {
         let (x, y, w, h) = self.exhibit_viewport();
         self.exhibit_scroll.set_rect(x, y, w, h);
-        // The fitted lasso's plate is the exhibit area: its sides snap to these edges.
+        // The exhibits sit on the well's floor, inside its wall; the fitted lasso's
+        // plate is that floor, so its sides snap to the foot of the wall.
+        let (floor, floor_r) = self.exhibit_floor();
         if let Roster::Gallery(s) = &mut self.roster {
-            s.group_fitted.inner_mut().set_plate(cce_ui::scene::layout::Rect { x, y, width: w, height: h }, cce_ui::color::root_plate_corner_radius());
+            s.group_fitted.inner_mut().set_plate(floor, floor_r);
         }
         let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
         let mut indices: Vec<usize> = Vec::new();
@@ -965,8 +989,9 @@ impl State {
             _ => (0.0, 0.0),
         };
         let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
-        let content_h = strategy.layout(x + inset_x, y + inset_top, w - 2.0 * inset_x, h - inset_top, &children, &mut self.ui_context);
-        self.exhibit_scroll.update_bounds(content_h + inset_top, y, h);
+        let (lx, ly) = (floor.x + inset_x, floor.y + inset_top);
+        let content_h = strategy.layout(lx, ly, floor.width - 2.0 * inset_x, floor.y + floor.height - ly, &children, &mut self.ui_context);
+        self.exhibit_scroll.update_bounds(content_h + (ly - y), y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&child, &idx) in children.iter().zip(&indices) {
             let widget = unsafe { &mut *child };
@@ -1392,6 +1417,13 @@ impl cce_ui::engine::Application for State {
             let bg_color = cce_ui::color::page_low_color();
             pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: sw, height: sh }, r, (true, true, true, true), bg_color);
         }
+        // The exhibit area is a well in the root plate: its floor under the
+        // exhibits here, its rim over them below (`well_rim`), so an exhibit
+        // scrolled to the edge slides under the wall rather than sitting on it.
+        if !self.is_child {
+            let (well, radius, _) = self.exhibit_well();
+            pc.well_floor(well, radius, false);
+        }
 
         let push_rounded = |pc: &mut cce_ui::scene::paint::PaintCtx, qx: f32, qy: f32, qw: f32, qh: f32, qr: f32, qc: [f32; 4], qcorners: (bool, bool, bool, bool)| {
             let rect = Rect { x: qx, y: qy, width: qw, height: qh };
@@ -1445,10 +1477,12 @@ impl cce_ui::engine::Application for State {
                 }
             }
         }
-        // The exhibit area's scrollbar, over the exhibits: the toolkit's relief
-        // scrollbar (a groove track, a raised thumb — the TreeList's), the flat
-        // quads only when relief is off.
+        // The well's rim over the exhibits, then the area's scrollbar over the
+        // rim: the toolkit's relief scrollbar (a groove track, a raised thumb —
+        // the TreeList's), the flat quads only when relief is off.
         if !self.is_child {
+            let (well, radius, _) = self.exhibit_well();
+            pc.well_rim(well, radius, cce_ui::layout::control_relief());
             if cce_ui::layout::control_relief() {
                 self.exhibit_scroll.paint_scrollbar_relief(&mut pc);
             } else {
@@ -1519,8 +1553,11 @@ impl cce_ui::engine::Application for State {
             if self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
                 continue;
             }
+            // Text is cut at the foot of the wall: geometry slides under the rim,
+            // words do not sit on it (the TreeList's rule).
             let cp_clip = if !self.is_child && (is_exhibit(i) || is_overlay(i)) {
-                let (vx, vy, vw, vh) = self.exhibit_viewport();
+                let (f, _) = self.exhibit_floor();
+                let (vx, vy, vw, vh) = (f.x, f.y, f.width, f.height);
                 Some([vx, vy, vx + vw, vy + vh])
             } else {
                 None
