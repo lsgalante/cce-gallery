@@ -43,7 +43,9 @@ not follow the switch is a toolkit bug — every control's `with_raised` /
 
 Two `Group` lassos lie over the named exhibits — `Group`, loose around the
 FontSelector and the StatusDot, and `Group (fitted)` around the top row,
-fitted to the exhibit area's edges. A lasso is laid out by its members, not
+fitted to the exhibit area's edges. The exhibits are laid out at that fit's
+seat — a padding in from the sides, the lasso's headroom down — so the tab
+stays inside the area and the row has the same padding on every side. A lasso is laid out by its members, not
 by the strategy: under Mosaic it is the hull of wherever they landed.
 
 Every exhibit is drawn at its toolkit default size — the control's configured

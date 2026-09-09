@@ -951,9 +951,22 @@ impl State {
             children.push(widget as *mut (dyn WidgetHost + 'static));
             indices.push(idx);
         }
+        // The exhibits start at the fitted lasso's seat: one padding in from the
+        // area's sides for the frame plus one for the members inside it, and the
+        // lasso's headroom (padding + title tab) plus a padding down. A fitted group
+        // snaps to the area's edges one padding in, and its tab needs room inside
+        // the area above its members — laid out flush with the corner, the row had
+        // the frame's wall on its left edge and the tab over its labels.
+        let (inset_x, inset_top) = match &self.roster {
+            Roster::Gallery(s) => {
+                let g = s.group_fitted.inner();
+                (2.0 * g.padding(), g.padding() + g.headroom())
+            }
+            _ => (0.0, 0.0),
+        };
         let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
-        let content_h = strategy.layout(x, y, w, h, &children, &mut self.ui_context);
-        self.exhibit_scroll.update_bounds(content_h, y, h);
+        let content_h = strategy.layout(x + inset_x, y + inset_top, w - 2.0 * inset_x, h - inset_top, &children, &mut self.ui_context);
+        self.exhibit_scroll.update_bounds(content_h + inset_top, y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&child, &idx) in children.iter().zip(&indices) {
             let widget = unsafe { &mut *child };
