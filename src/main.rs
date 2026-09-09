@@ -1730,6 +1730,11 @@ impl cce_ui::engine::Application for State {
                     // and without this a dropdown that took Escape through
                     // this sweep closed its menu AND exited the app.
                     handled = true;
+                    // And delivered ONCE: the context routes a key to the
+                    // focused widget from ANY root, so without this break a
+                    // Tab-focused slider took one Right press 58 times over —
+                    // once per roster root.
+                    break;
                 }
             }
         }
