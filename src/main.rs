@@ -195,12 +195,13 @@ pub struct GallerySlots {
     pub ramp_preview_demo: Adapted<RampPreview>,
     pub separator_demo: Adapted<Separator>,
     pub splitter_demo: Adapted<Splitter>,
-    /// Three `Group` lassos over other exhibits (slots 32–34): overlays, not
-    /// exhibits — laid out by their members, drawn under the exhibit clip. The
-    /// third gathers the flat variants (`FLAT_FIRST..`) into one section.
+    /// Two `Group` lassos over other exhibits (slots 32 and 33): overlays, not
+    /// exhibits — laid out by their members, drawn under the exhibit clip.
     pub group_loose: Adapted<Group>,
     pub group_fitted: Adapted<Group>,
-    pub group_flat: Adapted<Group>,
+    /// The Style dropdown (slot 34), beside Layout in the header: Relief or Flat
+    /// for every control at once (`cce_ui::layout::set_control_relief`).
+    pub style_dd: Adapted<Dropdown>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -264,6 +265,7 @@ impl GallerySlots {
             13 => self.bevel_ramp.draggable(),
             14 => self.ramp_btn.draggable(),
             15 => self.layout_dd.draggable(),
+            34 => self.style_dd.draggable(),
             16 => self.color_selector_demo.draggable(),
             17 => self.font_selector_demo.draggable(),
             18 => self.keybind_demo.draggable(),
@@ -280,7 +282,7 @@ impl GallerySlots {
             29 => self.ramp_preview_demo.draggable(),
             30 => self.separator_demo.draggable(),
             31 => self.splitter_demo.draggable(),
-            32..=34 => false,
+            32 | 33 => false,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -306,6 +308,7 @@ impl GallerySlots {
             13 => self.bevel_ramp.is_dragging(),
             14 => self.ramp_btn.is_dragging(),
             15 => self.layout_dd.is_dragging(),
+            34 => self.style_dd.is_dragging(),
             16 => self.color_selector_demo.is_dragging(),
             17 => self.font_selector_demo.is_dragging(),
             18 => self.keybind_demo.is_dragging(),
@@ -322,7 +325,7 @@ impl GallerySlots {
             29 => self.ramp_preview_demo.is_dragging(),
             30 => self.separator_demo.is_dragging(),
             31 => self.splitter_demo.is_dragging(),
-            32..=34 => false,
+            32 | 33 => false,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -366,7 +369,7 @@ impl GallerySlots {
             31 => &self.splitter_demo,
             32 => &self.group_loose,
             33 => &self.group_fitted,
-            34 => &self.group_flat,
+            34 => &self.style_dd,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -410,7 +413,7 @@ impl GallerySlots {
             31 => &mut self.splitter_demo,
             32 => &mut self.group_loose,
             33 => &mut self.group_fitted,
-            34 => &mut self.group_flat,
+            34 => &mut self.style_dd,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -628,6 +631,7 @@ impl Roster {
             13 => s.bevel_ramp.take_click(),
             14 => s.ramp_btn.take_click(),
             15 => s.layout_dd.take_click(),
+            34 => s.style_dd.take_click(),
             16 => s.color_selector_demo.take_click(),
             17 => s.font_selector_demo.take_click(),
             18 => s.keybind_demo.take_click(),
@@ -644,7 +648,7 @@ impl Roster {
             29 => s.ramp_preview_demo.take_click(),
             30 => s.separator_demo.take_click(),
             31 => s.splitter_demo.take_click(),
-            32..=34 => false,
+            32 | 33 => false,
             // The variant exhibits are looked at, not drained.
             i if i >= GALLERY_COUNT => false,
             _ => panic!("take_click: unwired gallery slot {idx}"),
@@ -655,6 +659,7 @@ impl Roster {
         let s = self.gallery();
         match idx {
             15 => s.layout_dd.value(),
+            34 => s.style_dd.value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -744,11 +749,9 @@ fn load_bevel_ramp() -> (Vec<RampKey>, String) {
 /// per-widget override of a config style (`with_slide`) — so the page shows each
 /// look a widget can take, in the toolkit's default size for it.
 ///
-/// The FLAT looks — what `control_relief = 0` renders, `with_raised(false)` /
-/// `with_recessed(false)` — come last, in one run from [`FLAT_FIRST`], so the page
-/// reads them as one section and the `Flat` lasso (`GallerySlots::group_flat`)
-/// can gather them; every flat exhibit's label ends in `(flat)`, and the ctor
-/// checks the run.
+/// The relief-off look is NOT a variant here: the header's Style dropdown switches
+/// every control between Relief and Flat at once (`set_control_relief`), so each
+/// exhibit shows both, and no widget appears twice for its style alone.
 fn variant_exhibits() -> Vec<Exhibit> {
     const W: f32 = 190.0;
     let bh = cce_ui::layout::button_height();
@@ -756,17 +759,14 @@ fn variant_exhibits() -> Vec<Exhibit> {
     let slh = cce_ui::layout::slider_height();
     let tbh = cce_ui::layout::textbox_height();
     let ddh = cce_ui::layout::dropdown_height();
-    let fsh = cce_ui::layout::font_selector_height();
     let csh = cce_ui::layout::color_selector_height();
-    let pbh = cce_ui::layout::progressbar_height();
     // A StatusDot is 12px square; its exhibit is as wide as its label.
     const DOT_W: f32 = 200.0;
     // A column of three rotated tabs, and the sidebar width a vertical strip is drawn for.
     const TABS_H: f32 = 120.0;
     const TAB_COLUMN_W: f32 = 40.0;
     let three = || vec!["One".to_string(), "Two".to_string(), "Three".to_string()];
-    let mut out = vec![
-        // ── Relief variants ──
+    vec![
         // Button: the other four kinds.
         Exhibit::new(Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
         Exhibit::new(Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
@@ -804,44 +804,12 @@ fn variant_exhibits() -> Vec<Exhibit> {
             .with_content_width(StatusDot::SIZE),
         Exhibit::new(StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), DOT_W, StatusDot::SIZE)
             .with_content_width(StatusDot::SIZE),
-    ];
-    debug_assert_eq!(out.len(), FLAT_FIRST, "FLAT_FIRST must index the first flat exhibit");
-    out.extend([
-        // ── Flat variants: the relief-off look of every control that has one ──
-        // The plates: Button, Toggle, Dropdown, FontSelector.
-        Exhibit::new(Button::new(0.0, 0.0, W, bh).with_label("Button (flat)").with_raised(false), W, bh),
-        Exhibit::new(Toggle::new().with_label("Toggle (flat)").with_raised(false), W, tgh),
-        Exhibit::new(
-            Dropdown::new(vec!["Flat".to_string(), "Raised".to_string()], 0)
-                .with_raised(false)
-                .with_label("Dropdown (flat)"),
-            W,
-            ddh,
-        ),
-        Exhibit::new(FontSelector::new("Sans".to_string()).with_raised(false).with_label("FontSelector (flat)"), W, fsh),
-        // The wells and troughs: ButtonStrip, KeybindRecorder, ColorSelector,
-        // ProgressBar, UsageBar, Trackpad.
-        Exhibit::sized(
-            Adapted::new(ButtonStrip::new(0.0, 0.0, W, bh).with_buttons(three()).with_selected(Some(0)).with_recessed(false))
-                .with_label("ButtonStrip (flat)"),
-            W,
-            bh,
-        ),
-        Exhibit::new(KeybindRecorder::new("ctrl+1".to_string()).with_recessed(false).with_label("KeybindRecorder (flat)"), W, tbh),
-        Exhibit::new(ColorSelector::new([64, 128, 255]).with_recessed(false).with_label("ColorSelector (flat)"), W, csh),
-        Exhibit::new(ProgressBar::new(0.43).with_recessed(false).with_label("ProgressBar (flat)"), W, pbh),
-        Exhibit::new(UsageBar::new(0.62).with_recessed(false).with_label("UsageBar (flat)"), W, pbh),
-        Exhibit::sized(Trackpad::new().with_recessed(false).with_label("Trackpad (flat)"), W, TABS_H),
-    ]);
-    out
+    ]
 }
 
-/// Index into `variant_exhibits()` of the first flat variant; the flat run is
-/// `FLAT_FIRST..` (see there).
-const FLAT_FIRST: usize = 16;
-
-/// The exhibits: every slot but the chrome (0, 1) and the Layout dropdown (15),
-/// which `layout_exhibits` lays out under the dropdown.
+/// The exhibits: every slot but the chrome (0, 1), the lassos (32, 33) and the
+/// header dropdowns (15 Layout, 34 Style), which `layout_exhibits` lays out under
+/// the header row.
 fn is_exhibit(i: usize) -> bool {
     matches!(i, 2..=14 | 16..=31) || i >= GALLERY_COUNT
 }
@@ -849,7 +817,7 @@ fn is_exhibit(i: usize) -> bool {
 /// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
 /// their members rather than by the strategy.
 fn is_overlay(i: usize) -> bool {
-    matches!(i, 32..=34)
+    matches!(i, 32 | 33)
 }
 
 impl State {
@@ -983,24 +951,8 @@ impl State {
             children.push(widget as *mut (dyn WidgetHost + 'static));
             indices.push(idx);
         }
-        let make = LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1;
-        // Two passes of the one strategy: the flat run (`FLAT_FIRST..`, the tail of the
-        // exhibits) starts one gap plus the Flat lasso's headroom below the rest, so the
-        // lasso's title tab clears the block above it — the room a strategy would reserve
-        // for the title if the lasso were its child. A lasso is an overlay the strategy
-        // never sees, so the gallery reserves it.
-        let flat_from = GALLERY_COUNT + FLAT_FIRST;
-        let (split, headroom) = match &self.roster {
-            Roster::Gallery(s) => (
-                indices.iter().position(|&i| i >= flat_from).unwrap_or(indices.len()),
-                s.group_flat.headroom(),
-            ),
-            _ => (indices.len(), 0.0),
-        };
-        let h1 = if split > 0 { make().layout(x, y, w, h, &children[..split], &mut self.ui_context) } else { 0.0 };
-        let y2 = if split > 0 { y + h1 + GAP + headroom } else { y };
-        let h2 = if split < children.len() { make().layout(x, y2, w, h, &children[split..], &mut self.ui_context) } else { 0.0 };
-        let content_h = (y2 - y) + h2;
+        let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
+        let content_h = strategy.layout(x, y, w, h, &children, &mut self.ui_context);
         self.exhibit_scroll.update_bounds(content_h, y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&child, &idx) in children.iter().zip(&indices) {
@@ -1042,6 +994,28 @@ impl State {
         }
     }
 
+    /// Drain the header dropdowns' selections and apply them: Layout (15) picks the
+    /// strategy, Style (34) switches every control between Relief and Flat
+    /// (`set_control_relief` — the toolkit reads it live at paint, so a rebuild is
+    /// all it takes). Called after mouse AND key input: a Dropdown selects from the
+    /// keyboard too (Down, Enter), and a selection must not wait for the next click.
+    fn apply_header_dropdowns(&mut self) -> bool {
+        let mut applied = false;
+        if self.roster.take_click(15) {
+            self.layout_idx = self.roster.value(15) as usize;
+            applied = true;
+        }
+        if self.roster.take_click(34) {
+            cce_ui::layout::set_control_relief(self.roster.value(34) == 0);
+            applied = true;
+        }
+        if applied {
+            self.relayout();
+            self.apply_layout();
+        }
+        applied
+    }
+
     fn apply_layout(&mut self) {
         for i in 0..self.roster.len() {
             if self.roster.is_dragging(i) {
@@ -1054,9 +1028,9 @@ impl State {
             let visible = self.is_widget_visible(i);
             let (x, y, w, h) = self.positions[i];
             let widget = self.roster.get_dyn_mut(i);
-            if visible && i == 15 {
-                // The Layout dropdown lands through `layout` at its own preferred
-                // height: `y` is where its label goes, the content sits a strip below.
+            if visible && (i == 15 || i == 34) {
+                // The header dropdowns land through `layout` at their own preferred
+                // height: `y` is where the label goes, the content sits a strip below.
                 let h = widget.preferred_height().unwrap_or(h);
                 let strip = widget.label_strip();
                 widget.layout(Point { x, y: y + strip }, LayoutConstraints::new(w, w, h, h), &mut self.ui_context);
@@ -1182,6 +1156,10 @@ impl cce_ui::engine::Application for State {
                     LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
                     DEFAULT_LAYOUT,
                 ).with_label("Layout"),
+                style_dd: Dropdown::new(
+                    vec!["Relief".to_string(), "Flat".to_string()],
+                    if cce_ui::layout::control_relief() { 0 } else { 1 },
+                ).with_label("Style"),
                 color_selector_demo: ColorSelector::new([64, 128, 255]).with_label("ColorSelector"),
                 font_selector_demo: FontSelector::new("Sans".to_string()).with_label("FontSelector"),
                 keybind_demo: KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder"),
@@ -1219,7 +1197,6 @@ impl cce_ui::engine::Application for State {
                 // Tight padding: the gallery packs its rows closer than a settings page.
                 group_loose: Group::new(Vec::new()).with_label("Group").with_padding(6.0),
                 group_fitted: Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0),
-                group_flat: Group::new(Vec::new()).with_label("Flat").with_padding(6.0),
                 extra: variant_exhibits(),
             }))
         };
@@ -1234,20 +1211,8 @@ impl cce_ui::engine::Application for State {
                 let ids = |s: &GallerySlots, idx: &[usize]| idx.iter().map(|&i| s.get_dyn(i).base().id()).collect::<Vec<_>>();
                 let loose = ids(s, &[17, 23]);
                 let fitted = ids(s, &[2, 19, 3, 4]);
-                // The flat variants are the tail of `variant_exhibits`, one run,
-                // so the Flat lasso is the hull of wherever the strategy put them.
-                let flat_idx: Vec<usize> = (GALLERY_COUNT + FLAT_FIRST..GALLERY_COUNT + s.extra.len()).collect();
-                debug_assert!(
-                    (GALLERY_COUNT..GALLERY_COUNT + s.extra.len()).all(|i| {
-                        let is_flat = s.get_dyn(i).base().label.as_deref().is_some_and(|l| l.ends_with("(flat)"));
-                        is_flat == (i >= GALLERY_COUNT + FLAT_FIRST)
-                    }),
-                    "variant_exhibits: the flat variants must be the tail, from FLAT_FIRST"
-                );
-                let flat = ids(s, &flat_idx);
                 s.group_loose.inner_mut().set_members(loose);
                 s.group_fitted.inner_mut().set_members(fitted);
-                s.group_flat.inner_mut().set_members(flat);
             }
             roster
         };
@@ -1734,10 +1699,7 @@ impl cce_ui::engine::Application for State {
                         return Some("exit".to_string());
                     }
                 } else {
-                    if self.roster.take_click(15) {
-                        self.layout_idx = self.roster.value(15) as usize;
-                        self.relayout();
-                        self.apply_layout();
+                    if self.apply_header_dropdowns() {
                         changed = true;
                     } else if self.roster.take_click(12) {
                         spawn_editor("ColorRamp");
@@ -1839,6 +1801,11 @@ impl cce_ui::engine::Application for State {
             return Some("exit".to_string());
         }
 
+        // A header dropdown driven by the keyboard selects on Enter: apply it now.
+        if !self.is_child && self.apply_header_dropdowns() {
+            changed = true;
+        }
+
         if changed {
             *needs_rebuild = true;
         }
@@ -1903,10 +1870,12 @@ fn demo_positions(sw: f32, sh: f32, count: usize) -> Vec<(f32, f32, f32, f32)> {
     let mut vec = vec![(0.0, 0.0, 0.0, 0.0); count];
     vec[0] = (0.0, 0.0, sw, 40.0); // MenuBar
     vec[1] = (0.0, sh - 24.0, sw, 24.0); // StatusBar
-    // The Layout dropdown; the exhibits below it are laid out by `layout_exhibits`
-    // with the strategy it selects. Its height is the widget's own preferred
-    // height (`apply_layout`); the one here is a placeholder.
+    // The header dropdowns; the exhibits below them are laid out by
+    // `layout_exhibits` with the strategy Layout selects. Their heights are the
+    // widgets' own preferred heights (`apply_layout`); the ones here are placeholders.
     vec[15] = (20.0, 60.0, 190.0, 0.0);
+    // The Style dropdown, one gap to its right.
+    vec[34] = (20.0 + 190.0 + GAP, 60.0, 190.0, 0.0);
     vec
 }
 

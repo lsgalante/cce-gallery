@@ -24,23 +24,24 @@ frame it.
 After those come the variants: every further look a widget can take, one
 exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
 constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
-`new_copy_icon`), a builder (`with_raised(false)` on Button, Toggle and
-Dropdown; `with_readout` on Slider;
-`with_multiline`, `with_draw_bg_border(false)` and `with_password` on
-TextBox; `with_vertical` on ButtonStrip, and the Paginator built on it), or a
-per-widget override of a config-wide style (`Toggle::with_slide`, the
-`style.control.toggle.style` look, next to `Slider::with_band` for
-`style.control.slider.style`). The controls whose default look is worked
-into the plate — ButtonStrip's well with its raised selected segment,
-FontSelector's flush trough, the wells of KeybindRecorder, ColorSelector's
-hex field, ProgressBar, UsageBar and Trackpad — show their flat look too (`with_recessed(false)` / `with_raised(false)`, what
-`control_relief = 0` renders), and ColorSelector its alpha swatch. The four
-StatusDot statuses and the plain Label round it off. When a widget gains a
-style, it gains an exhibit here. The flat looks come last, in one run,
-so the page reads them as a section; a `Group` lasso titled `Flat` gathers
-them, and the run is laid out as a second pass of the same strategy, one gap
-plus the lasso's headroom (`Group::headroom`, its padding and title tab)
-below the rest, so the tab clears the exhibit above it. Two more lassos lie over the named exhibits — `Group`, loose around the
+`new_copy_icon`), a builder (`with_readout` on Slider; `with_multiline`,
+`with_draw_bg_border(false)` and `with_password` on TextBox; `with_vertical`
+on ButtonStrip, and the Paginator built on it), or a per-widget override of a
+config-wide style (`Toggle::with_slide`, the `style.control.toggle.style`
+look, next to `Slider::with_band` for `style.control.slider.style`).
+ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
+plain Label round it off. When a widget gains a style, it gains an exhibit
+here.
+
+The relief-off look is not a variant. The header's `Style` dropdown, beside
+`Layout`, switches every control between `Relief` and `Flat` at once
+(`cce_ui::layout::set_control_relief`, what `control_relief = 0` configures
+DE-wide): the toolkit reads the switch live, so each exhibit shows both looks
+in place and no widget appears twice for its style alone. A widget that does
+not follow the switch is a toolkit bug — every control's `with_raised` /
+`with_recessed` is an override on top of the live default, not a copy of it.
+
+Two `Group` lassos lie over the named exhibits — `Group`, loose around the
 FontSelector and the StatusDot, and `Group (fitted)` around the top row,
 fitted to the exhibit area's edges. A lasso is laid out by its members, not
 by the strategy: under Mosaic it is the hull of wherever they landed.
