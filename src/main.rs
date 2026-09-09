@@ -983,8 +983,24 @@ impl State {
             children.push(widget as *mut (dyn WidgetHost + 'static));
             indices.push(idx);
         }
-        let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
-        let content_h = strategy.layout(x, y, w, h, &children, &mut self.ui_context);
+        let make = LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1;
+        // Two passes of the one strategy: the flat run (`FLAT_FIRST..`, the tail of the
+        // exhibits) starts one gap plus the Flat lasso's headroom below the rest, so the
+        // lasso's title tab clears the block above it — the room a strategy would reserve
+        // for the title if the lasso were its child. A lasso is an overlay the strategy
+        // never sees, so the gallery reserves it.
+        let flat_from = GALLERY_COUNT + FLAT_FIRST;
+        let (split, headroom) = match &self.roster {
+            Roster::Gallery(s) => (
+                indices.iter().position(|&i| i >= flat_from).unwrap_or(indices.len()),
+                s.group_flat.headroom(),
+            ),
+            _ => (indices.len(), 0.0),
+        };
+        let h1 = if split > 0 { make().layout(x, y, w, h, &children[..split], &mut self.ui_context) } else { 0.0 };
+        let y2 = if split > 0 { y + h1 + GAP + headroom } else { y };
+        let h2 = if split < children.len() { make().layout(x, y2, w, h, &children[split..], &mut self.ui_context) } else { 0.0 };
+        let content_h = (y2 - y) + h2;
         self.exhibit_scroll.update_bounds(content_h, y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&child, &idx) in children.iter().zip(&indices) {

@@ -38,7 +38,9 @@ hex field, ProgressBar, UsageBar and Trackpad — show their flat look too (`wit
 StatusDot statuses and the plain Label round it off. When a widget gains a
 style, it gains an exhibit here. The flat looks come last, in one run,
 so the page reads them as a section; a `Group` lasso titled `Flat` gathers
-them. Two more lassos lie over the named exhibits — `Group`, loose around the
+them, and the run is laid out as a second pass of the same strategy, one gap
+plus the lasso's headroom (`Group::headroom`, its padding and title tab)
+below the rest, so the tab clears the exhibit above it. Two more lassos lie over the named exhibits — `Group`, loose around the
 FontSelector and the StatusDot, and `Group (fitted)` around the top row,
 fitted to the exhibit area's edges. A lasso is laid out by its members, not
 by the strategy: under Mosaic it is the hull of wherever they landed.
