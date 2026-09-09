@@ -1209,6 +1209,11 @@ impl cce_ui::engine::Application for State {
         state
     }
 
+    /// The gallery navigates in plate terms: Tab walks the exhibits.
+    fn plate_navigation(&self) -> bool {
+        true
+    }
+
     fn settings(&self) -> cce_ui::engine::WindowSettings {
         let title = match self.child_kind {
             Some(kind) => kind.title().to_string(),
