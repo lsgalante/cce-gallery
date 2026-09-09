@@ -1,6 +1,6 @@
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
-    Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar,
+    Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group,
     Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta,
     ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus,
     InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator,
@@ -195,6 +195,10 @@ pub struct GallerySlots {
     pub ramp_preview_demo: Adapted<RampPreview>,
     pub separator_demo: Adapted<Separator>,
     pub splitter_demo: Adapted<Splitter>,
+    /// Two `Group` lassos over other exhibits (slots 32 and 33): overlays, not
+    /// exhibits — laid out by their members, drawn under the exhibit clip.
+    pub group_loose: Adapted<Group>,
+    pub group_fitted: Adapted<Group>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -202,7 +206,7 @@ pub struct GallerySlots {
 
 /// The number of NAMED gallery slots; the variant exhibits follow them, so the roster's
 /// `len` is this plus `GallerySlots::extra.len()`.
-pub const GALLERY_COUNT: usize = 32;
+pub const GALLERY_COUNT: usize = 34;
 
 /// A variant exhibit: a widget in a style other than the one its named slot shows, with
 /// the content size `layout_exhibits` resets it to.
@@ -274,6 +278,7 @@ impl GallerySlots {
             29 => self.ramp_preview_demo.draggable(),
             30 => self.separator_demo.draggable(),
             31 => self.splitter_demo.draggable(),
+            32 | 33 => false,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -315,6 +320,7 @@ impl GallerySlots {
             29 => self.ramp_preview_demo.is_dragging(),
             30 => self.separator_demo.is_dragging(),
             31 => self.splitter_demo.is_dragging(),
+            32 | 33 => false,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -356,6 +362,8 @@ impl GallerySlots {
             29 => &self.ramp_preview_demo,
             30 => &self.separator_demo,
             31 => &self.splitter_demo,
+            32 => &self.group_loose,
+            33 => &self.group_fitted,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -397,6 +405,8 @@ impl GallerySlots {
             29 => &mut self.ramp_preview_demo,
             30 => &mut self.separator_demo,
             31 => &mut self.splitter_demo,
+            32 => &mut self.group_loose,
+            33 => &mut self.group_fitted,
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -630,6 +640,7 @@ impl Roster {
             29 => s.ramp_preview_demo.take_click(),
             30 => s.separator_demo.take_click(),
             31 => s.splitter_demo.take_click(),
+            32 | 33 => false,
             // The variant exhibits are looked at, not drained.
             i if i >= GALLERY_COUNT => false,
             _ => panic!("take_click: unwired gallery slot {idx}"),
@@ -814,6 +825,12 @@ fn is_exhibit(i: usize) -> bool {
     matches!(i, 2..=14 | 16..=31) || i >= GALLERY_COUNT
 }
 
+/// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
+/// their members rather than by the strategy.
+fn is_overlay(i: usize) -> bool {
+    matches!(i, 32 | 33)
+}
+
 impl State {
     fn visibility(&self) -> Visibility {
         Visibility {
@@ -928,6 +945,10 @@ impl State {
     fn layout_exhibits(&mut self) {
         let (x, y, w, h) = self.exhibit_viewport();
         self.exhibit_scroll.set_rect(x, y, w, h);
+        // The fitted lasso's plate is the exhibit area: its sides snap to these edges.
+        if let Roster::Gallery(s) = &mut self.roster {
+            s.group_fitted.inner_mut().set_plate(cce_ui::scene::layout::Rect { x, y, width: w, height: h }, cce_ui::color::root_plate_corner_radius());
+        }
         let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
         let mut indices: Vec<usize> = Vec::new();
         for (idx, cw, ch) in self.exhibit_sizes() {
@@ -1157,10 +1178,29 @@ impl cce_ui::engine::Application for State {
                 ramp_preview_demo: RampPreview::new().with_label("RampPreview"),
                 separator_demo: Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator"),
                 splitter_demo: Splitter::new(200.0).with_label("Splitter"),
+                // Members are wired below, once the slots have ids.
+                // Tight padding: the gallery packs its rows closer than a settings page.
+                group_loose: Group::new(Vec::new()).with_label("Group").with_padding(6.0),
+                group_fitted: Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0),
                 extra: variant_exhibits(),
             }))
         };
 
+        let roster = {
+            let mut roster = roster;
+            if let Roster::Gallery(s) = &mut roster {
+                // The lassos: a loose one around the FontSelector and the StatusDot, and
+                // one around the top row (Button, ButtonStrip, Checkbox, Toggle) that
+                // fits the exhibit area's edges — its top snaps to the area's top with
+                // the title tab kept inside, its left to the area's left edge.
+                let ids = |s: &GallerySlots, idx: &[usize]| idx.iter().map(|&i| s.get_dyn(i).base().id()).collect::<Vec<_>>();
+                let loose = ids(s, &[17, 23]);
+                let fitted = ids(s, &[2, 19, 3, 4]);
+                s.group_loose.inner_mut().set_members(loose);
+                s.group_fitted.inner_mut().set_members(fitted);
+            }
+            roster
+        };
         let mut state = Self {
             roster,
             positions: Vec::new(),
@@ -1340,7 +1380,7 @@ impl cce_ui::engine::Application for State {
                 continue;
             }
             {
-                let clip = if !self.is_child && is_exhibit(i) { Some(self.exhibit_viewport()) } else { None };
+                let clip = if !self.is_child && (is_exhibit(i) || is_overlay(i)) { Some(self.exhibit_viewport()) } else { None };
                 if let Some((vx, vy, vw, vh)) = clip {
                     pc.push_clip(Rect { x: vx, y: vy, width: vw, height: vh });
                 }
@@ -1360,7 +1400,7 @@ impl cce_ui::engine::Application for State {
                 continue;
             }
             {
-                let clip = if !self.is_child && is_exhibit(i) { Some(self.exhibit_viewport()) } else { None };
+                let clip = if !self.is_child && (is_exhibit(i) || is_overlay(i)) { Some(self.exhibit_viewport()) } else { None };
                 if let Some((vx, vy, vw, vh)) = clip {
                     pc.push_clip(Rect { x: vx, y: vy, width: vw, height: vh });
                 }
@@ -1445,7 +1485,7 @@ impl cce_ui::engine::Application for State {
             if self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
                 continue;
             }
-            let cp_clip = if !self.is_child && is_exhibit(i) {
+            let cp_clip = if !self.is_child && (is_exhibit(i) || is_overlay(i)) {
                 let (vx, vy, vw, vh) = self.exhibit_viewport();
                 Some([vx, vy, vx + vw, vy + vh])
             } else {
