@@ -750,7 +750,7 @@ fn variant_exhibits() -> Vec<Exhibit> {
     let csh = cce_ui::layout::color_selector_height();
     let pbh = cce_ui::layout::progressbar_height();
     // A StatusDot is 12px square; its exhibit is as wide as its label.
-    const DOT_W: f32 = 150.0;
+    const DOT_W: f32 = 200.0;
     // A column of three rotated tabs, and the sidebar width a vertical strip is drawn for.
     const TABS_H: f32 = 120.0;
     const TAB_COLUMN_W: f32 = 40.0;
@@ -884,7 +884,7 @@ impl State {
             .width;
         // A StatusDot is 12px square; its exhibit is as wide as its label
         // (`content_width` hands the dot its own size back after layout).
-        const DOT_W: f32 = 150.0;
+        const DOT_W: f32 = 200.0;
         let raw: [(usize, f32, f32); 29] = [
             (2, W, bh),                                   // Button
             (19, W, bh),                                  // ButtonStrip
@@ -1417,10 +1417,16 @@ impl cce_ui::engine::Application for State {
                 }
             }
         }
-        // The exhibit area's scrollbar, over the exhibits.
+        // The exhibit area's scrollbar, over the exhibits: the toolkit's relief
+        // scrollbar (a groove track, a raised thumb — the TreeList's), the flat
+        // quads only when relief is off.
         if !self.is_child {
-            for (sx, sy, sw, sh, sc) in self.exhibit_scroll.extra_quads() {
-                pc.quad(Rect { x: sx, y: sy, width: sw, height: sh }, sc);
+            if cce_ui::layout::control_relief() {
+                self.exhibit_scroll.paint_scrollbar_relief(&mut pc);
+            } else {
+                for (sx, sy, sw, sh, sc) in self.exhibit_scroll.extra_quads() {
+                    pc.quad(Rect { x: sx, y: sy, width: sw, height: sh }, sc);
+                }
             }
         }
 
