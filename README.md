@@ -36,7 +36,12 @@ FontSelector's flush trough, the wells of KeybindRecorder, ColorSelector's
 hex field, ProgressBar, UsageBar and Trackpad — show their flat look too (`with_recessed(false)` / `with_raised(false)`, what
 `control_relief = 0` renders), and ColorSelector its alpha swatch. The four
 StatusDot statuses and the plain Label round it off. When a widget gains a
-style, it gains an exhibit here.
+style, it gains an exhibit here. The flat looks come last, in one run,
+so the page reads them as a section; a `Group` lasso titled `Flat` gathers
+them. Two more lassos lie over the named exhibits — `Group`, loose around the
+FontSelector and the StatusDot, and `Group (fitted)` around the top row,
+fitted to the exhibit area's edges. A lasso is laid out by its members, not
+by the strategy: under Mosaic it is the hull of wherever they landed.
 
 Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
