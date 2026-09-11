@@ -745,9 +745,9 @@ fn load_bevel_ramp() -> (Vec<RampKey>, String) {
 }
 
 /// Every further style of a widget the named slots show once: the toolkit's own
-/// variants — a constructor (`Button::new_reset`), a builder (`with_band`), or a
-/// per-widget override of a config style (`with_slide`) — so the page shows each
-/// look a widget can take, in the toolkit's default size for it.
+/// variants — a constructor (`Button::new_reset`) or a builder (`with_band`) —
+/// so the page shows each look a widget can take, in the toolkit's default size
+/// for it.
 ///
 /// The relief-off look is NOT a variant here: the header's Style dropdown switches
 /// every control between Relief and Flat at once (`set_control_relief`), so each
@@ -755,7 +755,6 @@ fn load_bevel_ramp() -> (Vec<RampKey>, String) {
 fn variant_exhibits() -> Vec<Exhibit> {
     const W: f32 = 190.0;
     let bh = cce_ui::layout::button_height();
-    let tgh = cce_ui::layout::toggle_height();
     let slh = cce_ui::layout::slider_height();
     let tbh = cce_ui::layout::textbox_height();
     let ddh = cce_ui::layout::dropdown_height();
@@ -772,8 +771,6 @@ fn variant_exhibits() -> Vec<Exhibit> {
         Exhibit::new(Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
         Exhibit::new(Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh),
         Exhibit::new(Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh),
-        // Toggle: the slide style (config `style.control.toggle.style`).
-        Exhibit::new(Toggle::new().with_label("Toggle (slide)").with_slide(true), W, tgh),
         // Slider: with a readout.
         Exhibit::new(Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
         // TextBox: multiline, chromeless, password.

@@ -27,9 +27,8 @@ constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
 `new_copy_icon`), a builder (`with_readout` on Slider; `with_multiline`,
 `with_draw_bg_border(false)` and `with_password` on TextBox; `with_vertical`
 on ButtonStrip, and the Paginator built on it), or a per-widget override of a
-config-wide style (`Toggle::with_slide`, the `style.control.toggle.style`
-look, next to `Slider::with_band` for `style.control.slider.style`).
-ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
+config-wide style (`Slider::with_band`, the `style.control.slider.style`
+look). ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
 plain Label round it off. When a widget gains a style, it gains an exhibit
 here.
 
