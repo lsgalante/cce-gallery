@@ -1419,7 +1419,7 @@ impl cce_ui::engine::Application for State {
         // scrolled to the edge slides under the wall rather than sitting on it.
         if !self.is_child {
             let (well, radius, _) = self.exhibit_well();
-            pc.well_floor(well, radius, false);
+            pc.well_floor(well, radius, &cce_ui::scene::Material::pane(), false);
         }
 
         let push_rounded = |pc: &mut cce_ui::scene::paint::PaintCtx, qx: f32, qy: f32, qw: f32, qh: f32, qr: f32, qc: [f32; 4], qcorners: (bool, bool, bool, bool)| {
