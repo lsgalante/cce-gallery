@@ -85,7 +85,9 @@ impl ChildKind {
             ChildKind::LayerTop => (800.0, 40.0),
             ChildKind::LayerBackground => (800.0, 600.0),
             ChildKind::Status => (140.0, 24.0),
-            ChildKind::Ramp | ChildKind::ColorRamp => (450.0, 350.0),
+            // 390 tall: the editor keeps the 260px it had at hand-set margins now that
+            // the title line, one root gap and the root insets stand around it.
+            ChildKind::Ramp | ChildKind::ColorRamp => (450.0, 390.0),
         }
     }
 
@@ -911,13 +913,15 @@ impl State {
     /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
     /// (`LAYOUTS`), then clip whatever runs past the status bar.
     /// The exhibits' viewport: below the Layout dropdown, above the status bar.
-    /// The exhibit area: a well sunk into the root plate, one side margin in from
-    /// the window's sides and the same margin above the status bar.
+    /// The exhibit area: a well sunk into the root plate, standing on it like the
+    /// header dropdowns — their inset in from the window's sides (`x` is the Layout
+    /// dropdown's), one root gap below them and one root gap above the status band.
     fn exhibit_viewport(&self) -> (f32, f32, f32, f32) {
+        let gap = cce_ui::layout::root_plate_gap();
         let (dx, dy, _, dh) = self.roster.get_dyn(15).rect();
-        let (x, y) = (dx, dy + dh + GAP);
+        let (x, y) = (dx, dy + dh + gap);
         let w = (self.width - 2.0 * x).max(300.0);
-        let h = ((self.height - 24.0 - x) - y).max(100.0);
+        let h = ((self.height - 24.0 - gap) - y).max(100.0);
         (x, y, w, h)
     }
 
@@ -1229,7 +1233,8 @@ impl cce_ui::engine::Application for State {
                 separator_demo: Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator"),
                 splitter_demo: Splitter::new(200.0).with_label("Splitter"),
                 // Members are wired below, once the slots have ids.
-                // Tight padding: the gallery packs its rows closer than a settings page.
+                // style: deliberate — tight padding: the gallery packs its rows closer than a
+                // settings page, and the fitted lasso's padding is what insets the exhibits.
                 group_loose: Group::new(Vec::new()).with_label("Group").with_padding(6.0),
                 group_fitted: Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0),
                 extra: variant_exhibits(),
@@ -1516,7 +1521,9 @@ impl cce_ui::engine::Application for State {
             }
         }
         if !has_menu_bar {
-            pc.text_with(label_text, 20.0, 12.0, 16.0, [255, 255, 255], Some(cce_ui::layout::statusbar_font()), None);
+            // The title stands on the root plate: one inset in from the window's corner.
+            let inset = cce_ui::layout::root_plate_inset();
+            pc.text_with(label_text, inset, inset, CHILD_TITLE_SIZE, [255, 255, 255], Some(cce_ui::layout::statusbar_font()), None);
         }
 
         let mut popover_rects = Vec::new();
@@ -1583,6 +1590,8 @@ impl cce_ui::engine::Application for State {
             let (_, status_font_size) = cce_ui::layout::statusbar_font_parsed();
             let status_size = if status_font_size > 0.0 { status_font_size } else { 12.0 };
             let scol = cce_ui::color::root_plate_statusbar_text_color();
+            // style: deliberate — 12px in from the bar's edge is the toolkit StatusBar's
+            // own default text offset, so the line sits where a StatusBar's text would.
             pc.text_with(
                 self.status_text.clone(),
                 12.0,
@@ -1889,25 +1898,25 @@ fn child_command() -> Option<std::process::Command> {
 /// the gallery, unlike the simulated windows Create Window spawns.
 fn spawn_editor(kind: &str) {
     if let Some(mut cmd) = child_command() {
-        cmd.args(["--type", kind, "--width", "450", "--height", "350", "--root-plate"]);
+        // The editor kinds' `default_size`, spelled out for the child's argv.
+        cmd.args(["--type", kind, "--width", "450", "--height", "390", "--root-plate"]);
         let _ = cmd.spawn();
     }
 }
 
 /// The toolkit container layouts the Layout dropdown offers, by name.
-/// The strategies at the toolkit's own spacing (`layout::CONTROL_GAP`, every strategy's
+/// The strategies at the toolkit's own spacing (`layout::control_gap()`, every strategy's
 /// default gap), no padding — the exhibit viewport is already inset — so the page shows
 /// the rhythm a container gets by default.
 const LAYOUTS: [(&str, fn() -> Box<dyn cce_ui::layout::LayoutStrategy>); 7] = [
     ("Vertical", || Box::new(VerticalLayout::default())),
     ("Columns", || Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, ..ColumnsLayout::default() })),
-    ("Grid", || Box::new(GridLayout { columns: 3, gap: GAP, padding_x: 0.0, padding_y: 0.0, grid: None })),
-    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: GAP, padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Grid", || Box::new(GridLayout { columns: 3, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0, grid: None })),
     ("Mosaic", || Box::new(MosaicLayout { padding_x: 0.0, padding_y: 0.0, ..MosaicLayout::default() })),
     ("Reverse Mosaic", || Box::new(ReverseMosaicLayout { padding_x: 0.0, padding_y: 0.0, ..ReverseMosaicLayout::default() })),
     ("Overlay", || Box::new(OverlayLayout::default())),
 ];
-const GAP: f32 = cce_ui::layout::CONTROL_GAP;
 const DEFAULT_LAYOUT: usize = 4;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
@@ -1919,19 +1928,33 @@ fn demo_positions(sw: f32, sh: f32, count: usize) -> Vec<(f32, f32, f32, f32)> {
     // The header dropdowns; the exhibits below them are laid out by
     // `layout_exhibits` with the strategy Layout selects. Their heights are the
     // widgets' own preferred heights (`apply_layout`); the ones here are placeholders.
-    vec[15] = (20.0, 60.0, 190.0, 0.0);
-    // The Style dropdown, one gap to its right.
-    vec[34] = (20.0 + 190.0 + GAP, 60.0, 190.0, 0.0);
+    // Both stand on the root plate: one inset in from the window's side, one root
+    // gap below the menu bar's band.
+    let inset = cce_ui::layout::root_plate_inset();
+    let gap = cce_ui::layout::root_plate_gap();
+    let header_y = 40.0 + gap;
+    vec[15] = (inset, header_y, 190.0, 0.0);
+    // The Style dropdown, one root gap to its right.
+    vec[34] = (inset + 190.0 + gap, header_y, 190.0, 0.0);
     vec
 }
+
+/// A child window's title, painted by `display_list` when it has no MenuBar to
+/// carry it; the description below leaves this line of headroom.
+const CHILD_TITLE_SIZE: f32 = 16.0;
 
 /// The five `ChildSlots` rects for a child window of `sw`x`sh`: 0 background,
 /// 1 main (editor or description), 2 Close, 3 and 4 the MenuBar / StatusBar of a
 /// simulated window or the two aux Labels of a Ramp / ColorRamp editor.
+/// Everything stands on the child's root plate: one root inset in from the
+/// window's edges, one root gap between the main slot and Close.
 fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, editor: bool) -> Vec<(f32, f32, f32, f32)> {
     let dy = if use_menubar { 40.0 } else { 0.0 };
     let dh = if use_statusbar { 24.0 } else { 0.0 };
     let inner_h = sh - dy - dh;
+    let inset = cce_ui::layout::root_plate_inset();
+    let gap = cce_ui::layout::root_plate_gap();
+    let (close_w, close_h) = (100.0, 35.0);
     let mut vec = vec![(-1000.0, -1000.0, 0.0, 0.0); CHILD_COUNT];
 
     if use_menubar {
@@ -1942,14 +1965,20 @@ fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, edi
     }
 
     vec[0] = (0.0, dy, sw, inner_h);
+    // Close is centred, one inset up from the bottom edge; the main slot fills the
+    // room above it, one root gap off, under the title line's headroom (kept whether
+    // the title is painted or a MenuBar carries it).
+    let close_y = dy + inner_h - inset - close_h;
+    vec[2] = ((sw - close_w) / 2.0, close_y, close_w, close_h);
+    let main_y = dy + inset + CHILD_TITLE_SIZE + gap;
+    let main_h = close_y - gap - main_y;
+    vec[1] = (inset, main_y, sw - 2.0 * inset, main_h);
     if editor {
-        vec[1] = (20.0, dy + 20.0, sw - 40.0, inner_h - 90.0);
-        vec[2] = ((sw - 100.0) / 2.0, dy + inner_h - 55.0, 100.0, 35.0);
-        vec[3] = (20.0, dy + inner_h - 90.0, 200.0, 20.0);
-        vec[4] = (sw - 220.0, dy + inner_h - 90.0, 200.0, 20.0);
-    } else {
-        vec[1] = (20.0, dy + 40.0, sw - 40.0, inner_h - 110.0);
-        vec[2] = ((sw - 100.0) / 2.0, dy + inner_h - 60.0, 100.0, 35.0);
+        // TODO(style): the two aux labels' 20px row lies over the editor's bottom
+        // strip, as it always has; that overlap is the editor's layout, not a rung.
+        let label_y = main_y + main_h - 20.0;
+        vec[3] = (inset, label_y, 200.0, 20.0);
+        vec[4] = (sw - inset - 200.0, label_y, 200.0, 20.0);
     }
 
     vec
