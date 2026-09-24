@@ -1410,9 +1410,8 @@ impl cce_ui::engine::Application for State {
 
         // ── Rounded geometry ──
         if !self.is_child && self.use_root_plate {
-            let r = cce_ui::color::root_plate_corner_radius();
-            let bg_color = cce_ui::color::page_low_color();
-            pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: sw, height: sh }, r, (true, true, true, true), bg_color);
+            // The standard root plate (cce-ui PlateSpec::window).
+            pc.root_plate(sw, sh);
         }
         // The exhibit area is a well in the root plate: its floor under the
         // exhibits here, its rim over them below (`well_rim`), so an exhibit

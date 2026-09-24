@@ -5,7 +5,7 @@
 
 use cce_ui::colors;
 use cce_ui::scene::layout::Rect;
-use cce_ui::scene::paint::PaintCtx;
+use cce_ui::scene::paint::{PaintCtx, PlateSpec};
 use cce_ui::widget::*;
 
 /// Exhibit lookalike of the old cce-ui `Plate`: config plate colour (else page colour)
@@ -69,8 +69,9 @@ impl cce_ui::widget::Paint for Plate {
 
 impl cce_ui::widget::Input for Plate {}
 
-/// Child-window background, a lookalike of the old cce-ui root plate container: page colour at
-/// the configured root plate opacity, root plate corner radius, immovable.
+/// Child-window background: the DE's standard root plate (cce-ui `PlateSpec::window` — the
+/// root material at its opacity, the window silhouette on all four corners, the standard
+/// rolled rim), immovable.
 pub struct RootPlate;
 
 impl RootPlate {
@@ -79,21 +80,14 @@ impl RootPlate {
         bp.set_rect(x, y, w, h);
         bp
     }
-
-    fn root_plate_color(&self) -> [f32; 4] {
-        let mut c = cce_ui::color::page_low_color();
-        if c[3] > 0.001 {
-            c[3] = cce_ui::color::root_plate_opacity();
-        }
-        c
-    }
 }
 
 impl cce_ui::widget::Layout for RootPlate {}
 
 impl cce_ui::widget::Paint for RootPlate {
+    /// The legacy fill read only: the geometry is the plate `paint` emits.
     fn color(&self) -> [f32; 4] {
-        self.root_plate_color()
+        cce_ui::color::page_low_color()
     }
 
     fn corner_style(&self, _rect: Rect) -> Option<(f32, (bool, bool, bool, bool))> {
@@ -103,12 +97,9 @@ impl cce_ui::widget::Paint for RootPlate {
     }
 
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
-        // Painted only while the radius is on.
-        let radius = cce_ui::color::root_plate_corner_radius();
-        let c = self.root_plate_color();
-        if radius > 0.1 && c[3].abs() > 0.001 {
-            pc.rounded_rect(rect, radius, (true, true, true, true), c);
-        }
+        // The standard root plate (cce-ui PlateSpec::window), placed at this widget's
+        // rect — the child window's origin, so `root_at(rect)` IS `window(w, h)`.
+        pc.plate_spec(&PlateSpec::root_at(rect));
     }
 }
 
