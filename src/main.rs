@@ -1278,6 +1278,9 @@ impl cce_ui::engine::Application for State {
                 let mut sb = ScrollBox::new();
                 sb.show_border = false;
                 sb.show_background = false;
+                // The DE's one scrollbar: down the area's centre line, idling
+                // behind the well's floor until a scroll raises it.
+                sb.sink_behind = true;
                 sb
             },
         };
@@ -1359,6 +1362,8 @@ impl cce_ui::engine::Application for State {
         if hover_animation::tick(dt) {
             changed = true;
         }
+        // True while the area's bar is held up or fading, as well as while a
+        // glide moves it, so the frames keep coming until the sink renders.
         if !self.is_child && self.exhibit_scroll.tick(dt, &mut self.ui_context) {
             changed = true;
         }
@@ -1421,7 +1426,11 @@ impl cce_ui::engine::Application for State {
         // The exhibit area is a well in the root plate: its floor under the
         // exhibits here, its rim over them below (`well_rim`), so an exhibit
         // scrolled to the edge slides under the wall rather than sitting on it.
+        // The area's scrollbar idles BEHIND the floor: its idle copy goes down
+        // first, every frame and at full strength — raised or not, since the
+        // fore copy fades in over it and dropping it at the latch would blink.
         if !self.is_child {
+            self.exhibit_scroll.paint_scrollbar_pills(&mut pc, 1.0);
             let (well, radius, _) = self.exhibit_well();
             pc.well_floor(well, radius, &cce_ui::scene::Material::pane(), false);
         }
@@ -1478,19 +1487,14 @@ impl cce_ui::engine::Application for State {
                 }
             }
         }
-        // The well's rim over the exhibits, then the area's scrollbar over the
-        // rim: the toolkit's relief scrollbar (a groove track, a raised thumb —
-        // the TreeList's), the flat quads only when relief is off.
+        // The well's rim over the exhibits, then the scrollbar's FORE copy over
+        // the rim, at the fade a scroll raised it to (nothing while it is sunk:
+        // then only the idle copy under the floor shows). Flat pills both
+        // times — shader-lit relief does not fade with a vertex alpha.
         if !self.is_child {
             let (well, radius, _) = self.exhibit_well();
             pc.well_rim(well, radius, cce_ui::layout::control_relief());
-            if cce_ui::layout::control_relief() {
-                self.exhibit_scroll.paint_scrollbar_relief(&mut pc);
-            } else {
-                for (sx, sy, sw, sh, sc) in self.exhibit_scroll.extra_quads() {
-                    pc.quad(Rect { x: sx, y: sy, width: sw, height: sh }, sc);
-                }
-            }
+            self.exhibit_scroll.paint_scrollbar_pills(&mut pc, self.exhibit_scroll.scrollbar_fade());
         }
 
         // ── Popovers: in-frame, on top of everything. PaintCtx is a
@@ -1681,7 +1685,10 @@ impl cce_ui::engine::Application for State {
 
         if state == ElementState::Pressed {
             let mut clicked_idx = None;
-            // The exhibit area's scrollbar takes a press on its track before any exhibit.
+            // The exhibit area's scrollbar takes a press on its track before any
+            // exhibit — while it is RAISED. A sunk bar is behind the well's floor
+            // and is not hit, so a press on its lane falls through to the exhibit
+            // under it (`ScrollBox::hit_test_scrollbar` gates on the latch).
             let exhibit_bar = !self.is_child && self.exhibit_scroll.mouse_input(button, state, lx, ly, &mut self.ui_context);
             if exhibit_bar {
                 changed = true;
