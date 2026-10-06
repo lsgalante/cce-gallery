@@ -1165,7 +1165,7 @@ impl cce_ui::engine::Application for State {
             Roster::Child(Box::new(ChildSlots {
                 bg,
                 main,
-                close: Button::new(0.0, 0.0, 100.0, 35.0).with_label("Close"),
+                close: Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close"),
                 aux3,
                 aux4,
             }))
@@ -1178,7 +1178,7 @@ impl cce_ui::engine::Application for State {
             Roster::Gallery(Box::new(GallerySlots {
                 menu_bar,
                 status_bar: StatusBar::new(),
-                button_demo: Button::new(0.0, 0.0, 140.0, 40.0).with_label("Button"),
+                button_demo: Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button"),
                 checkbox_demo: Checkbox::new().with_label("Checkbox"),
                 toggle_demo: Toggle::new().with_label("Toggle"),
                 progress_demo: ProgressBar::new(0.43).with_label("ProgressBar"),
@@ -1188,9 +1188,9 @@ impl cce_ui::engine::Application for State {
                 trackpad_demo: Trackpad::new().with_label("Trackpad"),
                 textbox_demo: TextBox::new("Interactive TextBox".to_string()),
                 plate_demo: Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate"),
-                color_ramp_btn: Button::new(0.0, 0.0, 120.0, 28.0).with_label("Color Ramp..."),
+                color_ramp_btn: Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp..."),
                 bevel_ramp: Ramp::new(),
-                ramp_btn: Button::new(0.0, 0.0, 120.0, 28.0).with_label("Ramp..."),
+                ramp_btn: Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp..."),
                 layout_dd: Dropdown::new(
                     LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
                     DEFAULT_LAYOUT,
@@ -1203,7 +1203,7 @@ impl cce_ui::engine::Application for State {
                 font_selector_demo: FontSelector::new("Sans".to_string()).with_label("FontSelector"),
                 keybind_demo: KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder"),
                 button_strip_demo: Adapted::new(
-                    ButtonStrip::new(0.0, 0.0, 200.0, 28.0)
+                    ButtonStrip::new(0.0, 0.0, 200.0, cce_ui::layout::button_height())
                         .with_buttons(vec!["One".to_string(), "Two".to_string(), "Three".to_string()])
                         .with_selected(Some(0)),
                 ).with_label("ButtonStrip"),
@@ -1961,7 +1961,7 @@ fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, edi
     let inner_h = sh - dy - dh;
     let inset = cce_ui::layout::root_plate_inset();
     let gap = cce_ui::layout::root_plate_gap();
-    let (close_w, close_h) = (100.0, 35.0);
+    let (close_w, close_h) = (100.0, cce_ui::layout::button_height());
     let mut vec = vec![(-1000.0, -1000.0, 0.0, 0.0); CHILD_COUNT];
 
     if use_menubar {
