@@ -1027,9 +1027,7 @@ impl State {
     /// through `render_widget`, where other apps pick registration up as a side effect.
     fn register_roster(&mut self) {
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
-            let (id, ptr) = (w.base().id(), w as *mut (dyn WidgetHost + 'static));
-            self.ui_context.register_widget(id, ptr);
+            self.ui_context.register_host(self.roster.get_dyn_mut(i));
         }
     }
 
