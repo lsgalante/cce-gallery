@@ -1296,8 +1296,9 @@ impl cce_ui::engine::Application for State {
             // Window on the Windows page spawned children that died at startup.
             let preset_ptr = ramp.preset_dropdown.as_ptr_mut();
             state.focused_widget = Some(1);
-            state.ui_context.set_focused_ptr(preset_ptr);
+            // SAFETY: `preset_ptr` was just taken from the live dropdown above.
             unsafe {
+                state.ui_context.set_focused_ptr(preset_ptr);
                 (*preset_ptr).focus();
             }
         }
