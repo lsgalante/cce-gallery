@@ -1646,6 +1646,15 @@ impl cce_ui::engine::Application for State {
     fn handle_pointer_move(&mut self, pos: LogicalPosition, needs_rebuild: &mut bool) {
         let (lx, ly) = (pos.x as f32, pos.y as f32);
 
+        // The shared context menu (any exhibit's) gets the pointer to itself
+        // while open: its row highlight and slider rows.
+        if cce_ui::widget::context_menu::is_visible() {
+            if cce_ui::widget::context_menu::cursor_moved(lx, ly) {
+                *needs_rebuild = true;
+            }
+            return;
+        }
+
         let mut changed = false;
         if !self.is_child && self.exhibit_scroll.cursor_moved(lx, ly, &mut self.ui_context)
         {
@@ -1678,6 +1687,22 @@ impl cce_ui::engine::Application for State {
 
     fn handle_mouse_input(&mut self, button: MouseButton, state: ElementState, pos: LogicalPosition, needs_rebuild: &mut bool) -> Option<Self::Message> {
         let (lx, ly) = (pos.x as f32, pos.y as f32);
+
+        // The shared context menu a right-click on an exhibit opens takes every
+        // press while open, ahead of the exhibit scrollbar: a row runs, a press
+        // anywhere else dismisses it. A release it does not use (its slider
+        // rows take theirs) still reaches the exhibits, whose drags end on it.
+        // The toolkit leaves this routing to the app; without it the menu could
+        // not be closed by clicking outside it, and its rows did nothing.
+        if cce_ui::widget::context_menu::is_visible() {
+            let used = cce_ui::widget::context_menu::mouse_input(button, state, lx, ly, Some(&mut self.ui_context));
+            if used {
+                *needs_rebuild = true;
+            }
+            if used || state == ElementState::Pressed {
+                return None;
+            }
+        }
 
         let mut changed = false;
         let vis = self.visibility();
