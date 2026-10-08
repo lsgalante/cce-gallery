@@ -1427,56 +1427,26 @@ impl cce_ui::engine::Application for State {
             pc.well_floor(well, radius, &cce_ui::scene::Material::pane(), false);
         }
 
-        let push_rounded = |pc: &mut cce_ui::scene::paint::PaintCtx, qx: f32, qy: f32, qw: f32, qh: f32, qr: f32, qc: [f32; 4], qcorners: (bool, bool, bool, bool)| {
-            let rect = Rect { x: qx, y: qy, width: qw, height: qh };
-            if qr > 0.1 {
-                pc.rounded_rect(rect, qr, qcorners, qc);
+        // ── Geometry: each root widget's paint walk, everything but its text ──
+        // A widget with a ui-tree parent (the page selector under the status bar) is
+        // painted by that parent's walk. The text goes in the text pass below, which
+        // culls it under open popovers and cuts it at the foot of the well's wall.
+        // (Until 2026-10-08 this was the legacy tuple views — every rounded quad, then
+        // every plain quad, then the other prims replayed — which put a widget's quads
+        // over everything else it painted, whatever its own order.)
+        for i in 0..self.roster.len() {
+            let w = self.roster.get_dyn(i);
+            if !self.is_widget_visible(i) || self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
+                continue;
+            }
+            let mut walk = cce_ui::scene::paint::PaintCtx::new();
+            cce_ui::scene::painter::paint_root_into(&self.ui_context, w, &mut walk);
+            let geometry = walk.finish().items.into_iter().filter(|it| !matches!(it.prim, Prim::Text { .. }));
+            if !self.is_child && (is_exhibit(i) || is_overlay(i)) {
+                let (vx, vy, vw, vh) = self.exhibit_viewport();
+                pc.clip(Rect { x: vx, y: vy, width: vw, height: vh }, |pc| pc.append_items(geometry));
             } else {
-                pc.quad(rect, qc);
-            }
-        };
-
-        for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn(i);
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            {
-                let clip = if !self.is_child && (is_exhibit(i) || is_overlay(i)) { Some(self.exhibit_viewport()) } else { None };
-                if let Some((vx, vy, vw, vh)) = clip {
-                    pc.push_clip(Rect { x: vx, y: vy, width: vw, height: vh });
-                }
-                for (qx, qy, qw, qh, qr, qc, qcorners) in w.all_rounded_quads(&self.ui_context) {
-                    push_rounded(&mut pc, qx, qy, qw, qh, qr, qc, qcorners);
-                }
-                if clip.is_some() {
-                    pc.pop_clip();
-                }
-            }
-        }
-
-        // ── Plain geometry ──
-        for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn(i);
-            if !self.is_widget_visible(i) {
-                continue;
-            }
-            {
-                let clip = if !self.is_child && (is_exhibit(i) || is_overlay(i)) { Some(self.exhibit_viewport()) } else { None };
-                if let Some((vx, vy, vw, vh)) = clip {
-                    pc.push_clip(Rect { x: vx, y: vy, width: vw, height: vh });
-                }
-                for (qx, qy, qw, qh, qc) in w.all_quads(&self.ui_context) {
-                    pc.quad(Rect { x: qx, y: qy, width: qw, height: qh }, qc);
-                }
-                // The quad bridges above carry only quads. A widget that paints
-                // borders, circles, arcs or vectors (the round Checkbox's ring and
-                // dot, a slider's knob, a button's border) would lose them, so
-                // replay every other own prim; text stays with the text pass.
-                replay_non_quad_prims(w, &self.ui_context, &mut pc);
-                if clip.is_some() {
-                    pc.pop_clip();
-                }
+                pc.append_items(geometry);
             }
         }
         // The well's rim over the exhibits, then the scrollbar's FORE copy over
@@ -1891,23 +1861,6 @@ impl cce_ui::engine::Application for State {
         None
     }
 
-}
-
-/// Re-emit a widget's own prims other than quads, rounded rects and text: the
-/// gallery's paint loop bridges quads through `all_quads`/`all_rounded_quads` and
-/// text through the text pass, and would otherwise drop a widget's borders,
-/// circles, arcs and vectors.
-fn replay_non_quad_prims(w: &(dyn WidgetHost + 'static), ui: &cce_ui::context::UiContext, pc: &mut cce_ui::scene::paint::PaintCtx) {
-    let mut scratch = cce_ui::scene::paint::PaintCtx::new();
-    w.paint_self(ui, &mut scratch);
-    for item in scratch.finish().items {
-        match item.prim {
-            Prim::Quad { .. } | Prim::RoundedRect { .. } | Prim::Text { .. } => {}
-            prim => {
-                let _ = pc.replay(prim);
-            }
-        }
-    }
 }
 
 /// A `Command` that re-runs this binary as a child window; the caller adds the flags.
