@@ -1735,7 +1735,7 @@ impl cce_ui::engine::Application for State {
             if button == MouseButton::Left {
                 if let Some(old) = self.focused_widget {
                     if Some(old) != clicked_idx {
-                        self.roster.get_dyn_mut(old).unfocus();
+                        self.ui_context.unfocus_widget(self.roster.get_dyn_mut(old));
                         self.focused_widget = None;
                     }
                 }
@@ -1755,7 +1755,7 @@ impl cce_ui::engine::Application for State {
                     self.ui_context.drag_target = Some(id);
                 }
                 if button == MouseButton::Left {
-                    self.roster.get_dyn_mut(i).focus();
+                    self.ui_context.focus_widget(self.roster.get_dyn_mut(i));
                     self.focused_widget = Some(i);
                 }
             }
