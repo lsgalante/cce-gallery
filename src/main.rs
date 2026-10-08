@@ -1,3 +1,4 @@
+use cce_ui::widget::Owned;
 use cce_ui::widget::{
     Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar,
     Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group,
@@ -165,45 +166,45 @@ impl Visibility {
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `get_dyn`/`get_dyn_mut`.
 pub struct GallerySlots {
-    pub menu_bar: Adapted<MenuBar>,
-    pub status_bar: Adapted<StatusBar>,
-    pub button_demo: Adapted<Button>,
-    pub checkbox_demo: Adapted<Checkbox>,
-    pub toggle_demo: Adapted<Toggle>,
-    pub progress_demo: Adapted<ProgressBar>,
-    pub slider_demo: Adapted<Slider>,
-    pub spinbox_demo: Adapted<Spinbox>,
-    pub range_slider_demo: Adapted<RangeSlider>,
-    pub trackpad_demo: Adapted<Trackpad>,
-    pub textbox_demo: Adapted<TextBox>,
-    pub plate_demo: Adapted<Plate>,
-    pub color_ramp_btn: Adapted<Button>,
-    pub bevel_ramp: Adapted<Ramp>,
-    pub ramp_btn: Adapted<Button>,
-    pub layout_dd: Adapted<Dropdown>,
-    pub color_selector_demo: Adapted<ColorSelector>,
-    pub font_selector_demo: Adapted<FontSelector>,
-    pub keybind_demo: Adapted<KeybindRecorder>,
-    pub button_strip_demo: Adapted<ButtonStrip>,
-    pub slider2d_demo: Adapted<Slider2D>,
-    pub float3_demo: Adapted<Float3>,
-    pub usage_bar_demo: Adapted<UsageBar>,
-    pub status_dot_demo: Adapted<StatusDot>,
-    pub info_box_demo: Adapted<InfoBox>,
-    pub list_item_demo: Adapted<InteractiveListItem>,
-    pub breadcrumb_demo: Adapted<Breadcrumb>,
-    pub tree_list_demo: Adapted<TreeList>,
-    pub bevel_preview_demo: Adapted<BevelPreview>,
-    pub ramp_preview_demo: Adapted<RampPreview>,
-    pub separator_demo: Adapted<Separator>,
-    pub splitter_demo: Adapted<Splitter>,
+    pub menu_bar: Owned<Adapted<MenuBar>>,
+    pub status_bar: Owned<Adapted<StatusBar>>,
+    pub button_demo: Owned<Adapted<Button>>,
+    pub checkbox_demo: Owned<Adapted<Checkbox>>,
+    pub toggle_demo: Owned<Adapted<Toggle>>,
+    pub progress_demo: Owned<Adapted<ProgressBar>>,
+    pub slider_demo: Owned<Adapted<Slider>>,
+    pub spinbox_demo: Owned<Adapted<Spinbox>>,
+    pub range_slider_demo: Owned<Adapted<RangeSlider>>,
+    pub trackpad_demo: Owned<Adapted<Trackpad>>,
+    pub textbox_demo: Owned<Adapted<TextBox>>,
+    pub plate_demo: Owned<Adapted<Plate>>,
+    pub color_ramp_btn: Owned<Adapted<Button>>,
+    pub bevel_ramp: Owned<Adapted<Ramp>>,
+    pub ramp_btn: Owned<Adapted<Button>>,
+    pub layout_dd: Owned<Adapted<Dropdown>>,
+    pub color_selector_demo: Owned<Adapted<ColorSelector>>,
+    pub font_selector_demo: Owned<Adapted<FontSelector>>,
+    pub keybind_demo: Owned<Adapted<KeybindRecorder>>,
+    pub button_strip_demo: Owned<Adapted<ButtonStrip>>,
+    pub slider2d_demo: Owned<Adapted<Slider2D>>,
+    pub float3_demo: Owned<Adapted<Float3>>,
+    pub usage_bar_demo: Owned<Adapted<UsageBar>>,
+    pub status_dot_demo: Owned<Adapted<StatusDot>>,
+    pub info_box_demo: Owned<Adapted<InfoBox>>,
+    pub list_item_demo: Owned<Adapted<InteractiveListItem>>,
+    pub breadcrumb_demo: Owned<Adapted<Breadcrumb>>,
+    pub tree_list_demo: Owned<Adapted<TreeList>>,
+    pub bevel_preview_demo: Owned<Adapted<BevelPreview>>,
+    pub ramp_preview_demo: Owned<Adapted<RampPreview>>,
+    pub separator_demo: Owned<Adapted<Separator>>,
+    pub splitter_demo: Owned<Adapted<Splitter>>,
     /// Two `Group` lassos over other exhibits (slots 32 and 33): overlays, not
     /// exhibits — laid out by their members, drawn under the exhibit clip.
-    pub group_loose: Adapted<Group>,
-    pub group_fitted: Adapted<Group>,
+    pub group_loose: Owned<Adapted<Group>>,
+    pub group_fitted: Owned<Adapted<Group>>,
     /// The Style dropdown (slot 34), beside Layout in the header: Relief or Flat
     /// for every control at once (`cce_ui::layout::set_control_relief`).
-    pub style_dd: Adapted<Dropdown>,
+    pub style_dd: Owned<Adapted<Dropdown>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -228,13 +229,13 @@ impl Exhibit {
     /// Sized by the widget's own preferred (content) height, `fallback_h` when it declares none.
     fn new<W: WidgetHost + 'static>(widget: W, w: f32, fallback_h: f32) -> Self {
         let h = widget.preferred_height().unwrap_or(fallback_h);
-        Exhibit { widget: Box::new(widget), w, h, content_w: None }
+        Exhibit { widget: Box::new(Owned::new(widget)), w, h, content_w: None }
     }
 
     /// Sized by hand: for widgets whose declared height is a single row (a multiline
     /// TextBox, a vertical ButtonStrip) when the exhibit wants several.
     fn sized<W: WidgetHost + 'static>(widget: W, w: f32, h: f32) -> Self {
-        Exhibit { widget: Box::new(widget), w, h, content_w: None }
+        Exhibit { widget: Box::new(Owned::new(widget)), w, h, content_w: None }
     }
 
     fn with_content_width(mut self, w: f32) -> Self {
@@ -445,7 +446,7 @@ pub enum ChildAux4 {
 pub struct ChildSlots {
     pub bg: ChildBg,
     pub main: ChildMain,
-    pub close: Adapted<Button>,
+    pub close: Owned<Adapted<Button>>,
     pub aux3: ChildAux3,
     pub aux4: ChildAux4,
 }
@@ -1163,7 +1164,7 @@ impl cce_ui::engine::Application for State {
             Roster::Child(Box::new(ChildSlots {
                 bg,
                 main,
-                close: Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close"),
+                close: Owned::new(Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close")),
                 aux3,
                 aux4,
             }))
@@ -1174,47 +1175,47 @@ impl cce_ui::engine::Application for State {
                 .with_item("Help", &["About"])
                 .with_right_aligned_title(true);
             Roster::Gallery(Box::new(GallerySlots {
-                menu_bar,
-                status_bar: StatusBar::new(),
-                button_demo: Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button"),
-                checkbox_demo: Checkbox::new().with_label("Checkbox"),
-                toggle_demo: Toggle::new().with_label("Toggle"),
-                progress_demo: ProgressBar::new(0.43).with_label("ProgressBar"),
-                slider_demo: Slider::new().with_label("Slider"),
-                spinbox_demo: Spinbox::new(10, 1, 100, 5).with_label("Spinbox"),
-                range_slider_demo: RangeSlider::new().with_label("RangeSlider"),
-                trackpad_demo: Trackpad::new().with_label("Trackpad"),
-                textbox_demo: TextBox::new("Interactive TextBox".to_string()),
-                plate_demo: Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate"),
-                color_ramp_btn: Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp..."),
-                bevel_ramp: Ramp::new(),
-                ramp_btn: Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp..."),
-                layout_dd: Dropdown::new(
+                menu_bar: Owned::new(menu_bar),
+                status_bar: Owned::new(StatusBar::new()),
+                button_demo: Owned::new(Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button")),
+                checkbox_demo: Owned::new(Checkbox::new().with_label("Checkbox")),
+                toggle_demo: Owned::new(Toggle::new().with_label("Toggle")),
+                progress_demo: Owned::new(ProgressBar::new(0.43).with_label("ProgressBar")),
+                slider_demo: Owned::new(Slider::new().with_label("Slider")),
+                spinbox_demo: Owned::new(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")),
+                range_slider_demo: Owned::new(RangeSlider::new().with_label("RangeSlider")),
+                trackpad_demo: Owned::new(Trackpad::new().with_label("Trackpad")),
+                textbox_demo: Owned::new(TextBox::new("Interactive TextBox".to_string())),
+                plate_demo: Owned::new(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")),
+                color_ramp_btn: Owned::new(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp...")),
+                bevel_ramp: Owned::new(Ramp::new()),
+                ramp_btn: Owned::new(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp...")),
+                layout_dd: Owned::new(Dropdown::new(
                     LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
                     DEFAULT_LAYOUT,
-                ).with_label("Layout"),
-                style_dd: Dropdown::new(
+                ).with_label("Layout")),
+                style_dd: Owned::new(Dropdown::new(
                     vec!["Relief".to_string(), "Flat".to_string()],
                     if cce_ui::layout::control_relief() { 0 } else { 1 },
-                ).with_label("Style"),
-                color_selector_demo: ColorSelector::new([64, 128, 255]).with_label("ColorSelector"),
-                font_selector_demo: FontSelector::new("Sans".to_string()).with_label("FontSelector"),
-                keybind_demo: KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder"),
-                button_strip_demo: Adapted::new(
+                ).with_label("Style")),
+                color_selector_demo: Owned::new(ColorSelector::new([64, 128, 255]).with_label("ColorSelector")),
+                font_selector_demo: Owned::new(FontSelector::new("Sans".to_string()).with_label("FontSelector")),
+                keybind_demo: Owned::new(KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder")),
+                button_strip_demo: Owned::new(Adapted::new(
                     ButtonStrip::new(0.0, 0.0, 200.0, cce_ui::layout::button_height())
                         .with_buttons(vec!["One".to_string(), "Two".to_string(), "Three".to_string()])
                         .with_selected(Some(0)),
-                ).with_label("ButtonStrip"),
-                slider2d_demo: Slider2D::new().with_label("Slider2D"),
-                float3_demo: Float3::new().with_label("Float3"),
-                usage_bar_demo: UsageBar::new(0.62).with_label("UsageBar"),
-                status_dot_demo: StatusDot::new(DotStatus::Active).with_label("StatusDot"),
-                info_box_demo: InfoBox::new("InfoBox", vec!["A titled box of".to_string(), "plain text lines.".to_string()]),
-                list_item_demo: InteractiveListItem::new("InteractiveListItem"),
+                ).with_label("ButtonStrip")),
+                slider2d_demo: Owned::new(Slider2D::new().with_label("Slider2D")),
+                float3_demo: Owned::new(Float3::new().with_label("Float3")),
+                usage_bar_demo: Owned::new(UsageBar::new(0.62).with_label("UsageBar")),
+                status_dot_demo: Owned::new(StatusDot::new(DotStatus::Active).with_label("StatusDot")),
+                info_box_demo: Owned::new(InfoBox::new("InfoBox", vec!["A titled box of".to_string(), "plain text lines.".to_string()])),
+                list_item_demo: Owned::new(InteractiveListItem::new("InteractiveListItem")),
                 breadcrumb_demo: {
                     let mut b = Breadcrumb::new();
                     b.path = vec!["home".to_string(), "lsgalante".to_string(), "projects".to_string()];
-                    b.with_label("Breadcrumb")
+                    Owned::new(b.with_label("Breadcrumb"))
                 },
                 tree_list_demo: {
                     let mut t = TreeList::new();
@@ -1224,17 +1225,17 @@ impl cce_ui::engine::Application for State {
                         ("theme/name".to_string(), serde_json::json!("cce")),
                     ]);
                     t.rebuild_tree();
-                    t.with_label("TreeList")
+                    Owned::new(t.with_label("TreeList"))
                 },
-                bevel_preview_demo: BevelPreview::new().with_label("BevelPreview"),
-                ramp_preview_demo: RampPreview::new().with_label("RampPreview"),
-                separator_demo: Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator"),
-                splitter_demo: Splitter::new(200.0).with_label("Splitter"),
+                bevel_preview_demo: Owned::new(BevelPreview::new().with_label("BevelPreview")),
+                ramp_preview_demo: Owned::new(RampPreview::new().with_label("RampPreview")),
+                separator_demo: Owned::new(Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator")),
+                splitter_demo: Owned::new(Splitter::new(200.0).with_label("Splitter")),
                 // Members are wired below, once the slots have ids.
                 // style: deliberate — tight padding: the gallery packs its rows closer than a
                 // settings page, and the fitted lasso's padding is what insets the exhibits.
-                group_loose: Group::new(Vec::new()).with_label("Group").with_padding(6.0),
-                group_fitted: Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0),
+                group_loose: Owned::new(Group::new(Vec::new()).with_label("Group").with_padding(6.0)),
+                group_fitted: Owned::new(Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0)),
                 extra: variant_exhibits(),
             }))
         };
