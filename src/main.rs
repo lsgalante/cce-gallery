@@ -1939,14 +1939,14 @@ fn spawn_editor(kind: &str) {
 /// The strategies at the toolkit's own spacing (`layout::control_gap()`, every strategy's
 /// default gap), no padding — the exhibit viewport is already inset — so the page shows
 /// the rhythm a container gets by default.
-const LAYOUTS: [(&str, fn() -> Box<dyn cce_ui::layout::LayoutStrategy>); 7] = [
+const LAYOUTS: [(&str, fn() -> Box<dyn cce_ui::widget::ContainerLayout>); 7] = [
     ("Vertical", || Box::new(VerticalLayout::default())),
     ("Columns", || Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, ..ColumnsLayout::default() })),
-    ("Grid", || Box::new(GridLayout { columns: 3, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0, grid: None })),
-    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0, grid: None })),
+    ("Grid", || Box::new(GridLayout { columns: 3, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0 })),
+    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0 })),
     ("Mosaic", || Box::new(MosaicLayout { padding_x: 0.0, padding_y: 0.0, ..MosaicLayout::default() })),
     ("Reverse Mosaic", || Box::new(ReverseMosaicLayout { padding_x: 0.0, padding_y: 0.0, ..ReverseMosaicLayout::default() })),
-    ("Overlay", || Box::new(OverlayLayout::default())),
+    ("Overlay", || Box::new(OverlayLayout)),
 ];
 const DEFAULT_LAYOUT: usize = 4;
 
