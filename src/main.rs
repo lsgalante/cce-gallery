@@ -13,7 +13,6 @@ use cce_ui::widget::{Adapted, LayoutConstraints, Point};
 use cce_ui::widget::input::Slider2D;
 use cce_ui::engine::{LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
 use cce_ui::scene::paint::Prim;
-use wayland_client::QueueHandle;
 
 /// What a child window is, from `--type`. The first seven are the kinds of surface a
 /// toolkit client can be under cce; the last two are the gallery's editor windows.
@@ -1093,7 +1092,7 @@ impl State {
 impl cce_ui::engine::Application for State {
     type Message = String;
 
-    fn new(_qh: &QueueHandle<cce_ui::engine::EngineState<Self>>, _sender: calloop::channel::Sender<Self::Message>) -> Self {
+    fn create(_sender: cce_ui::engine::AppSender<Self::Message>) -> Self {
         let args: Vec<String> = std::env::args().collect();
         let flag = |name: &str| args.iter().any(|a| a == name);
         let value = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
