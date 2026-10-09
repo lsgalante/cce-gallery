@@ -1149,7 +1149,7 @@ impl cce_ui::engine::Application for State {
         // over everything else it painted, whatever its own order.)
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn(&self.ui_context, i);
-            if !self.is_widget_visible(i) || self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
+            if !self.is_widget_visible(i) || self.ui_context.tree.parent_id(w.base().id()).is_some_and(|p| self.ui_context.tree.is_registered(p)) {
                 continue;
             }
             let mut walk = cce_ui::scene::paint::PaintCtx::new();
@@ -1232,7 +1232,7 @@ impl cce_ui::engine::Application for State {
             // A widget with a ui-tree parent (the page selector under the status bar) is
             // covered by that parent's walk — emitting it here too would draw its text
             // twice. Text inside a popover is culled; panel children clip to the panel.
-            if self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
+            if self.ui_context.tree.parent_id(w.base().id()).is_some_and(|p| self.ui_context.tree.is_registered(p)) {
                 continue;
             }
             // Text is cut at the foot of the wall: geometry slides under the rim,
