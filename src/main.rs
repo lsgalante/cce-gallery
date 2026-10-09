@@ -1,4 +1,5 @@
-use cce_ui::widget::Owned;
+use cce_ui::context::UiContext;
+use cce_ui::widget::{Handle, WidgetId};
 use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout, ScrollBox, WidgetHostExt};
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, Plate};
@@ -156,47 +157,47 @@ impl Visibility {
 
 /// The gallery roster: 32 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
-/// `get_dyn`/`get_dyn_mut`.
+/// `Roster::id` / `get_dyn` / `get_dyn_mut`.
 pub struct GallerySlots {
-    pub menu_bar: Owned<Adapted<MenuBar>>,
-    pub status_bar: Owned<Adapted<StatusBar>>,
-    pub button_demo: Owned<Adapted<Button>>,
-    pub checkbox_demo: Owned<Adapted<Checkbox>>,
-    pub toggle_demo: Owned<Adapted<Toggle>>,
-    pub progress_demo: Owned<Adapted<ProgressBar>>,
-    pub slider_demo: Owned<Adapted<Slider>>,
-    pub spinbox_demo: Owned<Adapted<Spinbox>>,
-    pub range_slider_demo: Owned<Adapted<RangeSlider>>,
-    pub trackpad_demo: Owned<Adapted<Trackpad>>,
-    pub textbox_demo: Owned<Adapted<TextBox>>,
-    pub plate_demo: Owned<Adapted<Plate>>,
-    pub color_ramp_btn: Owned<Adapted<Button>>,
-    pub bevel_ramp: Owned<Adapted<Ramp>>,
-    pub ramp_btn: Owned<Adapted<Button>>,
-    pub layout_dd: Owned<Adapted<Dropdown>>,
-    pub color_selector_demo: Owned<Adapted<ColorSelector>>,
-    pub font_selector_demo: Owned<Adapted<FontSelector>>,
-    pub keybind_demo: Owned<Adapted<KeybindRecorder>>,
-    pub button_strip_demo: Owned<Adapted<ButtonStrip>>,
-    pub slider2d_demo: Owned<Adapted<Slider2D>>,
-    pub float3_demo: Owned<Adapted<Float3>>,
-    pub usage_bar_demo: Owned<Adapted<UsageBar>>,
-    pub status_dot_demo: Owned<Adapted<StatusDot>>,
-    pub info_box_demo: Owned<Adapted<InfoBox>>,
-    pub list_item_demo: Owned<Adapted<InteractiveListItem>>,
-    pub breadcrumb_demo: Owned<Adapted<Breadcrumb>>,
-    pub tree_list_demo: Owned<Adapted<TreeList>>,
-    pub bevel_preview_demo: Owned<Adapted<BevelPreview>>,
-    pub ramp_preview_demo: Owned<Adapted<RampPreview>>,
-    pub separator_demo: Owned<Adapted<Separator>>,
-    pub splitter_demo: Owned<Adapted<Splitter>>,
+    pub menu_bar: Handle<Adapted<MenuBar>>,
+    pub status_bar: Handle<Adapted<StatusBar>>,
+    pub button_demo: Handle<Adapted<Button>>,
+    pub checkbox_demo: Handle<Adapted<Checkbox>>,
+    pub toggle_demo: Handle<Adapted<Toggle>>,
+    pub progress_demo: Handle<Adapted<ProgressBar>>,
+    pub slider_demo: Handle<Adapted<Slider>>,
+    pub spinbox_demo: Handle<Adapted<Spinbox>>,
+    pub range_slider_demo: Handle<Adapted<RangeSlider>>,
+    pub trackpad_demo: Handle<Adapted<Trackpad>>,
+    pub textbox_demo: Handle<Adapted<TextBox>>,
+    pub plate_demo: Handle<Adapted<Plate>>,
+    pub color_ramp_btn: Handle<Adapted<Button>>,
+    pub bevel_ramp: Handle<Adapted<Ramp>>,
+    pub ramp_btn: Handle<Adapted<Button>>,
+    pub layout_dd: Handle<Adapted<Dropdown>>,
+    pub color_selector_demo: Handle<Adapted<ColorSelector>>,
+    pub font_selector_demo: Handle<Adapted<FontSelector>>,
+    pub keybind_demo: Handle<Adapted<KeybindRecorder>>,
+    pub button_strip_demo: Handle<Adapted<ButtonStrip>>,
+    pub slider2d_demo: Handle<Adapted<Slider2D>>,
+    pub float3_demo: Handle<Adapted<Float3>>,
+    pub usage_bar_demo: Handle<Adapted<UsageBar>>,
+    pub status_dot_demo: Handle<Adapted<StatusDot>>,
+    pub info_box_demo: Handle<Adapted<InfoBox>>,
+    pub list_item_demo: Handle<Adapted<InteractiveListItem>>,
+    pub breadcrumb_demo: Handle<Adapted<Breadcrumb>>,
+    pub tree_list_demo: Handle<Adapted<TreeList>>,
+    pub bevel_preview_demo: Handle<Adapted<BevelPreview>>,
+    pub ramp_preview_demo: Handle<Adapted<RampPreview>>,
+    pub separator_demo: Handle<Adapted<Separator>>,
+    pub splitter_demo: Handle<Adapted<Splitter>>,
     /// Two `Group` lassos over other exhibits (slots 32 and 33): overlays, not
     /// exhibits — laid out by their members, drawn under the exhibit clip.
-    pub group_loose: Owned<Adapted<Group>>,
-    pub group_fitted: Owned<Adapted<Group>>,
+    pub group_loose: Handle<Adapted<Group>>,
+    pub group_fitted: Handle<Adapted<Group>>,
     /// The Style dropdown (slot 34), beside Layout in the header: Relief or Flat
     /// for every control at once (`cce_ui::layout::set_control_relief`).
-    pub style_dd: Owned<Adapted<Dropdown>>,
+    pub style_dd: Handle<Adapted<Dropdown>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -209,7 +210,8 @@ pub const GALLERY_COUNT: usize = 35;
 /// A variant exhibit: a widget in a style other than the one its named slot shows, with
 /// the content size `layout_exhibits` resets it to.
 pub struct Exhibit {
-    pub widget: Box<dyn WidgetHost + 'static>,
+    /// The widget, which the context owns.
+    pub id: WidgetId,
     pub w: f32,
     pub h: f32,
     /// A content width narrower than `w`: the strategy lays the exhibit out at `w` (room
@@ -219,15 +221,15 @@ pub struct Exhibit {
 
 impl Exhibit {
     /// Sized by the widget's own preferred (content) height, `fallback_h` when it declares none.
-    fn new<W: WidgetHost + 'static>(widget: W, w: f32, fallback_h: f32) -> Self {
+    fn new<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, fallback_h: f32) -> Self {
         let h = widget.preferred_height().unwrap_or(fallback_h);
-        Exhibit { widget: Box::new(Owned::new(widget)), w, h, content_w: None }
+        Exhibit { id: ctx.insert(widget).id(), w, h, content_w: None }
     }
 
     /// Sized by hand: for widgets whose declared height is a single row (a multiline
     /// TextBox, a vertical ButtonStrip) when the exhibit wants several.
-    fn sized<W: WidgetHost + 'static>(widget: W, w: f32, h: f32) -> Self {
-        Exhibit { widget: Box::new(Owned::new(widget)), w, h, content_w: None }
+    fn sized<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, h: f32) -> Self {
+        Exhibit { id: ctx.insert(widget).id(), w, h, content_w: None }
     }
 
     fn with_content_width(mut self, w: f32) -> Self {
@@ -237,315 +239,62 @@ impl Exhibit {
 }
 
 impl GallerySlots {
-
-    // Per-slot drag queries.
-    pub fn draggable(&self, idx: usize) -> bool {
+    /// The widget in slot `idx`.
+    pub fn id(&self, idx: usize) -> WidgetId {
         if idx >= GALLERY_COUNT {
-            return false; // variant exhibits never drag
+            return self.extra[idx - GALLERY_COUNT].id;
         }
         match idx {
-            0 => self.menu_bar.draggable(),
-            1 => self.status_bar.draggable(),
-            2 => self.button_demo.draggable(),
-            3 => self.checkbox_demo.draggable(),
-            4 => self.toggle_demo.draggable(),
-            5 => self.progress_demo.draggable(),
-            6 => self.slider_demo.draggable(),
-            7 => self.spinbox_demo.draggable(),
-            8 => self.range_slider_demo.draggable(),
-            9 => self.trackpad_demo.draggable(),
-            10 => self.textbox_demo.draggable(),
-            11 => self.plate_demo.draggable(),
-            12 => self.color_ramp_btn.draggable(),
-            13 => self.bevel_ramp.draggable(),
-            14 => self.ramp_btn.draggable(),
-            15 => self.layout_dd.draggable(),
-            34 => self.style_dd.draggable(),
-            16 => self.color_selector_demo.draggable(),
-            17 => self.font_selector_demo.draggable(),
-            18 => self.keybind_demo.draggable(),
-            19 => self.button_strip_demo.draggable(),
-            20 => self.slider2d_demo.draggable(),
-            21 => self.float3_demo.draggable(),
-            22 => self.usage_bar_demo.draggable(),
-            23 => self.status_dot_demo.draggable(),
-            24 => self.info_box_demo.draggable(),
-            25 => self.list_item_demo.draggable(),
-            26 => self.breadcrumb_demo.draggable(),
-            27 => self.tree_list_demo.draggable(),
-            28 => self.bevel_preview_demo.draggable(),
-            29 => self.ramp_preview_demo.draggable(),
-            30 => self.separator_demo.draggable(),
-            31 => self.splitter_demo.draggable(),
-            32 | 33 => false,
-            _ => panic!("gallery slot index out of range: {idx}"),
-        }
-    }
-
-    pub fn is_dragging(&self, idx: usize) -> bool {
-        if idx >= GALLERY_COUNT {
-            return false;
-        }
-        match idx {
-            0 => self.menu_bar.is_dragging(),
-            1 => self.status_bar.is_dragging(),
-            2 => self.button_demo.is_dragging(),
-            3 => self.checkbox_demo.is_dragging(),
-            4 => self.toggle_demo.is_dragging(),
-            5 => self.progress_demo.is_dragging(),
-            6 => self.slider_demo.is_dragging(),
-            7 => self.spinbox_demo.is_dragging(),
-            8 => self.range_slider_demo.is_dragging(),
-            9 => self.trackpad_demo.is_dragging(),
-            10 => self.textbox_demo.is_dragging(),
-            11 => self.plate_demo.is_dragging(),
-            12 => self.color_ramp_btn.is_dragging(),
-            13 => self.bevel_ramp.is_dragging(),
-            14 => self.ramp_btn.is_dragging(),
-            15 => self.layout_dd.is_dragging(),
-            34 => self.style_dd.is_dragging(),
-            16 => self.color_selector_demo.is_dragging(),
-            17 => self.font_selector_demo.is_dragging(),
-            18 => self.keybind_demo.is_dragging(),
-            19 => self.button_strip_demo.is_dragging(),
-            20 => self.slider2d_demo.is_dragging(),
-            21 => self.float3_demo.is_dragging(),
-            22 => self.usage_bar_demo.is_dragging(),
-            23 => self.status_dot_demo.is_dragging(),
-            24 => self.info_box_demo.is_dragging(),
-            25 => self.list_item_demo.is_dragging(),
-            26 => self.breadcrumb_demo.is_dragging(),
-            27 => self.tree_list_demo.is_dragging(),
-            28 => self.bevel_preview_demo.is_dragging(),
-            29 => self.ramp_preview_demo.is_dragging(),
-            30 => self.separator_demo.is_dragging(),
-            31 => self.splitter_demo.is_dragging(),
-            32 | 33 => false,
-            _ => panic!("gallery slot index out of range: {idx}"),
-        }
-    }
-
-    pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
-        if idx >= GALLERY_COUNT {
-            return &*self.extra[idx - GALLERY_COUNT].widget;
-        }
-        match idx {
-            0 => &self.menu_bar,
-            1 => &self.status_bar,
-            2 => &self.button_demo,
-            3 => &self.checkbox_demo,
-            4 => &self.toggle_demo,
-            5 => &self.progress_demo,
-            6 => &self.slider_demo,
-            7 => &self.spinbox_demo,
-            8 => &self.range_slider_demo,
-            9 => &self.trackpad_demo,
-            10 => &self.textbox_demo,
-            11 => &self.plate_demo,
-            12 => &self.color_ramp_btn,
-            13 => &self.bevel_ramp,
-            14 => &self.ramp_btn,
-            15 => &self.layout_dd,
-            16 => &self.color_selector_demo,
-            17 => &self.font_selector_demo,
-            18 => &self.keybind_demo,
-            19 => &self.button_strip_demo,
-            20 => &self.slider2d_demo,
-            21 => &self.float3_demo,
-            22 => &self.usage_bar_demo,
-            23 => &self.status_dot_demo,
-            24 => &self.info_box_demo,
-            25 => &self.list_item_demo,
-            26 => &self.breadcrumb_demo,
-            27 => &self.tree_list_demo,
-            28 => &self.bevel_preview_demo,
-            29 => &self.ramp_preview_demo,
-            30 => &self.separator_demo,
-            31 => &self.splitter_demo,
-            32 => &self.group_loose,
-            33 => &self.group_fitted,
-            34 => &self.style_dd,
-            _ => panic!("gallery slot index out of range: {idx}"),
-        }
-    }
-
-    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
-        if idx >= GALLERY_COUNT {
-            return &mut *self.extra[idx - GALLERY_COUNT].widget;
-        }
-        match idx {
-            0 => &mut self.menu_bar,
-            1 => &mut self.status_bar,
-            2 => &mut self.button_demo,
-            3 => &mut self.checkbox_demo,
-            4 => &mut self.toggle_demo,
-            5 => &mut self.progress_demo,
-            6 => &mut self.slider_demo,
-            7 => &mut self.spinbox_demo,
-            8 => &mut self.range_slider_demo,
-            9 => &mut self.trackpad_demo,
-            10 => &mut self.textbox_demo,
-            11 => &mut self.plate_demo,
-            12 => &mut self.color_ramp_btn,
-            13 => &mut self.bevel_ramp,
-            14 => &mut self.ramp_btn,
-            15 => &mut self.layout_dd,
-            16 => &mut self.color_selector_demo,
-            17 => &mut self.font_selector_demo,
-            18 => &mut self.keybind_demo,
-            19 => &mut self.button_strip_demo,
-            20 => &mut self.slider2d_demo,
-            21 => &mut self.float3_demo,
-            22 => &mut self.usage_bar_demo,
-            23 => &mut self.status_dot_demo,
-            24 => &mut self.info_box_demo,
-            25 => &mut self.list_item_demo,
-            26 => &mut self.breadcrumb_demo,
-            27 => &mut self.tree_list_demo,
-            28 => &mut self.bevel_preview_demo,
-            29 => &mut self.ramp_preview_demo,
-            30 => &mut self.separator_demo,
-            31 => &mut self.splitter_demo,
-            32 => &mut self.group_loose,
-            33 => &mut self.group_fitted,
-            34 => &mut self.style_dd,
+            0 => self.menu_bar.id(),
+            1 => self.status_bar.id(),
+            2 => self.button_demo.id(),
+            3 => self.checkbox_demo.id(),
+            4 => self.toggle_demo.id(),
+            5 => self.progress_demo.id(),
+            6 => self.slider_demo.id(),
+            7 => self.spinbox_demo.id(),
+            8 => self.range_slider_demo.id(),
+            9 => self.trackpad_demo.id(),
+            10 => self.textbox_demo.id(),
+            11 => self.plate_demo.id(),
+            12 => self.color_ramp_btn.id(),
+            13 => self.bevel_ramp.id(),
+            14 => self.ramp_btn.id(),
+            15 => self.layout_dd.id(),
+            16 => self.color_selector_demo.id(),
+            17 => self.font_selector_demo.id(),
+            18 => self.keybind_demo.id(),
+            19 => self.button_strip_demo.id(),
+            20 => self.slider2d_demo.id(),
+            21 => self.float3_demo.id(),
+            22 => self.usage_bar_demo.id(),
+            23 => self.status_dot_demo.id(),
+            24 => self.info_box_demo.id(),
+            25 => self.list_item_demo.id(),
+            26 => self.breadcrumb_demo.id(),
+            27 => self.tree_list_demo.id(),
+            28 => self.bevel_preview_demo.id(),
+            29 => self.ramp_preview_demo.id(),
+            30 => self.separator_demo.id(),
+            31 => self.splitter_demo.id(),
+            32 => self.group_loose.id(),
+            33 => self.group_fitted.id(),
+            34 => self.style_dd.id(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
 }
 
-pub enum ChildBg {
-    RootPlate(Adapted<RootPlate>),
-    ContentBg(Adapted<ContentBg>),
-}
-
-pub enum ChildMain {
-    ColorRamp(Adapted<ColorRamp>),
-    Ramp(Adapted<Ramp>),
-    Desc(Adapted<Label>),
-}
-
-pub enum ChildAux3 {
-    Label(Adapted<Label>),
-    MenuBar(Adapted<MenuBar>),
-}
-
-pub enum ChildAux4 {
-    Label(Adapted<Label>),
-    StatusBar(Adapted<StatusBar>),
-}
-
+/// A child window's five slots — background, main, Close, and the optional menu bar
+/// and status bar rows (3, 4) — as the ids of the widgets the context owns.
 pub struct ChildSlots {
-    pub bg: ChildBg,
-    pub main: ChildMain,
-    pub close: Owned<Adapted<Button>>,
-    pub aux3: ChildAux3,
-    pub aux4: ChildAux4,
+    pub ids: [WidgetId; CHILD_COUNT],
+    pub close: Handle<Adapted<Button>>,
 }
 
 pub const CHILD_COUNT: usize = 5;
 
-impl ChildSlots {
-
-    pub fn draggable(&self, idx: usize) -> bool {
-        match idx {
-            0 => match &self.bg {
-                ChildBg::RootPlate(w) => w.draggable(),
-                ChildBg::ContentBg(w) => w.draggable(),
-            },
-            1 => match &self.main {
-                ChildMain::ColorRamp(w) => w.draggable(),
-                ChildMain::Ramp(w) => w.draggable(),
-                ChildMain::Desc(w) => w.draggable(),
-            },
-            2 => self.close.draggable(),
-            3 => match &self.aux3 {
-                ChildAux3::Label(w) => w.draggable(),
-                ChildAux3::MenuBar(w) => w.draggable(),
-            },
-            4 => match &self.aux4 {
-                ChildAux4::Label(w) => w.draggable(),
-                ChildAux4::StatusBar(w) => w.draggable(),
-            },
-            _ => panic!("child slot index out of range: {idx}"),
-        }
-    }
-
-    pub fn is_dragging(&self, idx: usize) -> bool {
-        match idx {
-            0 => match &self.bg {
-                ChildBg::RootPlate(w) => w.is_dragging(),
-                ChildBg::ContentBg(w) => w.is_dragging(),
-            },
-            1 => match &self.main {
-                ChildMain::ColorRamp(w) => w.is_dragging(),
-                ChildMain::Ramp(w) => w.is_dragging(),
-                ChildMain::Desc(w) => w.is_dragging(),
-            },
-            2 => self.close.is_dragging(),
-            3 => match &self.aux3 {
-                ChildAux3::Label(w) => w.is_dragging(),
-                ChildAux3::MenuBar(w) => w.is_dragging(),
-            },
-            4 => match &self.aux4 {
-                ChildAux4::Label(w) => w.is_dragging(),
-                ChildAux4::StatusBar(w) => w.is_dragging(),
-            },
-            _ => panic!("child slot index out of range: {idx}"),
-        }
-    }
-
-    pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
-        match idx {
-            0 => match &self.bg {
-                ChildBg::RootPlate(w) => w,
-                ChildBg::ContentBg(w) => w,
-            },
-            1 => match &self.main {
-                ChildMain::ColorRamp(w) => w,
-                ChildMain::Ramp(w) => w,
-                ChildMain::Desc(w) => w,
-            },
-            2 => &self.close,
-            3 => match &self.aux3 {
-                ChildAux3::Label(w) => w,
-                ChildAux3::MenuBar(w) => w,
-            },
-            4 => match &self.aux4 {
-                ChildAux4::Label(w) => w,
-                ChildAux4::StatusBar(w) => w,
-            },
-            _ => panic!("child slot index out of range: {idx}"),
-        }
-    }
-
-    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
-        match idx {
-            0 => match &mut self.bg {
-                ChildBg::RootPlate(w) => w,
-                ChildBg::ContentBg(w) => w,
-            },
-            1 => match &mut self.main {
-                ChildMain::ColorRamp(w) => w,
-                ChildMain::Ramp(w) => w,
-                ChildMain::Desc(w) => w,
-            },
-            2 => &mut self.close,
-            3 => match &mut self.aux3 {
-                ChildAux3::Label(w) => w,
-                ChildAux3::MenuBar(w) => w,
-            },
-            4 => match &mut self.aux4 {
-                ChildAux4::Label(w) => w,
-                ChildAux4::StatusBar(w) => w,
-            },
-            _ => panic!("child slot index out of range: {idx}"),
-        }
-    }
-}
-
-/// The two roster modes. Boxed slot structs keep registered widget pointers stable while
-/// the containing `State` moves.
+/// The two roster modes. The widgets are the context's; a roster names them by slot.
 pub enum Roster {
     Gallery(Box<GallerySlots>),
     Child(Box<ChildSlots>),
@@ -559,32 +308,38 @@ impl Roster {
         }
     }
 
-    pub fn get_dyn(&self, idx: usize) -> &(dyn WidgetHost + 'static) {
+    /// The widget in slot `idx`.
+    pub fn id(&self, idx: usize) -> WidgetId {
         match self {
-            Roster::Gallery(s) => s.get_dyn(idx),
-            Roster::Child(s) => s.get_dyn(idx),
+            Roster::Gallery(s) => s.id(idx),
+            Roster::Child(s) => *s.ids.get(idx).unwrap_or_else(|| panic!("child slot index out of range: {idx}")),
         }
     }
 
-    pub fn draggable(&self, idx: usize) -> bool {
-        match self {
-            Roster::Gallery(s) => s.draggable(idx),
-            Roster::Child(s) => s.draggable(idx),
-        }
+    pub fn get_dyn<'a>(&self, ui: &'a UiContext, idx: usize) -> &'a (dyn WidgetHost + 'static) {
+        ui.get_widget(self.id(idx)).expect("a roster slot's widget is in the context")
     }
 
-    pub fn is_dragging(&self, idx: usize) -> bool {
-        match self {
-            Roster::Gallery(s) => s.is_dragging(idx),
-            Roster::Child(s) => s.is_dragging(idx),
-        }
+    pub fn get_dyn_mut<'a>(&self, ui: &'a mut UiContext, idx: usize) -> &'a mut (dyn WidgetHost + 'static) {
+        ui.get_widget_mut(self.id(idx)).expect("a roster slot's widget is in the context")
     }
 
-    pub fn get_dyn_mut(&mut self, idx: usize) -> &mut (dyn WidgetHost + 'static) {
-        match self {
-            Roster::Gallery(s) => s.get_dyn_mut(idx),
-            Roster::Child(s) => s.get_dyn_mut(idx),
+    /// A slot that is never dragged or drained: the variant exhibits are looked at, and
+    /// the lassos (32, 33) are frames.
+    fn inert(&self, idx: usize) -> bool {
+        matches!(self, Roster::Gallery(_)) && (idx >= GALLERY_COUNT || matches!(idx, 32 | 33))
+    }
+
+    pub fn draggable(&self, ui: &UiContext, idx: usize) -> bool {
+        if self.inert(idx) {
+            return false;
         }
+        let w = self.get_dyn(ui, idx);
+        w.input_model().draggable(w.content_rect())
+    }
+
+    pub fn is_dragging(&self, ui: &UiContext, idx: usize) -> bool {
+        !self.inert(idx) && self.get_dyn(ui, idx).input_model().is_dragging()
     }
 
     /// The gallery slots; panics in child mode (gallery-only paths assert their mode).
@@ -595,66 +350,21 @@ impl Roster {
         }
     }
 
-    pub fn gallery_mut(&mut self) -> &mut GallerySlots {
+    // --- Value drains: route a slot index to its widget's `take_click` / `value`.
+
+    pub fn take_click(&self, ui: &mut UiContext, idx: usize) -> bool {
         match self {
-            Roster::Gallery(s) => s,
-            Roster::Child(_) => panic!("gallery slots requested in child mode"),
-        }
-    }
-
-    // --- Value drains: route a slot index to its concrete slot's `take_click` /
-    // `value`. Arms exist for every slot the page logic drains.
-
-    pub fn take_click(&mut self, idx: usize) -> bool {
-        let s = match self {
-            Roster::Gallery(s) => s,
             // The child roster drains one slot: its Close button.
-            Roster::Child(c) => return idx == 2 && c.close.take_click(),
-        };
-        match idx {
-            2 => s.button_demo.take_click(),
-            3 => s.checkbox_demo.take_click(),
-            4 => s.toggle_demo.take_click(),
-            5 => s.progress_demo.take_click(),
-            6 => s.slider_demo.take_click(),
-            7 => s.spinbox_demo.take_click(),
-            8 => s.range_slider_demo.take_click(),
-            9 => s.trackpad_demo.take_click(),
-            10 => s.textbox_demo.take_click(),
-            11 => s.plate_demo.take_click(),
-            12 => s.color_ramp_btn.take_click(),
-            13 => s.bevel_ramp.take_click(),
-            14 => s.ramp_btn.take_click(),
-            15 => s.layout_dd.take_click(),
-            34 => s.style_dd.take_click(),
-            16 => s.color_selector_demo.take_click(),
-            17 => s.font_selector_demo.take_click(),
-            18 => s.keybind_demo.take_click(),
-            19 => s.button_strip_demo.take_click(),
-            20 => s.slider2d_demo.take_click(),
-            21 => s.float3_demo.take_click(),
-            22 => s.usage_bar_demo.take_click(),
-            23 => s.status_dot_demo.take_click(),
-            24 => s.info_box_demo.take_click(),
-            25 => s.list_item_demo.take_click(),
-            26 => s.breadcrumb_demo.take_click(),
-            27 => s.tree_list_demo.take_click(),
-            28 => s.bevel_preview_demo.take_click(),
-            29 => s.ramp_preview_demo.take_click(),
-            30 => s.separator_demo.take_click(),
-            31 => s.splitter_demo.take_click(),
-            32 | 33 => false,
-            // The variant exhibits are looked at, not drained.
-            i if i >= GALLERY_COUNT => false,
-            _ => panic!("take_click: unwired gallery slot {idx}"),
+            Roster::Child(c) => idx == 2 && ui[c.close].take_click(),
+            Roster::Gallery(_) => !self.inert(idx) && self.get_dyn_mut(ui, idx).input_model_mut().take_click(),
         }
     }
 
-    pub fn value(&self, idx: usize) -> i32 {
+    pub fn value(&self, ui: &UiContext, idx: usize) -> i32 {
         let s = self.gallery();
         match idx {
-            15 => s.layout_dd.value(),
-            34 => s.style_dd.value(),
+            15 => ui[s.layout_dd].value(),
+            34 => ui[s.style_dd].value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -747,7 +457,7 @@ fn load_bevel_ramp() -> (Vec<RampKey>, String) {
 /// The relief-off look is NOT a variant here: the header's Style dropdown switches
 /// every control between Relief and Flat at once (`set_control_relief`), so each
 /// exhibit shows both, and no widget appears twice for its style alone.
-fn variant_exhibits() -> Vec<Exhibit> {
+fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     const W: f32 = 190.0;
     let bh = cce_ui::layout::button_height();
     let slh = cce_ui::layout::slider_height();
@@ -762,39 +472,41 @@ fn variant_exhibits() -> Vec<Exhibit> {
     let three = || vec!["One".to_string(), "Two".to_string(), "Three".to_string()];
     vec![
         // Button: the other four kinds.
-        Exhibit::new(Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
-        Exhibit::new(Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
-        Exhibit::new(Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh),
-        Exhibit::new(Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh),
+        Exhibit::new(ctx, Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
+        Exhibit::new(ctx, Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
+        Exhibit::new(ctx, Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh),
+        Exhibit::new(ctx, Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh),
         // Slider: with a readout.
-        Exhibit::new(Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
+        Exhibit::new(ctx, Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
         // TextBox: multiline, chromeless, password.
         Exhibit::sized(
+            ctx,
             TextBox::new("TextBox (multiline)\nA second line of text.".to_string()).with_multiline(true),
             W,
             3.0 * tbh,
         ),
-        Exhibit::new(TextBox::new("TextBox (chromeless)".to_string()).with_draw_bg_border(false), W, tbh),
-        Exhibit::new(TextBox::new("hunter2".to_string()).with_password(true).with_label("TextBox (password)"), W, tbh),
+        Exhibit::new(ctx, TextBox::new("TextBox (chromeless)".to_string()).with_draw_bg_border(false), W, tbh),
+        Exhibit::new(ctx, TextBox::new("hunter2".to_string()).with_password(true).with_label("TextBox (password)"), W, tbh),
         // ButtonStrip: the vertical column (rotated tabs), and the Paginator sidebar built on it.
         Exhibit::sized(
+            ctx,
             Adapted::new(ButtonStrip::new(0.0, 0.0, W, TABS_H).with_buttons(three()).with_selected(Some(0)).with_vertical(true))
                 .with_label("ButtonStrip (vertical)"),
             W,
             TABS_H,
         )
         .with_content_width(TAB_COLUMN_W),
-        Exhibit::sized(Paginator::new(three()).with_label("Paginator"), W, TABS_H),
+        Exhibit::sized(ctx, Paginator::new(three()).with_label("Paginator"), W, TABS_H),
         // ColorSelector: the alpha swatch.
-        Exhibit::new(ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
+        Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
         // Label: the plain text widget.
-        Exhibit::new(Label::new("Label"), W, ddh),
+        Exhibit::new(ctx, Label::new("Label"), W, ddh),
         // StatusDot: the other three statuses.
-        Exhibit::new(StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), DOT_W, StatusDot::SIZE)
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), DOT_W, StatusDot::SIZE)
             .with_content_width(StatusDot::SIZE),
-        Exhibit::new(StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), DOT_W, StatusDot::SIZE)
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), DOT_W, StatusDot::SIZE)
             .with_content_width(StatusDot::SIZE),
-        Exhibit::new(StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), DOT_W, StatusDot::SIZE)
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), DOT_W, StatusDot::SIZE)
             .with_content_width(StatusDot::SIZE),
     ]
 }
@@ -860,7 +572,7 @@ impl State {
         const W: f32 = 190.0;
         let s2d_w = self
             .roster
-            .get_dyn(20)
+            .get_dyn(&self.ui_context, 20)
             .measure(LayoutConstraints::new(0.0, f32::MAX, 0.0, f32::MAX), &self.ui_context)
             .width;
         // A StatusDot is 12px square; its exhibit is as wide as its label
@@ -911,7 +623,7 @@ impl State {
     /// dropdown's), one root gap below them and one root gap above the status band.
     fn exhibit_viewport(&self) -> (f32, f32, f32, f32) {
         let gap = cce_ui::layout::root_plate_gap();
-        let (dx, dy, _, dh) = self.roster.get_dyn(15).rect();
+        let (dx, dy, _, dh) = self.roster.get_dyn(&self.ui_context, 15).rect();
         let (x, y) = (dx, dy + dh + gap);
         let w = (self.width - 2.0 * x).max(300.0);
         let h = ((self.height - 24.0 - gap) - y).max(100.0);
@@ -954,15 +666,15 @@ impl State {
         // plate is that floor, so its sides snap to the foot of the wall.
         let (floor, floor_r) = self.exhibit_floor();
         if let Roster::Gallery(s) = &mut self.roster {
-            s.group_fitted.inner_mut().set_plate(floor, floor_r);
+            self.ui_context[s.group_fitted].inner_mut().set_plate(floor, floor_r);
         }
         let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
         let mut indices: Vec<usize> = Vec::new();
         for (idx, cw, ch) in self.exhibit_sizes() {
-            if self.roster.is_dragging(idx) {
+            if self.roster.is_dragging(&self.ui_context, idx) {
                 continue;
             }
-            let widget = self.roster.get_dyn_mut(idx);
+            let widget = self.roster.get_dyn_mut(&mut self.ui_context, idx);
             // Seed the block: the content height plus the label strip above it.
             let strip = widget.label_strip();
             widget.set_rect(0.0, 0.0, cw, ch + strip);
@@ -977,7 +689,7 @@ impl State {
         // the frame's wall on its left edge and the tab over its labels.
         let (inset_x, inset_top) = match &self.roster {
             Roster::Gallery(s) => {
-                let g = s.group_fitted.inner();
+                let g = self.ui_context[s.group_fitted].inner();
                 (2.0 * g.padding(), g.padding() + g.headroom())
             }
             _ => (0.0, 0.0),
@@ -1019,9 +731,6 @@ impl State {
     /// resolves roots through this registry; the gallery's own paint loop never goes
     /// through `render_widget`, where other apps pick registration up as a side effect.
     fn register_roster(&mut self) {
-        for i in 0..self.roster.len() {
-            self.ui_context.register_host(self.roster.get_dyn_mut(i));
-        }
     }
 
     /// Drain the header dropdowns' selections and apply them: Layout (15) picks the
@@ -1031,12 +740,12 @@ impl State {
     /// keyboard too (Down, Enter), and a selection must not wait for the next click.
     fn apply_header_dropdowns(&mut self) -> bool {
         let mut applied = false;
-        if self.roster.take_click(15) {
-            self.layout_idx = self.roster.value(15) as usize;
+        if self.roster.take_click(&mut self.ui_context, 15) {
+            self.layout_idx = self.roster.value(&self.ui_context, 15) as usize;
             applied = true;
         }
-        if self.roster.take_click(34) {
-            cce_ui::layout::set_control_relief(self.roster.value(34) == 0);
+        if self.roster.take_click(&mut self.ui_context, 34) {
+            cce_ui::layout::set_control_relief(self.roster.value(&self.ui_context, 34) == 0);
             applied = true;
         }
         if applied {
@@ -1048,7 +757,7 @@ impl State {
 
     fn apply_layout(&mut self) {
         for i in 0..self.roster.len() {
-            if self.roster.is_dragging(i) {
+            if self.roster.is_dragging(&self.ui_context, i) {
                 continue;
             }
             // The exhibits are laid out by layout_exhibits below.
@@ -1057,15 +766,17 @@ impl State {
             }
             let visible = self.is_widget_visible(i);
             let (x, y, w, h) = self.positions[i];
-            let widget = self.roster.get_dyn_mut(i);
             if visible && (i == 15 || i == 34) {
                 // The header dropdowns land through `layout` at their own preferred
                 // height: `y` is where the label goes, the content sits a strip below.
-                let h = widget.preferred_height().unwrap_or(h);
-                let strip = widget.label_strip();
-                widget.layout(Point { x, y: y + strip }, LayoutConstraints::new(w, w, h, h), &mut self.ui_context);
+                self.ui_context.lend(self.roster.id(i), |widget, ctx| {
+                    let h = widget.preferred_height().unwrap_or(h);
+                    let strip = widget.label_strip();
+                    widget.layout(Point { x, y: y + strip }, LayoutConstraints::new(w, w, h, h), ctx);
+                });
                 continue;
             }
+            let widget = self.roster.get_dyn_mut(&mut self.ui_context, i);
             if visible {
                 widget.set_rect(x, y, w, h);
             } else {
@@ -1115,21 +826,24 @@ impl cce_ui::engine::Application for State {
         let opacity = opacity || child_kind.is_some_and(ChildKind::is_editor);
         let status_text = "Ready.".to_string();
 
+        // The context owns the widgets; the roster names them by slot.
+        let mut ui_context = cce_ui::context::UiContext::new();
+        let ctx = &mut ui_context;
         let roster = if let Some(kind) = child_kind {
             let bg = if use_root_plate {
-                ChildBg::RootPlate(RootPlate::new(0.0, 0.0, c_w, c_h))
+                ctx.insert(RootPlate::new(0.0, 0.0, c_w, c_h)).id()
             } else {
-                ChildBg::ContentBg(ContentBg::new())
+                ctx.insert(ContentBg::new()).id()
             };
             let (main, aux3, aux4) = if kind == ChildKind::ColorRamp {
                 (
-                    ChildMain::ColorRamp(ColorRamp::new()),
-                    ChildAux3::Label(Label::new("").with_font_size(12.0)),
-                    ChildAux4::Label(Label::new("").with_font_size(12.0)),
+                    ctx.insert(ColorRamp::new()).id(),
+                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
+                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
                 )
             } else if kind == ChildKind::Ramp {
                 (
-                    ChildMain::Ramp({
+                    ctx.insert({
                         let mut ramp = Ramp::new();
                         let (loaded_keys, loaded_type) = load_bevel_ramp();
                         ramp.keys = loaded_keys;
@@ -1138,9 +852,10 @@ impl cce_ui::engine::Application for State {
                             _ => 0,
                         };
                         ramp
-                    }),
-                    ChildAux3::Label(Label::new("").with_font_size(12.0)),
-                    ChildAux4::Label(Label::new("").with_font_size(12.0)),
+                    })
+                    .id(),
+                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
+                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
                 )
             } else {
                 let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
@@ -1148,18 +863,13 @@ impl cce_ui::engine::Application for State {
                     .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"])
                     .with_right_aligned_title(true);
                 (
-                    ChildMain::Desc(Label::new(kind.child_text()).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])),
-                    ChildAux3::MenuBar(menu_bar),
-                    ChildAux4::StatusBar(StatusBar::new()),
+                    ctx.insert(Label::new(kind.child_text()).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])).id(),
+                    ctx.insert(menu_bar).id(),
+                    ctx.insert(StatusBar::new()).id(),
                 )
             };
-            Roster::Child(Box::new(ChildSlots {
-                bg,
-                main,
-                close: Owned::new(Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close")),
-                aux3,
-                aux4,
-            }))
+            let close = ctx.insert(Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close"));
+            Roster::Child(Box::new(ChildSlots { ids: [bg, main, close.id(), aux3, aux4], close }))
         } else {
             let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
                 .with_item("File", &["Exit"])
@@ -1167,47 +877,47 @@ impl cce_ui::engine::Application for State {
                 .with_item("Help", &["About"])
                 .with_right_aligned_title(true);
             Roster::Gallery(Box::new(GallerySlots {
-                menu_bar: Owned::new(menu_bar),
-                status_bar: Owned::new(StatusBar::new()),
-                button_demo: Owned::new(Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button")),
-                checkbox_demo: Owned::new(Checkbox::new().with_label("Checkbox")),
-                toggle_demo: Owned::new(Toggle::new().with_label("Toggle")),
-                progress_demo: Owned::new(ProgressBar::new(0.43).with_label("ProgressBar")),
-                slider_demo: Owned::new(Slider::new().with_label("Slider")),
-                spinbox_demo: Owned::new(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")),
-                range_slider_demo: Owned::new(RangeSlider::new().with_label("RangeSlider")),
-                trackpad_demo: Owned::new(Trackpad::new().with_label("Trackpad")),
-                textbox_demo: Owned::new(TextBox::new("Interactive TextBox".to_string())),
-                plate_demo: Owned::new(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")),
-                color_ramp_btn: Owned::new(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp...")),
-                bevel_ramp: Owned::new(Ramp::new()),
-                ramp_btn: Owned::new(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp...")),
-                layout_dd: Owned::new(Dropdown::new(
+                menu_bar: ctx.insert(menu_bar),
+                status_bar: ctx.insert(StatusBar::new()),
+                button_demo: ctx.insert(Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button")),
+                checkbox_demo: ctx.insert(Checkbox::new().with_label("Checkbox")),
+                toggle_demo: ctx.insert(Toggle::new().with_label("Toggle")),
+                progress_demo: ctx.insert(ProgressBar::new(0.43).with_label("ProgressBar")),
+                slider_demo: ctx.insert(Slider::new().with_label("Slider")),
+                spinbox_demo: ctx.insert(Spinbox::new(10, 1, 100, 5).with_label("Spinbox")),
+                range_slider_demo: ctx.insert(RangeSlider::new().with_label("RangeSlider")),
+                trackpad_demo: ctx.insert(Trackpad::new().with_label("Trackpad")),
+                textbox_demo: ctx.insert(TextBox::new("Interactive TextBox".to_string())),
+                plate_demo: ctx.insert(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")),
+                color_ramp_btn: ctx.insert(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp...")),
+                bevel_ramp: ctx.insert(Ramp::new()),
+                ramp_btn: ctx.insert(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp...")),
+                layout_dd: ctx.insert(Dropdown::new(
                     LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
                     DEFAULT_LAYOUT,
                 ).with_label("Layout")),
-                style_dd: Owned::new(Dropdown::new(
+                style_dd: ctx.insert(Dropdown::new(
                     vec!["Relief".to_string(), "Flat".to_string()],
                     if cce_ui::layout::control_relief() { 0 } else { 1 },
                 ).with_label("Style")),
-                color_selector_demo: Owned::new(ColorSelector::new([64, 128, 255]).with_label("ColorSelector")),
-                font_selector_demo: Owned::new(FontSelector::new("Sans".to_string()).with_label("FontSelector")),
-                keybind_demo: Owned::new(KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder")),
-                button_strip_demo: Owned::new(Adapted::new(
+                color_selector_demo: ctx.insert(ColorSelector::new([64, 128, 255]).with_label("ColorSelector")),
+                font_selector_demo: ctx.insert(FontSelector::new("Sans".to_string()).with_label("FontSelector")),
+                keybind_demo: ctx.insert(KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder")),
+                button_strip_demo: ctx.insert(Adapted::new(
                     ButtonStrip::new(0.0, 0.0, 200.0, cce_ui::layout::button_height())
                         .with_buttons(vec!["One".to_string(), "Two".to_string(), "Three".to_string()])
                         .with_selected(Some(0)),
                 ).with_label("ButtonStrip")),
-                slider2d_demo: Owned::new(Slider2D::new().with_label("Slider2D")),
-                float3_demo: Owned::new(Float3::new().with_label("Float3")),
-                usage_bar_demo: Owned::new(UsageBar::new(0.62).with_label("UsageBar")),
-                status_dot_demo: Owned::new(StatusDot::new(DotStatus::Active).with_label("StatusDot")),
-                info_box_demo: Owned::new(InfoBox::new("InfoBox", vec!["A titled box of".to_string(), "plain text lines.".to_string()])),
-                list_item_demo: Owned::new(InteractiveListItem::new("InteractiveListItem")),
+                slider2d_demo: ctx.insert(Slider2D::new().with_label("Slider2D")),
+                float3_demo: ctx.insert(Float3::new().with_label("Float3")),
+                usage_bar_demo: ctx.insert(UsageBar::new(0.62).with_label("UsageBar")),
+                status_dot_demo: ctx.insert(StatusDot::new(DotStatus::Active).with_label("StatusDot")),
+                info_box_demo: ctx.insert(InfoBox::new("InfoBox", vec!["A titled box of".to_string(), "plain text lines.".to_string()])),
+                list_item_demo: ctx.insert(InteractiveListItem::new("InteractiveListItem")),
                 breadcrumb_demo: {
                     let mut b = Breadcrumb::new();
                     b.path = vec!["home".to_string(), "lsgalante".to_string(), "projects".to_string()];
-                    Owned::new(b.with_label("Breadcrumb"))
+                    ctx.insert(b.with_label("Breadcrumb"))
                 },
                 tree_list_demo: {
                     let mut t = TreeList::new();
@@ -1217,18 +927,18 @@ impl cce_ui::engine::Application for State {
                         ("theme/name".to_string(), serde_json::json!("cce")),
                     ]);
                     t.rebuild_tree();
-                    Owned::new(t.with_label("TreeList"))
+                    ctx.insert(t.with_label("TreeList"))
                 },
-                bevel_preview_demo: Owned::new(BevelPreview::new().with_label("BevelPreview")),
-                ramp_preview_demo: Owned::new(RampPreview::new().with_label("RampPreview")),
-                separator_demo: Owned::new(Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator")),
-                splitter_demo: Owned::new(Splitter::new(200.0).with_label("Splitter")),
+                bevel_preview_demo: ctx.insert(BevelPreview::new().with_label("BevelPreview")),
+                ramp_preview_demo: ctx.insert(RampPreview::new().with_label("RampPreview")),
+                separator_demo: ctx.insert(Separator::new(0.0, 0.0, 200.0, 1.0, [0.5, 0.5, 0.6, 1.0]).with_label("Separator")),
+                splitter_demo: ctx.insert(Splitter::new(200.0).with_label("Splitter")),
                 // Members are wired below, once the slots have ids.
                 // style: deliberate — tight padding: the gallery packs its rows closer than a
                 // settings page, and the fitted lasso's padding is what insets the exhibits.
-                group_loose: Owned::new(Group::new(Vec::new()).with_label("Group").with_padding(6.0)),
-                group_fitted: Owned::new(Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0)),
-                extra: variant_exhibits(),
+                group_loose: ctx.insert(Group::new(Vec::new()).with_label("Group").with_padding(6.0)),
+                group_fitted: ctx.insert(Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0)),
+                extra: variant_exhibits(ctx),
             }))
         };
 
@@ -1239,11 +949,11 @@ impl cce_ui::engine::Application for State {
                 // one around the top row (Button, ButtonStrip, Checkbox, Toggle) that
                 // fits the exhibit area's edges — its top snaps to the area's top with
                 // the title tab kept inside, its left to the area's left edge.
-                let ids = |s: &GallerySlots, idx: &[usize]| idx.iter().map(|&i| s.get_dyn(i).base().id()).collect::<Vec<_>>();
+                let ids = |s: &GallerySlots, idx: &[usize]| idx.iter().map(|&i| s.id(i)).collect::<Vec<_>>();
                 let loose = ids(s, &[17, 23]);
                 let fitted = ids(s, &[2, 19, 3, 4]);
-                s.group_loose.inner_mut().set_members(loose);
-                s.group_fitted.inner_mut().set_members(fitted);
+                ui_context[s.group_loose].inner_mut().set_members(loose);
+                ui_context[s.group_fitted].inner_mut().set_members(fitted);
             }
             roster
         };
@@ -1263,7 +973,7 @@ impl cce_ui::engine::Application for State {
             use_statusbar,
             border_enabled,
             child_kind,
-            ui_context: cce_ui::context::UiContext::new(),
+            ui_context,
             layout_idx: DEFAULT_LAYOUT,
             exhibit_scroll: {
                 let mut sb = ScrollBox::new();
@@ -1276,7 +986,8 @@ impl cce_ui::engine::Application for State {
             },
         };
 
-        if let Some(ramp) = state.roster.get_dyn_mut(1).as_any_mut().downcast_mut::<Ramp>().filter(|_| is_child) {
+        let main = state.roster.get_dyn_mut(&mut state.ui_context, 1);
+        if let Some(ramp) = main.as_any_mut().downcast_mut::<Ramp>().filter(|_| is_child) {
             // Only a `--type Ramp` child hosts a Ramp in slot 1: it opens with the
             // preset dropdown focused so the keyboard drives it at once. Every other
             // child kind (ColorRamp, or the description Label of the Toplevel /
@@ -1362,11 +1073,11 @@ impl cce_ui::engine::Application for State {
         let vis = self.visibility();
         let is_visible = move |index: usize| vis.is_visible(index);
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
             if is_visible(i) {
-                if w.tick(dt, &mut self.ui_context) {
-                    changed = true;
-                    if self.child_kind == Some(ChildKind::Ramp) && i == 1 {
+                let ramp_child = self.child_kind == Some(ChildKind::Ramp) && i == 1;
+                let ticked = self.ui_context.lend(self.roster.id(i), |w, ctx| {
+                    let ticked = w.tick(dt, ctx);
+                    if ticked && ramp_child {
                         if let Some(ramp) = w.as_any().downcast_ref::<Ramp>() {
                             let line_type_str = match ramp.line_type_dropdown.selected {
                                 1 => "bezier",
@@ -1375,6 +1086,10 @@ impl cce_ui::engine::Application for State {
                             save_bevel_ramp(&ramp.keys, line_type_str);
                         }
                     }
+                    ticked
+                });
+                if ticked == Some(true) {
+                    changed = true;
                 }
             }
         }
@@ -1435,7 +1150,7 @@ impl cce_ui::engine::Application for State {
         // every plain quad, then the other prims replayed — which put a widget's quads
         // over everything else it painted, whatever its own order.)
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn(i);
+            let w = self.roster.get_dyn(&self.ui_context, i);
             if !self.is_widget_visible(i) || self.ui_context.tree.parent_ptr(w.base().id()).is_some() {
                 continue;
             }
@@ -1464,7 +1179,7 @@ impl cce_ui::engine::Application for State {
         // surface) with per-label bounds; glyphs render in the later text pass
         // regardless of emission order. ──
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn(i);
+            let w = self.roster.get_dyn(&self.ui_context, i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -1480,7 +1195,7 @@ impl cce_ui::engine::Application for State {
         };
         let mut has_menu_bar = false;
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn_mut(i);
+            let w = self.roster.get_dyn_mut(&mut self.ui_context, i);
             if let Some(menu_bar) = w.as_any_mut().downcast_mut::<MenuBar>() {
                 menu_bar.title = label_text.clone();
                 has_menu_bar = true;
@@ -1494,7 +1209,7 @@ impl cce_ui::engine::Application for State {
 
         let mut popover_rects = Vec::new();
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn(i);
+            let w = self.roster.get_dyn(&self.ui_context, i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -1512,7 +1227,7 @@ impl cce_ui::engine::Application for State {
         };
 
         for i in 0..self.roster.len() {
-            let w = self.roster.get_dyn(i);
+            let w = self.roster.get_dyn(&self.ui_context, i);
             if !self.is_widget_visible(i) {
                 continue;
             }
@@ -1633,7 +1348,7 @@ impl cce_ui::engine::Application for State {
                 if !is_visible(i) {
                     continue;
                 }
-                let root = self.roster.get_dyn(i).base().id();
+                let root = self.roster.id(i);
                 if self.ui_context.propagate_event(&mv, root) {
                     changed = true;
                 }
@@ -1689,7 +1404,7 @@ impl cce_ui::engine::Application for State {
                     if !self.is_child && is_exhibit(i) && !self.in_exhibit_viewport(lx, ly) {
                         continue;
                     }
-                    if self.roster.get_dyn_mut(i).hit_test(lx, ly, &self.ui_context) {
+                    if self.roster.get_dyn(&self.ui_context, i).hit_test(lx, ly, &self.ui_context) {
                         clicked_idx = Some(i);
                         break;
                     }
@@ -1698,7 +1413,7 @@ impl cce_ui::engine::Application for State {
             if button == MouseButton::Left {
                 if let Some(old) = self.focused_widget {
                     if Some(old) != clicked_idx {
-                        self.ui_context.unfocus_widget(self.roster.get_dyn_mut(old));
+                        self.ui_context.unfocus_id(self.roster.id(old));
                         self.focused_widget = None;
                     }
                 }
@@ -1708,17 +1423,17 @@ impl cce_ui::engine::Application for State {
                 // DragStart past its threshold; a draggable slot whose press handler
                 // returned false is armed explicitly.
                 let ev = cce_ui::widget::Event::MouseButton { button, state, x: lx, y: ly, local_x: lx, local_y: ly };
-                let root = self.roster.get_dyn(i).base().id();
+                let root = self.roster.id(i);
                 let press_handled = self.ui_context.propagate_event(&ev, root);
                 if press_handled {
                     changed = true;
                 }
-                if button == MouseButton::Left && !press_handled && self.roster.draggable(i) {
-                    let id = self.roster.get_dyn(i).base().id();
+                if button == MouseButton::Left && !press_handled && self.roster.draggable(&self.ui_context, i) {
+                    let id = self.roster.id(i);
                     self.ui_context.drag_target = Some(id);
                 }
                 if button == MouseButton::Left {
-                    self.ui_context.focus_widget(self.roster.get_dyn_mut(i));
+                    self.ui_context.focus_id(self.roster.id(i));
                     self.focused_widget = Some(i);
                 }
             }
@@ -1736,7 +1451,7 @@ impl cce_ui::engine::Application for State {
                 if !is_visible(i) {
                     continue;
                 }
-                let root = self.roster.get_dyn(i).base().id();
+                let root = self.roster.id(i);
                 if self.ui_context.propagate_event(&ev, root) {
                     changed = true;
                 }
@@ -1744,19 +1459,19 @@ impl cce_ui::engine::Application for State {
 
             if button == MouseButton::Left {
                 if self.is_child {
-                    if self.roster.take_click(2) {
+                    if self.roster.take_click(&mut self.ui_context, 2) {
                         return Some("exit".to_string());
                     }
                 } else {
                     if self.apply_header_dropdowns() {
                         changed = true;
-                    } else if self.roster.take_click(12) {
+                    } else if self.roster.take_click(&mut self.ui_context, 12) {
                         spawn_editor("ColorRamp");
-                    } else if self.roster.take_click(14) {
+                    } else if self.roster.take_click(&mut self.ui_context, 14) {
                         spawn_editor("Ramp");
                     } else {
                         for i in [2, 3, 4, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 25, 26, 27, 28, 29] {
-                            if self.roster.take_click(i) {
+                            if self.roster.take_click(&mut self.ui_context, i) {
                                 changed = true;
                             }
                         }
@@ -1789,7 +1504,7 @@ impl cce_ui::engine::Application for State {
             if !self.is_child && is_exhibit(i) && !in_exhibits {
                 continue;
             }
-            let root = self.roster.get_dyn(i).base().id();
+            let root = self.roster.id(i);
             if self.ui_context.propagate_event(&ev, root) {
                 widget_took_wheel = true;
                 changed = true;
@@ -1813,7 +1528,7 @@ impl cce_ui::engine::Application for State {
         let mut handled = false;
         let key_ev = cce_ui::widget::Event::KeyInput(event.clone());
         if let Some(focused) = self.focused_widget {
-            let root = self.roster.get_dyn(focused).base().id();
+            let root = self.roster.id(focused);
             if self.ui_context.propagate_event(&key_ev, root) {
                 changed = true;
                 handled = true;
@@ -1829,7 +1544,7 @@ impl cce_ui::engine::Application for State {
                     continue;
                 }
                 // Panel children take keys only through the focused path above.
-                let root = self.roster.get_dyn(i).base().id();
+                let root = self.roster.id(i);
                 if self.ui_context.propagate_event(&key_ev, root) {
                     changed = true;
                     // A consumed key is HANDLED, not just repaint-worthy: the
