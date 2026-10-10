@@ -1584,13 +1584,25 @@ fn child_command() -> Option<std::process::Command> {
     Some(cmd)
 }
 
+/// Spawn `cmd` and reap it on a background thread, so the child never lingers
+/// as a zombie once it exits. The same helper cce-mail, cce-files, cce-terminal
+/// and cce-system-interface each keep; cce-ui's shared `process::spawn_detached`
+/// went away in cce-ui 4e94236.
+fn spawn_detached(mut cmd: std::process::Command) -> std::io::Result<()> {
+    let mut child = cmd.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 /// Opens a Ramp or ColorRamp editor window. Untracked on purpose: an editor outlives
 /// the gallery, unlike the simulated windows Create Window spawns.
 fn spawn_editor(kind: &str) {
     if let Some(mut cmd) = child_command() {
         // The editor kinds' `default_size`, spelled out for the child's argv.
         cmd.args(["--type", kind, "--width", "450", "--height", "390", "--root-plate"]);
-        let _ = cmd.spawn();
+        let _ = spawn_detached(cmd);
     }
 }
 
