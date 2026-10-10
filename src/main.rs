@@ -301,6 +301,8 @@ pub enum Roster {
 }
 
 impl Roster {
+    // No `is_empty`: both modes have fixed slots, so a roster is never empty.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         match self {
             Roster::Gallery(s) => GALLERY_COUNT + s.extra.len(),
@@ -1107,9 +1109,9 @@ impl cce_ui::engine::Application for State {
         if !self.is_child {
             self.layout_exhibits();
         }
-        if (self.width - size.width as f32).abs() > 0.001 || (self.height - size.height as f32).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
-            self.width = size.width as f32;
-            self.height = size.height as f32;
+        if (self.width - size.width).abs() > 0.001 || (self.height - size.height).abs() > 0.001 || (self.scale - scale).abs() > 0.001 {
+            self.width = size.width;
+            self.height = size.height;
             self.scale = scale;
             cce_ui::scale::set_scale_factor(scale as f32);
 
@@ -1319,7 +1321,7 @@ impl cce_ui::engine::Application for State {
     }
 
     fn handle_pointer_move(&mut self, pos: LogicalPosition, needs_rebuild: &mut bool) {
-        let (lx, ly) = (pos.x as f32, pos.y as f32);
+        let (lx, ly) = (pos.x, pos.y);
 
         // The shared context menu (any exhibit's) gets the pointer to itself
         // while open: its row highlight and slider rows.
@@ -1361,7 +1363,7 @@ impl cce_ui::engine::Application for State {
     }
 
     fn handle_mouse_input(&mut self, button: MouseButton, state: ElementState, pos: LogicalPosition, needs_rebuild: &mut bool) -> Option<Self::Message> {
-        let (lx, ly) = (pos.x as f32, pos.y as f32);
+        let (lx, ly) = (pos.x, pos.y);
 
         // The shared context menu a right-click on an exhibit opens takes every
         // press while open, ahead of the exhibit scrollbar: a row runs, a press
@@ -1484,7 +1486,7 @@ impl cce_ui::engine::Application for State {
     }
 
     fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, pos: LogicalPosition, needs_rebuild: &mut bool) {
-        let (lx, ly) = (pos.x as f32, pos.y as f32);
+        let (lx, ly) = (pos.x, pos.y);
         let mut changed = false;
         let vis = self.visibility();
         let is_visible = move |index: usize| vis.is_visible(index);
