@@ -1156,7 +1156,7 @@ impl cce_ui::engine::Application for State {
                 continue;
             }
             let mut walk = cce_ui::scene::paint::PaintCtx::new();
-            cce_ui::scene::painter::paint_root_into(&self.ui_context, w, &mut walk);
+            cce_ui::widget::painter::paint_root_into(&self.ui_context, w, &mut walk);
             let geometry = walk.finish().items.into_iter().filter(|it| !matches!(it.prim, Prim::Text { .. }));
             if !self.is_child && (is_exhibit(i) || is_overlay(i)) {
                 let (vx, vy, vw, vh) = self.exhibit_viewport();
@@ -1248,7 +1248,7 @@ impl cce_ui::engine::Application for State {
                 None
             };
             let mut scratch = cce_ui::scene::paint::PaintCtx::new();
-            cce_ui::scene::painter::append_widget_text(&self.ui_context, w, &mut scratch);
+            cce_ui::widget::painter::append_widget_text(&self.ui_context, w, &mut scratch);
             for item in scratch.finish().items {
                 if let cce_ui::scene::paint::Prim::Text { text, x, y, font_size, color, font, bounds, .. } = item.prim {
                     if in_any_popover(x, y) {
