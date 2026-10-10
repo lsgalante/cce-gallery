@@ -3,7 +3,7 @@
 //! colour rules, corner rounding, borders and labels on the narrow widget traits
 //! wrapped in `Adapted<W>`.
 
-use cce_ui::colors;
+use cce_ui::color;
 use cce_ui::scene::layout::Rect;
 use cce_ui::scene::paint::{PaintCtx, PlateSpec};
 use cce_ui::widget::*;
@@ -23,13 +23,13 @@ impl Plate {
     }
 
     fn plate_color(&self) -> [f32; 4] {
-        let mut c = if let Some(c) = colors::plate_color() {
+        let mut c = if let Some(c) = color::plate_color() {
             c
         } else {
-            colors::page_low_color()
+            color::page_low_color()
         };
         c[3] *= cce_ui::layout::plate_opacity();
-        if self.blur && colors::plate_blur() {
+        if self.blur && color::plate_blur() {
             c[3] = -c[3].abs();
         }
         c
@@ -53,7 +53,7 @@ impl cce_ui::widget::Paint for Plate {
     }
 
     fn solid_border(&self) -> Option<([f32; 4], f32)> {
-        colors::plate_border_color().map(|bc| (bc, colors::plate_border_thickness()))
+        color::plate_border_color().map(|bc| (bc, color::plate_border_thickness()))
     }
 
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
