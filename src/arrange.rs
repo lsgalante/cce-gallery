@@ -369,18 +369,12 @@ mod tests {
         assert_eq!(arrange(Arrangement::Overlay, &[], a, 5.0), (Vec::new(), 40.0));
     }
 
-    /// TRANSITIONAL — while cce-ui still ships the `ContainerLayout` strategies: each
-    /// arrangement against the strategy it replaces, over the gallery's real exhibit table
-    /// with labeled, unlabeled and odd strips, declared and undeclared heights, and the
-    /// areas a window can give it. Content rects and heights must match to the bit.
-    mod against_the_toolkit_strategies {
+    /// What the gallery reads off a widget, and what it arranges: its real exhibits.
+    mod exhibits {
         use super::super::*;
         use cce_ui::context::UiContext;
         use cce_ui::scene::layout::Size;
-        use cce_ui::widget::{
-            AdaptiveGridLayout, ColumnsLayout, ContainerLayout, GridLayout, Layout, LayoutConstraints, MosaicLayout, OverlayLayout,
-            Point, ReverseMosaicLayout, VerticalLayout, Widget,
-        };
+        use cce_ui::widget::{Layout, Widget};
 
         /// The content height an exhibit declares (`preferred_height` reads it), if any.
         struct Declared(Option<f32>);
@@ -391,12 +385,10 @@ mod tests {
             }
         }
 
-        /// An exhibit as the strategies see one, recording the content rect it was given.
         struct Mock {
             base: Widget,
             strip: f32,
             declared: Declared,
-            content: Option<Rect>,
         }
 
         impl WidgetHost for Mock {
@@ -407,129 +399,36 @@ mod tests {
             fn layout_model(&self) -> &dyn Layout {
                 &self.declared
             }
-            /// The strategies' placement: the content at `origin`, at the (tight) size given.
-            fn layout(&mut self, origin: Point, c: LayoutConstraints, _ctx: &mut UiContext) {
-                assert!(c.min_width == c.max_width && c.min_height == c.max_height, "loose constraints {c:?}");
-                self.content = Some(Rect { x: origin.x, y: origin.y, width: c.max_width, height: c.max_height });
-                let b = &mut self.base;
-                (b.x, b.y, b.w, b.h) = (origin.x, origin.y - self.strip, c.max_width, c.max_height + self.strip);
-            }
-            /// Overlay's placement: the whole block, whose content the gallery took to be
-            /// the rect less its strip.
-            fn set_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
-                self.content = Some(Rect { x, y: y + self.strip, width: w, height: h - self.strip });
-                let b = &mut self.base;
-                (b.x, b.y, b.w, b.h) = (x, y, w, h);
-            }
-        }
-
-        fn strategy(kind: Arrangement, gap: f32) -> Box<dyn ContainerLayout> {
-            match kind {
-                Arrangement::Vertical => Box::new(VerticalLayout { padding_x: 0.0, padding_y: 0.0, spacing: gap }),
-                Arrangement::Columns => Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, spacing: gap }),
-                Arrangement::Grid { columns } => Box::new(GridLayout { columns, gap, padding_x: 0.0, padding_y: 0.0 }),
-                Arrangement::AdaptiveGrid { min_col_width } => {
-                    Box::new(AdaptiveGridLayout { min_col_width, gap, padding_x: 0.0, padding_y: 0.0 })
-                }
-                Arrangement::Mosaic => Box::new(MosaicLayout { gap, padding_x: 0.0, padding_y: 0.0 }),
-                Arrangement::ReverseMosaic => Box::new(ReverseMosaicLayout { gap, padding_x: 0.0, padding_y: 0.0 }),
-                Arrangement::Overlay => Box::new(OverlayLayout),
-            }
-        }
-
-        fn bits(r: Rect) -> [u32; 4] {
-            [r.x.to_bits(), r.y.to_bits(), r.width.to_bits(), r.height.to_bits()]
         }
 
         #[test]
-        fn every_arrangement_matches_its_strategy_to_the_bit() {
+        fn a_block_takes_the_declared_height_else_the_rect_less_its_strip() {
+            let mut m = Mock { base: Widget::new(), strip: 18.0, declared: Declared(None) };
+            m.set_rect(5.0, 6.0, 190.0, 18.0 + 40.0);
+            assert_eq!(Block::of(&m), Block { width: 190.0, content_h: 40.0, strip: 18.0 });
+            m.declared = Declared(Some(24.0));
+            assert_eq!(Block::of(&m), Block { width: 190.0, content_h: 24.0, strip: 18.0 });
+        }
+
+        /// Every entry of the Layout dropdown places every exhibit of the real table somewhere
+        /// finite and non-empty.
+        #[test]
+        fn every_layout_places_every_exhibit() {
             let mut ui = UiContext::new();
             let extra = crate::variant_exhibits(&mut ui);
-            let s2d = ui.insert(cce_ui::widget::input::Slider2D::new().with_label("Slider2D"));
-            let s2d_w = ui[s2d].measure(LayoutConstraints::new(0.0, f32::MAX, 0.0, f32::MAX), &ui).width;
-            let mut table = crate::exhibit_table(s2d_w, &extra);
-            assert!(table.len() > 40, "the real table: {}", table.len());
-            // Two blocks with no height of their own, for the 44px fallback.
-            table.push((0, 190.0, 0.0));
-            table.push((0, 6.0, 0.0));
-
-            let label = {
-                let mut w = Widget::new();
-                w.label = Some("Label".to_string());
-                w.label_offset()
-            };
-            assert!(label > 0.0);
-            // (strip, declares its height) by position: labeled and unlabeled mixed, an odd
-            // strip that is not the lead, and every-labeled / none-labeled tables.
-            let patterns: [&dyn Fn(usize) -> (f32, bool); 4] = [
-                &|k| ([0.0, label, 0.0, 7.25, label][k % 5], k % 3 == 0),
-                &|k| (0.0, k % 2 == 0),
-                &|k| (label, k % 4 != 1),
-                &|k| (if k % 7 == 3 { 31.5 } else { label }, k % 3 != 2),
-            ];
-            let kinds = [
-                Arrangement::Vertical,
-                Arrangement::Columns,
-                Arrangement::Grid { columns: 3 },
-                Arrangement::Grid { columns: 1 },
-                Arrangement::Grid { columns: 7 },
-                Arrangement::AdaptiveGrid { min_col_width: 190.0 },
-                Arrangement::AdaptiveGrid { min_col_width: 61.5 },
-                Arrangement::Mosaic,
-                Arrangement::ReverseMosaic,
-                Arrangement::Overlay,
-            ];
-            let areas = [
-                Rect { x: 28.0, y: 131.0, width: 944.0, height: 489.0 },
-                Rect { x: 16.5, y: 100.25, width: 300.0, height: 200.0 },
-                Rect { x: 40.0, y: 140.0, width: 1880.0, height: 960.0 },
-                Rect { x: 22.0, y: 117.0, width: 255.33, height: 61.0 },
-                Rect { x: 10.0, y: 20.0, width: 0.5, height: 0.5 },
-            ];
-            let gaps = [cce_ui::layout::control_gap(), 0.0, 7.3];
-
-            let mut checked = 0;
-            for pattern in patterns {
-                // Seeded as the gallery seeds its exhibits: the content size plus the strip.
-                let seed = |mocks: &mut Vec<Mock>| {
-                    for (m, &(_, w, h)) in mocks.iter_mut().zip(&table) {
-                        let strip = m.label_strip();
-                        m.set_rect(0.0, 0.0, w, h + strip);
-                        m.content = None;
-                    }
-                };
-                let mut mocks: Vec<Mock> = table
-                    .iter()
-                    .enumerate()
-                    .map(|(k, &(_, _, h))| {
-                        let (strip, declares) = pattern(k);
-                        Mock { base: Widget::new(), strip, declared: Declared(declares.then_some(h)), content: None }
-                    })
-                    .collect();
-                for kind in kinds {
-                    for area in areas {
-                        for gap in gaps {
-                            seed(&mut mocks);
-                            let blocks: Vec<Block> = mocks.iter().map(|m| Block::of(m)).collect();
-                            let (rects, height) = arrange(kind, &blocks, area, gap);
-
-                            let children: Vec<*mut (dyn WidgetHost + 'static)> =
-                                mocks.iter_mut().map(|m| m as &mut dyn WidgetHost as *mut (dyn WidgetHost + 'static)).collect();
-                            let old_height = strategy(kind, gap).layout(area.x, area.y, area.width, area.height, &children, &mut ui);
-
-                            let case = format!("{kind:?} over {area:?}, gap {gap}");
-                            assert_eq!(height.to_bits(), old_height.to_bits(), "{case}: height {height} vs {old_height}");
-                            assert_eq!(rects.len(), mocks.len(), "{case}");
-                            for (k, (m, r)) in mocks.iter().zip(&rects).enumerate() {
-                                let old = m.content.unwrap_or_else(|| panic!("{case}: block {k} not placed"));
-                                assert_eq!(bits(*r), bits(old), "{case}: block {k}: {r:?} vs {old:?}");
-                            }
-                            checked += 1;
-                        }
-                    }
+            let table = crate::exhibit_table(120.0, &extra);
+            let blocks: Vec<Block> =
+                table.iter().enumerate().map(|(k, &(_, width, content_h))| Block { width, content_h, strip: [0.0, 18.0][k % 2] }).collect();
+            let area = Rect { x: 28.0, y: 131.0, width: 944.0, height: 489.0 };
+            for (name, kind) in crate::LAYOUTS {
+                let (rects, height) = arrange(kind, &blocks, area, cce_ui::layout::control_gap());
+                assert_eq!(rects.len(), blocks.len(), "{name}");
+                assert!(height.is_finite() && height > 0.0, "{name}: {height}");
+                for r in &rects {
+                    assert!([r.x, r.y, r.width, r.height].iter().all(|v| v.is_finite()), "{name}: {r:?}");
+                    assert!(r.width > 0.0 && r.height > 0.0, "{name}: {r:?}");
                 }
             }
-            assert_eq!(checked, 4 * 10 * 5 * 3);
         }
     }
 }
