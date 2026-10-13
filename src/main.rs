@@ -799,6 +799,10 @@ impl State {
 impl cce_ui::engine::Application for State {
     type Message = String;
 
+    fn layer_app(&mut self) -> Option<&mut dyn cce_ui::engine::LayerApp> {
+        Some(self)
+    }
+
     fn create(_sender: cce_ui::engine::AppSender<Self::Message>) -> Self {
         let args: Vec<String> = std::env::args().collect();
         let flag = |name: &str| args.iter().any(|a| a == name);
@@ -1042,10 +1046,6 @@ impl cce_ui::engine::Application for State {
                 Some((100, 100))
             },
         }
-    }
-
-    fn layer(&self) -> Option<LayerSettings> {
-        self.child_kind.and_then(|kind| kind.layer(self.height as i32))
     }
 
     fn utility(&self) -> bool {
@@ -1577,6 +1577,12 @@ impl cce_ui::engine::Application for State {
         None
     }
 
+}
+
+impl cce_ui::engine::LayerApp for State {
+    fn layer(&self) -> Option<LayerSettings> {
+        self.child_kind.and_then(|kind| kind.layer(self.height as i32))
+    }
 }
 
 /// A `Command` that re-runs this binary as a child window; the caller adds the flags.
