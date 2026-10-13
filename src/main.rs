@@ -1,7 +1,7 @@
 use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
-use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, WidgetHostExt};
+use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, WidgetHostExt};
 mod arrange;
 use arrange::{arrange, Arrangement, Block};
 mod gallery_widgets;
@@ -1086,9 +1086,6 @@ impl cce_ui::engine::Application for State {
 
     fn tick(&mut self, dt: f32, needs_rebuild: &mut bool) {
         let mut changed = false;
-        if hover_animation::tick(dt) {
-            changed = true;
-        }
         // True while the area's bar is held up or fading, as well as while a
         // glide moves it, so the frames keep coming until the sink renders.
         if !self.is_child && self.exhibit_scroll.tick(dt, &mut self.ui_context) {
