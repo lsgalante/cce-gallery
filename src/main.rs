@@ -6,7 +6,7 @@ mod arrange;
 use arrange::{arrange, Arrangement, Block};
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, Plate};
-use cce_ui::widget::{Adapted, LayoutConstraints, Point};
+use cce_ui::widget::{Adapted, LayoutConstraints, Point, WidgetEvent};
 use cce_ui::widget::input::Slider2D;
 use cce_ui::engine::{LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
 use cce_ui::scene::paint::Prim;
@@ -329,7 +329,7 @@ impl Roster {
         ui.get_widget_mut(self.id(idx)).expect("a roster slot's widget is in the context")
     }
 
-    /// A slot that is never dragged or drained: the variant exhibits are looked at, and
+    /// A slot that is never dragged: the variant exhibits are looked at, and
     /// the lassos (32, 33) are frames.
     fn inert(&self, idx: usize) -> bool {
         matches!(self, Roster::Gallery(_)) && (idx >= GALLERY_COUNT || matches!(idx, 32 | 33))
@@ -355,16 +355,7 @@ impl Roster {
         }
     }
 
-    // --- Value drains: route a slot index to its widget's `take_click` / `value`.
-
-    pub fn take_click(&self, ui: &mut UiContext, idx: usize) -> bool {
-        match self {
-            // The child roster drains one slot: its Close button.
-            Roster::Child(c) => idx == 2 && ui[c.close].take_click(),
-            Roster::Gallery(_) => !self.inert(idx) && self.get_dyn_mut(ui, idx).input_model_mut().take_click(),
-        }
-    }
-
+    /// The selected entry of a header dropdown (15 Layout, 34 Style).
     pub fn value(&self, ui: &UiContext, idx: usize) -> i32 {
         let s = self.gallery();
         match idx {
@@ -400,6 +391,9 @@ struct State {
     layout_idx: usize,
     /// The scroll frame the exhibits below the Layout dropdown scroll inside.
     exhibit_scroll: ScrollBox,
+    /// Posts to `update`: how a hook that returns no message (tick, pointer motion, wheel)
+    /// hands one on.
+    sender: cce_ui::engine::AppSender<String>,
 }
 
 fn save_bevel_ramp(keys: &[RampKey], line_type: &str) {
@@ -736,26 +730,54 @@ impl State {
     fn register_roster(&mut self) {
     }
 
-    /// Drain the header dropdowns' selections and apply them: Layout (15) picks the
-    /// arrangement, Style (34) switches every control between Relief and Flat
-    /// (`set_control_relief` — the toolkit reads it live at paint, so a rebuild is
-    /// all it takes). Called after mouse AND key input: a Dropdown selects from the
-    /// keyboard too (Down, Enter), and a selection must not wait for the next click.
-    fn apply_header_dropdowns(&mut self) -> bool {
-        let mut applied = false;
-        if self.roster.take_click(&mut self.ui_context, 15) {
+    /// Hear what the widgets reported since the last sweep (`UiContext::take_events`) and
+    /// act on it: Layout (15) picks the arrangement, Style (34) switches every control
+    /// between Relief and Flat (`set_control_relief` — the toolkit reads it live at paint,
+    /// so a rebuild is all it takes), `Color Ramp...` and `Ramp...` open their editors, and
+    /// a child's Close ends it — the returned message. Any report repaints; every other
+    /// exhibit reacts by itself and only needs the frame.
+    ///
+    /// Runs after every dispatch path — pointer, wheel, key, tick and the context menu's
+    /// rows — so a keyboard activation (Enter or Space on a focused button, a dropdown's
+    /// Enter) or an assistive tool's lands at once rather than at the next click.
+    fn drain_widget_events(&mut self, needs_rebuild: &mut bool) -> Option<String> {
+        let (mut layout, mut style, mut exit) = (false, false, false);
+        for (id, ev) in self.ui_context.take_events() {
+            let clicked = match ev {
+                WidgetEvent::Clicked => true,
+                WidgetEvent::Changed => false,
+                _ => continue,
+            };
+            *needs_rebuild = true;
+            match &self.roster {
+                Roster::Child(c) => exit |= clicked && id == c.close.id(),
+                // A dropdown reports a pick as Changed.
+                Roster::Gallery(s) if id == s.layout_dd.id() => layout = true,
+                Roster::Gallery(s) if id == s.style_dd.id() => style = true,
+                Roster::Gallery(s) if clicked && id == s.color_ramp_btn.id() => spawn_editor("ColorRamp"),
+                Roster::Gallery(s) if clicked && id == s.ramp_btn.id() => spawn_editor("Ramp"),
+                Roster::Gallery(_) => {}
+            }
+        }
+        if layout {
             self.layout_idx = self.roster.value(&self.ui_context, 15) as usize;
-            applied = true;
         }
-        if self.roster.take_click(&mut self.ui_context, 34) {
+        if style {
             cce_ui::layout::set_control_relief(self.roster.value(&self.ui_context, 34) == 0);
-            applied = true;
         }
-        if applied {
+        if layout || style {
             self.relayout();
             self.apply_layout();
         }
-        applied
+        exit.then(|| "exit".to_string())
+    }
+
+    /// [`drain_widget_events`](Self::drain_widget_events) for a hook that returns no
+    /// message: the message goes to `update` through the app's sender.
+    fn drain_widget_events_posting(&mut self, needs_rebuild: &mut bool) {
+        if let Some(msg) = self.drain_widget_events(needs_rebuild) {
+            let _ = self.sender.send(msg);
+        }
     }
 
     fn apply_layout(&mut self) {
@@ -803,7 +825,7 @@ impl cce_ui::engine::Application for State {
         Some(self)
     }
 
-    fn create(_sender: cce_ui::engine::AppSender<Self::Message>) -> Self {
+    fn create(sender: cce_ui::engine::AppSender<Self::Message>) -> Self {
         let args: Vec<String> = std::env::args().collect();
         let flag = |name: &str| args.iter().any(|a| a == name);
         let value = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
@@ -991,6 +1013,7 @@ impl cce_ui::engine::Application for State {
                 sb.sink_behind = true;
                 sb
             },
+            sender,
         };
 
         let main = state.roster.get_dyn_mut(&mut state.ui_context, 1);
@@ -1097,6 +1120,8 @@ impl cce_ui::engine::Application for State {
         if changed {
             *needs_rebuild = true;
         }
+        // A tick reports too: a FontSelector's picker returns its family here.
+        self.drain_widget_events_posting(needs_rebuild);
     }
 
     fn display_list(&mut self, size: LogicalSize, scale: f64) -> Option<cce_ui::scene::paint::DisplayList> {
@@ -1361,6 +1386,7 @@ impl cce_ui::engine::Application for State {
         if changed {
             *needs_rebuild = true;
         }
+        self.drain_widget_events_posting(needs_rebuild);
     }
 
     fn handle_mouse_input(&mut self, button: MouseButton, state: ElementState, pos: LogicalPosition, needs_rebuild: &mut bool) -> Option<Self::Message> {
@@ -1378,7 +1404,8 @@ impl cce_ui::engine::Application for State {
                 *needs_rebuild = true;
             }
             if used || state == ElementState::Pressed {
-                return None;
+                // A row may have set its exhibit's value (Paste, Reset).
+                return self.drain_widget_events(needs_rebuild);
             }
         }
 
@@ -1457,33 +1484,11 @@ impl cce_ui::engine::Application for State {
                     changed = true;
                 }
             }
-
-            if button == MouseButton::Left {
-                if self.is_child {
-                    if self.roster.take_click(&mut self.ui_context, 2) {
-                        return Some("exit".to_string());
-                    }
-                } else {
-                    if self.apply_header_dropdowns() {
-                        changed = true;
-                    } else if self.roster.take_click(&mut self.ui_context, 12) {
-                        spawn_editor("ColorRamp");
-                    } else if self.roster.take_click(&mut self.ui_context, 14) {
-                        spawn_editor("Ramp");
-                    } else {
-                        for i in [2, 3, 4, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 20, 21, 25, 26, 27, 28, 29] {
-                            if self.roster.take_click(&mut self.ui_context, i) {
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-            }
         }
         if changed {
             *needs_rebuild = true;
         }
-        None
+        self.drain_widget_events(needs_rebuild)
     }
 
     fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, pos: LogicalPosition, needs_rebuild: &mut bool) {
@@ -1520,6 +1525,7 @@ impl cce_ui::engine::Application for State {
         if changed {
             *needs_rebuild = true;
         }
+        self.drain_widget_events_posting(needs_rebuild);
     }
 
     fn handle_key_input(&mut self, event: &KeyEvent, needs_rebuild: &mut bool) -> Option<Self::Message> {
@@ -1566,15 +1572,12 @@ impl cce_ui::engine::Application for State {
             return Some("exit".to_string());
         }
 
-        // A header dropdown driven by the keyboard selects on Enter: apply it now.
-        if !self.is_child && self.apply_header_dropdowns() {
-            changed = true;
-        }
-
         if changed {
             *needs_rebuild = true;
         }
-        None
+        // A header dropdown driven by the keyboard selects on Enter, a focused button
+        // clicks on Enter or Space: act on it now.
+        self.drain_widget_events(needs_rebuild)
     }
 
 }

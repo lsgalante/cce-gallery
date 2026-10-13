@@ -136,6 +136,9 @@ for example). Nothing else is bound; the `cce-gallery` domain of
   dispatch loops; child windows use the five-slot `ChildSlots`.
   `demo_positions` and `child_positions` are the layout tables for the chrome,
   `exhibit_table` the exhibits' sizes, `layout_exhibits` their placement.
+  What the widgets report reaches the app in one sweep after every pointer,
+  wheel, key and tick dispatch (`drain_widget_events`, over cce-ui's
+  `UiContext::take_events`), so a keyboard activation acts at once.
 - `src/arrange.rs` — the exhibit arrangements the `Layout` dropdown offers, as
   pure functions (`arrange`), and their unit tests.
 - `src/gallery_widgets.rs` — lookalikes of the retired toolkit `Plate` (an
