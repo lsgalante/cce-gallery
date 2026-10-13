@@ -2,6 +2,9 @@ use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
 use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout, ScrollBox, WidgetHostExt};
+// Unused outside its tests until `layout_exhibits` moves onto it.
+#[cfg_attr(not(test), allow(dead_code))]
+mod arrange;
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, Plate};
 use cce_ui::widget::{Adapted, LayoutConstraints, Point};
@@ -514,6 +517,70 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     ]
 }
 
+/// The Controls exhibits in layout order, each with the content size it is reset to
+/// before a strategy runs: the toolkit layouts read a child's own rect for its width
+/// and preferred height, and a previous strategy may have stretched it. `s2d_w` is the
+/// Slider2D's measured width; `extra` the variant exhibits, which follow the named slots.
+fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<(usize, f32, f32)> {
+    // Every height below is the toolkit's default for that control — its
+    // configured `style.control.<name>.height`, or the intrinsic size the
+    // widget declares — so the page is a record of the defaults, not of
+    // numbers chosen here. The strategies read a widget's own intrinsic
+    // height anyway; the table only has to agree with it.
+    let bh = cce_ui::layout::button_height();
+    let tgh = cce_ui::layout::toggle_height();
+    let slh = cce_ui::layout::slider_height();
+    let rsh = cce_ui::layout::rangeslider_height();
+    let pbh = cce_ui::layout::progressbar_height();
+    let sph = cce_ui::layout::spinbox_height();
+    let ddh = cce_ui::layout::dropdown_height();
+    let tbh = cce_ui::layout::textbox_height();
+    let csh = cce_ui::layout::color_selector_height();
+    let fsh = cce_ui::layout::font_selector_height();
+    let rmh = cce_ui::layout::ramp_height();
+    // The few exhibits with no toolkit default are canvases: an area to draw
+    // or drag in, sized here and only here.
+    const CANVAS_H: f32 = 120.0;
+    const W: f32 = 190.0;
+    // A StatusDot is 12px square; its exhibit is as wide as its label
+    // (`content_width` hands the dot its own size back after layout).
+    const DOT_W: f32 = 200.0;
+    let raw: [(usize, f32, f32); 29] = [
+        (2, W, bh),                                   // Button
+        (19, W, bh),                                  // ButtonStrip
+        (3, W, tgh),                                  // Checkbox (a toggle row)
+        (4, W, tgh),                                  // Toggle
+        (6, W, slh),                                  // Slider
+        (8, W, rsh),                                 // RangeSlider
+        (20, s2d_w, 64.0),                            // Slider2D (a 64px pad, wide enough for its label)
+        (7, W, sph),                                  // Spinbox
+        (21, W, Float3::preferred_height(false)),     // Float3 (three slider rows)
+        (10, W, tbh),                                 // TextBox
+        (18, W, tbh),                                 // KeybindRecorder (a textbox)
+        (16, W, csh),                                 // ColorSelector
+        (17, W, fsh),                                 // FontSelector
+        (5, W, pbh),                                  // ProgressBar
+        (22, W, pbh),                                 // UsageBar
+        (23, DOT_W, StatusDot::SIZE),                 // StatusDot (its label needs the width)
+        (30, W, 1.0),                                 // Separator (a rule)
+        (31, 6.0, CANVAS_H),                          // Splitter (a vertical grip)
+        (24, W, 3.0 * ddh),                           // InfoBox (title + two lines)
+        (25, W, 2.0 * ddh),                           // InteractiveListItem (title + subtitle)
+        (26, W, bh),                                  // Breadcrumb (button plates)
+        (27, W, CANVAS_H),                            // TreeList
+        (9, W, CANVAS_H),                            // Trackpad
+        (11, W, CANVAS_H),                            // Plate
+        (28, W, CANVAS_H),                            // BevelPreview
+        (29, W, 2.0 * rmh),                           // RampPreview (a ramp's curve)
+        (13, W, CANVAS_H),                            // Ramp (its editor declares 150)
+        (12, W, bh),                                  // Color Ramp...
+        (14, W, bh),                                  // Ramp...
+    ];
+    let mut sizes = raw.to_vec();
+    sizes.extend(extra.iter().enumerate().map(|(k, e)| (GALLERY_COUNT + k, e.w, e.h)));
+    sizes
+}
+
 /// The exhibits: every slot but the chrome (0, 1), the lassos (32, 33) and the
 /// header dropdowns (15 Layout, 34 Style), which `layout_exhibits` lays out under
 /// the header row.
@@ -550,72 +617,14 @@ impl State {
     }
 
     /// The Controls exhibits in layout order, each with the content size it is reset to
-    /// before a strategy runs: the toolkit layouts read a child's own rect for its width
-    /// and preferred height, and a previous strategy may have stretched it.
+    /// before a strategy runs (`exhibit_table`).
     fn exhibit_sizes(&self) -> Vec<(usize, f32, f32)> {
-        // Every height below is the toolkit's default for that control — its
-        // configured `style.control.<name>.height`, or the intrinsic size the
-        // widget declares — so the page is a record of the defaults, not of
-        // numbers chosen here. The strategies read a widget's own intrinsic
-        // height anyway; the table only has to agree with it.
-        let bh = cce_ui::layout::button_height();
-        let tgh = cce_ui::layout::toggle_height();
-        let slh = cce_ui::layout::slider_height();
-        let rsh = cce_ui::layout::rangeslider_height();
-        let pbh = cce_ui::layout::progressbar_height();
-        let sph = cce_ui::layout::spinbox_height();
-        let ddh = cce_ui::layout::dropdown_height();
-        let tbh = cce_ui::layout::textbox_height();
-        let csh = cce_ui::layout::color_selector_height();
-        let fsh = cce_ui::layout::font_selector_height();
-        let rmh = cce_ui::layout::ramp_height();
-        // The few exhibits with no toolkit default are canvases: an area to draw
-        // or drag in, sized here and only here.
-        const CANVAS_H: f32 = 120.0;
-        const W: f32 = 190.0;
         let s2d_w = self
             .roster
             .get_dyn(&self.ui_context, 20)
             .measure(LayoutConstraints::new(0.0, f32::MAX, 0.0, f32::MAX), &self.ui_context)
             .width;
-        // A StatusDot is 12px square; its exhibit is as wide as its label
-        // (`content_width` hands the dot its own size back after layout).
-        const DOT_W: f32 = 200.0;
-        let raw: [(usize, f32, f32); 29] = [
-            (2, W, bh),                                   // Button
-            (19, W, bh),                                  // ButtonStrip
-            (3, W, tgh),                                  // Checkbox (a toggle row)
-            (4, W, tgh),                                  // Toggle
-            (6, W, slh),                                  // Slider
-            (8, W, rsh),                                 // RangeSlider
-            (20, s2d_w, 64.0),                            // Slider2D (a 64px pad, wide enough for its label)
-            (7, W, sph),                                  // Spinbox
-            (21, W, Float3::preferred_height(false)),     // Float3 (three slider rows)
-            (10, W, tbh),                                 // TextBox
-            (18, W, tbh),                                 // KeybindRecorder (a textbox)
-            (16, W, csh),                                 // ColorSelector
-            (17, W, fsh),                                 // FontSelector
-            (5, W, pbh),                                  // ProgressBar
-            (22, W, pbh),                                 // UsageBar
-            (23, DOT_W, StatusDot::SIZE),                 // StatusDot (its label needs the width)
-            (30, W, 1.0),                                 // Separator (a rule)
-            (31, 6.0, CANVAS_H),                          // Splitter (a vertical grip)
-            (24, W, 3.0 * ddh),                           // InfoBox (title + two lines)
-            (25, W, 2.0 * ddh),                           // InteractiveListItem (title + subtitle)
-            (26, W, bh),                                  // Breadcrumb (button plates)
-            (27, W, CANVAS_H),                            // TreeList
-            (9, W, CANVAS_H),                            // Trackpad
-            (11, W, CANVAS_H),                            // Plate
-            (28, W, CANVAS_H),                            // BevelPreview
-            (29, W, 2.0 * rmh),                           // RampPreview (a ramp's curve)
-            (13, W, CANVAS_H),                            // Ramp (its editor declares 150)
-            (12, W, bh),                                  // Color Ramp...
-            (14, W, bh),                                  // Ramp...
-        ];
-        let mut sizes = raw.to_vec();
-        let extra = &self.roster.gallery().extra;
-        sizes.extend(extra.iter().enumerate().map(|(k, e)| (GALLERY_COUNT + k, e.w, e.h)));
-        sizes
+        exhibit_table(s2d_w, &self.roster.gallery().extra)
     }
 
     /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects

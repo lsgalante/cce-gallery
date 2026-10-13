@@ -8,7 +8,8 @@ different shell types. It ships a `.desktop` entry under Utility/Development,
 so it appears in the launcher.
 
 It is a *visual* test harness: you look at what it draws and what the
-compositor does with the windows it spawns. It has no automated test suite.
+compositor does with the windows it spawns. Its unit tests (`cargo test -p
+cce-gallery`) cover only the exhibit arrangements (`src/arrange.rs`).
 
 ## The page
 
