@@ -725,8 +725,8 @@ impl State {
 
     /// Register every roster widget in the ui_context (idempotent — `register` is
     /// id-keyed and the boxed slots keep pointers stable). The id-rooted router
-    /// resolves roots through this registry; the gallery's own paint loop never goes
-    /// through `render_widget`, where other apps pick registration up as a side effect.
+    /// resolves roots through this registry, and the gallery's own paint loop registers
+    /// nothing as it goes.
     fn register_roster(&mut self) {
     }
 
@@ -1197,9 +1197,9 @@ impl cce_ui::engine::Application for State {
             self.exhibit_scroll.paint_scrollbar_pills(&mut pc, self.exhibit_scroll.scrollbar_fade());
         }
 
-        // ── Popovers: in-frame, on top of everything. PaintCtx is a
-        // RenderTarget — real prims (the dropdown's expanded inset-plate
-        // surface) with per-label bounds; glyphs render in the later text pass
+        // ── Popovers: in-frame, on top of everything, into the frame's own
+        // PaintCtx — real prims (the dropdown's expanded inset-plate surface)
+        // with per-label bounds; glyphs render in the later text pass
         // regardless of emission order. ──
         for i in 0..self.roster.len() {
             let w = self.roster.get_dyn(&self.ui_context, i);
