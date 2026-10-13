@@ -46,20 +46,22 @@ FontSelector and the StatusDot, and `Group (fitted)` around the top row,
 fitted to the exhibit area's edges. The exhibits are laid out at that fit's
 seat — a padding in from the sides, the lasso's headroom down — so the tab
 stays inside the area and the row has the same padding on every side. A lasso is laid out by its members, not
-by the strategy: under Mosaic it is the hull of wherever they landed.
+by the arrangement: under Mosaic it is the hull of wherever they landed.
 
 Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
 the page is a record of the defaults; only the draw-in canvases (Trackpad,
 Plate, TreeList, the previews, the Ramp) are sized here. The `Layout` dropdown
-lays the exhibits out with the toolkit's own `ContainerLayout` strategies —
-Vertical, Columns, Grid, Adaptive Grid, Mosaic, Reverse Mosaic, Overlay — at
-their default spacing (`layout::CONTROL_GAP`, one control height, the one gap
-every strategy and row builder uses in both axes), so what you see is what a
-container using that strategy does: a strategy places controls' CONTENT boxes,
-a detached label hangs in the gap above its control, mixed labeled and
-unlabeled controls line up by content (a strategy reserves the label row for
-every child of a labeled container), every detached label is the adapter's — the
+picks how the exhibits are arranged — Vertical, Columns, Grid, Adaptive Grid,
+Mosaic (the default), Reverse Mosaic, Overlay — at the toolkit's control gap
+(`layout::control_gap()`, one control height, the one gap the row builders use
+in both axes). The arrangements are the gallery's own arithmetic
+(`src/arrange.rs`: each exhibit's block in, its content rect out; they were
+cce-ui's `ContainerLayout` strategies, kept number for number), and the
+gallery lands each widget at its rect through `layout`: an arrangement places
+controls' CONTENT boxes, a detached label hangs in the gap above its control,
+mixed labeled and unlabeled controls line up by content (an arrangement
+reserves the tallest label row above every exhibit), every detached label is the adapter's — the
 one label convention: drawn in the strip above the control at the same
 `DETACHED_LABEL_INSET`, never inside the control's well (no control carves a
 tab for its label; the recess is the control alone) — and every well, trough and raised plateau is carved
@@ -128,11 +130,14 @@ for example). Nothing else is bound; the `cce-gallery` domain of
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 32 named slots (`GallerySlots`) followed by the variant exhibits
-  (`variant_exhibits`, a `Vec<Exhibit>` of boxed widgets), all addressed by
-  numeric index in the layout tables, visibility filters and dispatch loops;
-  child windows use the five-slot `ChildSlots`. `demo_positions` and
-  `child_positions` are the layout tables.
+  roster of 35 named slots (`GallerySlots`) followed by the variant exhibits
+  (`variant_exhibits`, a `Vec<Exhibit>` of widgets the context owns), all
+  addressed by numeric index in the layout tables, visibility filters and
+  dispatch loops; child windows use the five-slot `ChildSlots`.
+  `demo_positions` and `child_positions` are the layout tables for the chrome,
+  `exhibit_table` the exhibits' sizes, `layout_exhibits` their placement.
+- `src/arrange.rs` — the exhibit arrangements the `Layout` dropdown offers, as
+  pure functions (`arrange`), and their unit tests.
 - `src/gallery_widgets.rs` — lookalikes of the retired toolkit `Plate` (an
   exhibit) and root plate (the child windows' background).
 

@@ -1,10 +1,9 @@
 use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
-use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, VerticalLayout, ColumnsLayout, GridLayout, AdaptiveGridLayout, MosaicLayout, ReverseMosaicLayout, OverlayLayout, ScrollBox, WidgetHostExt};
-// Unused outside its tests until `layout_exhibits` moves onto it.
-#[cfg_attr(not(test), allow(dead_code))]
+use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, hover_animation, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, WidgetHostExt};
 mod arrange;
+use arrange::{arrange, Arrangement, Block};
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, Plate};
 use cce_ui::widget::{Adapted, LayoutConstraints, Point};
@@ -218,7 +217,7 @@ pub struct Exhibit {
     pub id: WidgetId,
     pub w: f32,
     pub h: f32,
-    /// A content width narrower than `w`: the strategy lays the exhibit out at `w` (room
+    /// A content width narrower than `w`: the arrangement places the exhibit at `w` (room
     /// for its label) and the widget is then given this width — a StatusDot stays a dot.
     pub content_w: Option<f32>,
 }
@@ -518,15 +517,15 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
 }
 
 /// The Controls exhibits in layout order, each with the content size it is reset to
-/// before a strategy runs: the toolkit layouts read a child's own rect for its width
-/// and preferred height, and a previous strategy may have stretched it. `s2d_w` is the
+/// before it is arranged: an exhibit's block is read off its own rect (`Block::of`) after
+/// the reset, and the previous frame's landing may have stretched it. `s2d_w` is the
 /// Slider2D's measured width; `extra` the variant exhibits, which follow the named slots.
 fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<(usize, f32, f32)> {
     // Every height below is the toolkit's default for that control — its
     // configured `style.control.<name>.height`, or the intrinsic size the
     // widget declares — so the page is a record of the defaults, not of
-    // numbers chosen here. The strategies read a widget's own intrinsic
-    // height anyway; the table only has to agree with it.
+    // numbers chosen here. A widget's own intrinsic height wins anyway
+    // (`Block::of`); the table only has to agree with it.
     let bh = cce_ui::layout::button_height();
     let tgh = cce_ui::layout::toggle_height();
     let slh = cce_ui::layout::slider_height();
@@ -589,7 +588,7 @@ fn is_exhibit(i: usize) -> bool {
 }
 
 /// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
-/// their members rather than by the strategy.
+/// their members rather than by the arrangement.
 fn is_overlay(i: usize) -> bool {
     matches!(i, 32 | 33)
 }
@@ -617,7 +616,7 @@ impl State {
     }
 
     /// The Controls exhibits in layout order, each with the content size it is reset to
-    /// before a strategy runs (`exhibit_table`).
+    /// before it is arranged (`exhibit_table`).
     fn exhibit_sizes(&self) -> Vec<(usize, f32, f32)> {
         let s2d_w = self
             .roster
@@ -627,8 +626,6 @@ impl State {
         exhibit_table(s2d_w, &self.roster.gallery().extra)
     }
 
-    /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
-    /// (`LAYOUTS`), then clip whatever runs past the status bar.
     /// The exhibits' viewport: below the Layout dropdown, above the status bar.
     /// The exhibit area: a well sunk into the root plate, standing on it like the
     /// header dropdowns — their inset in from the window's sides (`x` is the Layout
@@ -667,7 +664,7 @@ impl State {
         px >= x && px <= x + w && py >= y && py <= y + h
     }
 
-    /// Lay the Controls exhibits out with the toolkit strategy the Layout dropdown selects
+    /// Lay the Controls exhibits out with the arrangement the Layout dropdown selects
     /// (`LAYOUTS`), then shift them by the scroll frame's offset; painting clips them to
     /// the viewport. Runs from apply_layout and from display_list, which is what
     /// re-arranges after a scroll.
@@ -680,18 +677,18 @@ impl State {
         if let Roster::Gallery(s) = &mut self.roster {
             self.ui_context[s.group_fitted].inner_mut().set_plate(floor, floor_r);
         }
-        let mut children: Vec<*mut (dyn WidgetHost + 'static)> = Vec::new();
-        let mut indices: Vec<usize> = Vec::new();
+        // Seed each exhibit at its content size plus the label strip above it, and read
+        // its block back: `set_rect` may adjust the rect, and a height the widget declares
+        // overrides the table's.
+        let mut exhibits: Vec<(usize, Block)> = Vec::new();
         for (idx, cw, ch) in self.exhibit_sizes() {
             if self.roster.is_dragging(&self.ui_context, idx) {
                 continue;
             }
             let widget = self.roster.get_dyn_mut(&mut self.ui_context, idx);
-            // Seed the block: the content height plus the label strip above it.
             let strip = widget.label_strip();
             widget.set_rect(0.0, 0.0, cw, ch + strip);
-            children.push(widget as *mut (dyn WidgetHost + 'static));
-            indices.push(idx);
+            exhibits.push((idx, Block::of(widget)));
         }
         // The exhibits start at the fitted lasso's seat: one padding in from the
         // area's sides for the frame plus one for the members inside it, and the
@@ -706,26 +703,20 @@ impl State {
             }
             _ => (0.0, 0.0),
         };
-        let strategy = (LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1)();
+        let kind = LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1;
         let (lx, ly) = (floor.x + inset_x, floor.y + inset_top);
-        let content_h = strategy.layout(lx, ly, floor.width - 2.0 * inset_x, floor.y + floor.height - ly, &children, &mut self.ui_context);
+        let area = cce_ui::scene::layout::Rect { x: lx, y: ly, width: floor.width - 2.0 * inset_x, height: floor.y + floor.height - ly };
+        let blocks: Vec<Block> = exhibits.iter().map(|&(_, b)| b).collect();
+        let (contents, content_h) = arrange(kind, &blocks, area, cce_ui::layout::control_gap());
         self.exhibit_scroll.update_bounds(content_h + (ly - y), y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
-        for (&child, &idx) in children.iter().zip(&indices) {
-            let widget = unsafe { &mut *child };
-            // The strategy placed each exhibit's content box (its label hanging in the
-            // strip above); re-land it through `layout` shifted by the scroll — the
-            // landed rect is the occupied one, so the content origin is `strip` below
-            // its top and the content height is the rest.
-            let (cx, cy, cw, ch) = widget.rect();
-            let strip = widget.label_strip();
-            let content = ch - strip;
-            let cw = self.content_width(idx).unwrap_or(cw);
-            widget.layout(
-                Point { x: cx, y: cy + strip - scroll_y },
-                LayoutConstraints::new(cw, cw, content, content),
-                &mut self.ui_context,
-            );
+        for (&(idx, _), r) in exhibits.iter().zip(&contents) {
+            // Land each exhibit's content box where the arrangement put it, shifted by the
+            // scroll; its label hangs in the strip above.
+            let cw = self.content_width(idx).unwrap_or(r.width);
+            self.ui_context.lend(self.roster.id(idx), |widget, ctx| {
+                widget.layout(Point { x: r.x, y: r.y - scroll_y }, LayoutConstraints::new(cw, cw, r.height, r.height), ctx);
+            });
         }
     }
 
@@ -746,7 +737,7 @@ impl State {
     }
 
     /// Drain the header dropdowns' selections and apply them: Layout (15) picks the
-    /// strategy, Style (34) switches every control between Relief and Flat
+    /// arrangement, Style (34) switches every control between Relief and Flat
     /// (`set_control_relief` — the toolkit reads it live at paint, so a rebuild is
     /// all it takes). Called after mouse AND key input: a Dropdown selects from the
     /// keyboard too (Down, Enter), and a selection must not wait for the next click.
@@ -1612,19 +1603,19 @@ fn spawn_editor(kind: &str) {
     }
 }
 
-/// The toolkit container layouts the Layout dropdown offers, by name.
-/// The strategies at the toolkit's own spacing (`layout::control_gap()`, every strategy's
-/// default gap), no padding — the exhibit viewport is already inset — so the page shows
-/// the rhythm a container gets by default.
-const LAYOUTS: [(&str, fn() -> Box<dyn cce_ui::widget::ContainerLayout>); 7] = [
-    ("Vertical", || Box::new(VerticalLayout::default())),
-    ("Columns", || Box::new(ColumnsLayout { padding_x: 0.0, padding_y: 0.0, ..ColumnsLayout::default() })),
-    ("Grid", || Box::new(GridLayout { columns: 3, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0 })),
-    ("Adaptive Grid", || Box::new(AdaptiveGridLayout { min_col_width: 190.0, gap: cce_ui::layout::control_gap(), padding_x: 0.0, padding_y: 0.0 })),
-    ("Mosaic", || Box::new(MosaicLayout { padding_x: 0.0, padding_y: 0.0, ..MosaicLayout::default() })),
-    ("Reverse Mosaic", || Box::new(ReverseMosaicLayout { padding_x: 0.0, padding_y: 0.0, ..ReverseMosaicLayout::default() })),
-    ("Overlay", || Box::new(OverlayLayout)),
+/// The arrangements the Layout dropdown offers, by name (`arrange`). `layout_exhibits` runs
+/// them at the toolkit's control gap (`layout::control_gap()`) with no padding — the
+/// exhibit area is already inset — so the page shows the rhythm controls get by default.
+const LAYOUTS: [(&str, Arrangement); 7] = [
+    ("Vertical", Arrangement::Vertical),
+    ("Columns", Arrangement::Columns),
+    ("Grid", Arrangement::Grid { columns: 3 }),
+    ("Adaptive Grid", Arrangement::AdaptiveGrid { min_col_width: 190.0 }),
+    ("Mosaic", Arrangement::Mosaic),
+    ("Reverse Mosaic", Arrangement::ReverseMosaic),
+    ("Overlay", Arrangement::Overlay),
 ];
+/// Mosaic: what the gallery opens on.
 const DEFAULT_LAYOUT: usize = 4;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
@@ -1634,7 +1625,7 @@ fn demo_positions(sw: f32, sh: f32, count: usize) -> Vec<(f32, f32, f32, f32)> {
     vec[0] = (0.0, 0.0, sw, 40.0); // MenuBar
     vec[1] = (0.0, sh - 24.0, sw, 24.0); // StatusBar
     // The header dropdowns; the exhibits below them are laid out by
-    // `layout_exhibits` with the strategy Layout selects. Their heights are the
+    // `layout_exhibits` with the arrangement Layout selects. Their heights are the
     // widgets' own preferred heights (`apply_layout`); the ones here are placeholders.
     // Both stand on the root plate: one inset in from the window's side, one root
     // gap below the menu bar's band.
