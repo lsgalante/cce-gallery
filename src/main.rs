@@ -242,9 +242,11 @@ impl Exhibit {
     }
 }
 
-/// A SliderSpinbox exhibit's width: the spinbox, its gap, and a band as long as a plain
-/// slider exhibit's.
-const SLIDER_SPINBOX_W: f32 = 190.0 + SliderSpinbox::GAP + SliderSpinbox::SPINBOX_W;
+/// A SliderSpinbox exhibit's width: a control row's, as every other control exhibit's is —
+/// the box and its gap, and an 82 px band. A band as long as a plain slider's (298 px in
+/// all) was the widest exhibit on the page, and Grid, which never lets its widest exhibit
+/// run into the next column, dropped to two columns below 1000 px for it.
+const SLIDER_SPINBOX_W: f32 = 190.0;
 
 /// An exhibit's slot and the content size it is reset to before it is arranged.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2009,6 +2011,31 @@ mod tests {
             assert!(width < 150.0, "{name}: {width} wide");
             assert!(label_end <= x + width, "{name}: the label ends at {label_end}, past {}", x + width);
             assert!(x + width - label_end <= 2.0, "{name}: {} px past the label", x + width - label_end);
+        }
+    }
+
+    /// Grid keeps the three columns it asks for at a tiled window's width and at the default
+    /// one: no exhibit is wider than a third of the area (`grid_columns` drops a column for
+    /// one that is). Every exhibit outside a Group starts one of the three.
+    #[test]
+    fn grid_keeps_three_columns() {
+        let mut st = gallery();
+        let grid = LAYOUTS.iter().position(|(_, k)| *k == Arrangement::Grid { columns: 3 }).unwrap();
+        for (sw, sh) in [(726.0, 912.0), (1000.0, 680.0)] {
+            st.width = sw;
+            st.height = sh;
+            st.relayout();
+            st.layout_idx = grid;
+            st.apply_layout();
+            // A Group's members share a row inside their column when they fit: not columns.
+            let member = |i: usize| GROUPS.iter().any(|(_, m)| m.contains(&i));
+            let mut starts: Vec<i32> = (0..st.roster.len())
+                .filter(|&i| is_exhibit(i) && !member(i))
+                .map(|i| st.roster.get_dyn(&st.ui_context, i).rect().0.round() as i32)
+                .collect();
+            starts.sort_unstable();
+            starts.dedup();
+            assert_eq!(starts.len(), 3, "{sw}x{sh}: exhibits start at {starts:?}");
         }
     }
 
