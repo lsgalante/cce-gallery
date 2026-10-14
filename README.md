@@ -9,7 +9,9 @@ so it appears in the launcher.
 
 It is a *visual* test harness: you look at what it draws and what the
 compositor does with the windows it spawns. Its unit tests (`cargo test -p
-cce-gallery`) cover only the exhibit arrangements (`src/arrange.rs`).
+cce-gallery`) cover the exhibit arrangements (`src/arrange.rs`), that the
+exhibit table names every exhibit once, that every kind of child window lays
+out on its own surface, and the bevel ramp file's parsing.
 
 ## The page
 
@@ -28,9 +30,7 @@ exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
 constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
 `new_copy_icon`), a builder (`with_readout` on Slider; `with_multiline`,
 `with_draw_bg_border(false)` and `with_password` on TextBox; `with_vertical`
-on ButtonStrip, and the Paginator built on it), or a per-widget override of a
-config-wide style (`Slider::with_band`, the `style.control.slider.style`
-look). ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
+on ButtonStrip, and the Paginator built on it). ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
 plain Label round it off. When a widget gains a style, it gains an exhibit
 here.
 
@@ -71,7 +71,8 @@ its rect. The exhibit
 area below the dropdowns is a well sunk into the root plate (`well_floor` under
 the exhibits, `well_rim` over them; flat, the shared hairline frame): the
 exhibits are laid out on its floor inside the wall, and the area scrolls (wheel,
-or the scrollbar at its right edge) when a layout runs past the window — an
+or the scrollbar down its centre line, which idles behind the floor until a
+scroll raises it) when a layout runs past the window — an
 exhibit scrolled to the edge slides under the wall, its text cut at the wall's
 foot. `Color Ramp...` and `Ramp...` open the
 ColorRamp and Ramp editors in their own child windows.
@@ -85,7 +86,7 @@ same binary run with `--child`:
 cce-gallery --child --type <Floating|Fullscreen|Utility|LayerTop|LayerOverlay|LayerBackground|Status|Ramp|ColorRamp>
                    [--width N --height N]
                    [--opacity --transparency 0.0-1.0]
-                   [--no-border | --border-width N [--border-bevel]]
+                   [--no-border]
                    [--root-plate] [--menubar] [--statusbar]
 ```
 
@@ -100,15 +101,21 @@ Background on every edge), and Status uses the app_id `cce-status-right-gallery`
 so the compositor docks it into the bar. Every other kind's app_id is
 `cce-gallery-child-<type>`, with `-noborder` appended when the border is
 disabled, so `mode_rule`s can target it. The main window's `app_id` is
-`cce-gallery`. A test window shows a one-line description, a `Close` button,
-and the optional menu bar and status bar; `--border-width` and `--border-bevel`
-are accepted but the child does not draw a bevel.
+`cce-gallery`. A test window shows its title, a one-line description, a
+`Close` button, and the optional menu bar and status bar. One too short to
+stack those — LayerTop's 40px bar, the Status segment — lays the description
+and `Close` out in one row instead, and paints no title. The editors have no
+menu bar or status bar, and ignore `--menubar` and `--statusbar`.
+
+The two buttons find the binary by name beside the running one
+(`cce_core::process::de_bin`), not at `current_exe`: after `ccebuild install`
+replaces the binary, a gallery that was already running reads its own path as
+`… (deleted)`.
 
 ## The bevel ramp file
 
-The bevel cross-section is shared between the Ramp editor window and the main
-window through `~/.config/cce/bevel_ramp.kdl` (next to the shared
-`config.kdl`):
+The Ramp editor keeps its curve between runs in `~/.config/cce/bevel_ramp.kdl`
+(next to the shared `config.kdl`):
 
 ```kdl
 keys {
@@ -119,8 +126,11 @@ keys {
 line_type "linear"   // or "bezier"
 ```
 
-The Ramp child writes the file on every edit; the compositor and the other
-apps that draw bevels read it.
+The editor reads the file when it opens (a key it cannot place, such as
+`pos=nan`, is dropped) and writes it when the curve changes: whole, to a
+temporary file renamed over it. Nothing else reads it — not the compositor,
+and not the gallery's own Ramp exhibit, which shows the toolkit's default
+curve.
 
 ## Keybindings
 
@@ -131,10 +141,11 @@ for example). Nothing else is bound; the `cce-gallery` domain of
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 35 named slots (`GallerySlots`) followed by the variant exhibits
+  roster of 33 named slots (`GallerySlots`) followed by the variant exhibits
   (`variant_exhibits`, a `Vec<Exhibit>` of widgets the context owns), all
   addressed by numeric index in the layout tables, visibility filters and
-  dispatch loops; child windows use the five-slot `ChildSlots`.
+  dispatch loops; child windows use `ChildSlots` — five slots for a test
+  window, three for an editor.
   `demo_positions` and `child_positions` are the layout tables for the chrome,
   `exhibit_table` the exhibits' sizes, `layout_exhibits` their placement.
   What the widgets report reaches the app in one sweep after every pointer,
