@@ -256,6 +256,32 @@ pub struct ExhibitSize {
     /// of its own — the Splitter's grip, a StatusDot, the Slider2D's square pad, the
     /// Toggle's switch, an icon button — keeps `w` there, as it does under Mosaic.
     pub stretch: bool,
+    /// Narrowed to its content: `w` at most, else where the label it draws inside its own
+    /// rect ends ([`content_extent`]) — the Checkbox, a box and its label at the left of
+    /// whatever rect it is given, which drew a frame 190 px wide round a 90 px control.
+    pub hug: bool,
+}
+
+/// The Checkbox's slot: the one exhibit narrowed to its content ([`ExhibitSize::hug`]).
+const CHECKBOX_SLOT: usize = 2;
+
+/// How far from its rect's left edge a control's drawn content reaches: the end of the
+/// furthest text it paints (`painted_prims`), measured in its font, plus a pixel so the clip
+/// it draws its label under never cuts the last glyph. `None` when it paints no text.
+fn content_extent(w: &dyn WidgetHost) -> Option<f32> {
+    let (x, ..) = w.rect();
+    let (family, _) = cce_ui::layout::control_label_font_parsed();
+    w.painted_prims()
+        .into_iter()
+        .filter_map(|p| match p {
+            Prim::Text { text, x: tx, font_size, font, .. } => {
+                let family = font.unwrap_or_else(|| family.clone());
+                Some(tx + cce_ui::widget::display::measure_text_width(&text, &family, font_size) - x)
+            }
+            _ => None,
+        })
+        .reduce(f32::max)
+        .map(|w| w.ceil() + 1.0)
 }
 
 /// The `Group` lassos (slots 31, 32) and the exhibit slots each draws around, in the order
@@ -627,7 +653,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
     let raw: [(usize, f32, f32, bool); 30] = [
         (1, W, bh, FIT),                               // Button
         (18, W, bh, FIT),                              // ButtonStrip
-        (2, W, tgh, FIT),                              // Checkbox (a toggle row)
+        (CHECKBOX_SLOT, W, tgh, OWN),                  // Checkbox (narrowed to its box and label: `hug`)
         (3, W, tgh, OWN),                              // Toggle (its switch is drawn for its own width)
         (5, W, slh, FIT),                              // Slider
         (7, W, rsh, FIT),                              // RangeSlider
@@ -656,8 +682,8 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (13, W, bh, FIT),                              // Ramp...
         (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
     ];
-    let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch }).collect();
-    sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch }));
+    let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch, hug: slot == CHECKBOX_SLOT }).collect();
+    sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch, hug: false }));
     sizes
 }
 
@@ -800,6 +826,9 @@ impl State {
             let widget = self.roster.get_dyn_mut(&mut self.ui_context, e.slot);
             let strip = widget.label_strip();
             widget.set_rect(0.0, 0.0, e.w, e.h + strip);
+            if let Some(cw) = e.hug.then(|| content_extent(widget)).flatten() {
+                widget.set_rect(0.0, 0.0, cw.min(e.w), e.h + strip);
+            }
             exhibits.push((e.slot, Block::of(widget, e.stretch)));
         }
         // The exhibits start two paddings in from the floor's sides and top: one for the
@@ -1955,6 +1984,32 @@ mod tests {
             }
         }
         assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// The Checkbox exhibit is as wide as what it draws — its box and its label — not the
+    /// 190 px a control row gets: the label ends within a couple of pixels of its rect's right
+    /// edge, and inside it, in every layout.
+    #[test]
+    fn the_checkbox_exhibit_hugs_its_box_and_label() {
+        let mut st = gallery();
+        for (li, (name, _)) in LAYOUTS.iter().enumerate() {
+            st.layout_idx = li;
+            st.apply_layout();
+            let w = st.roster.get_dyn(&st.ui_context, CHECKBOX_SLOT);
+            let (x, _, width, _) = w.rect();
+            let (family, _) = cce_ui::layout::control_label_font_parsed();
+            let label_end = w
+                .painted_prims()
+                .into_iter()
+                .find_map(|p| match p {
+                    Prim::Text { text, x, font_size, .. } => Some(x + cce_ui::widget::display::measure_text_width(&text, &family, font_size)),
+                    _ => None,
+                })
+                .expect("the Checkbox draws its label");
+            assert!(width < 150.0, "{name}: {width} wide");
+            assert!(label_end <= x + width, "{name}: the label ends at {label_end}, past {}", x + width);
+            assert!(x + width - label_end <= 2.0, "{name}: {} px past the label", x + width - label_end);
+        }
     }
 
     /// Scrolled all the way down, in every layout and at every window size, the lowest
