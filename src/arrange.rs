@@ -17,9 +17,11 @@
 //! members are laid out together inside it, each under its own label strip alone (no shared
 //! label row inside a group), and the block is their footprint, with its title tab in the
 //! strip above. The group's frame — the padded hull of wherever its members land — hangs one
-//! padding outside that block on every side, into the gaps around it, so it never takes in an
-//! exhibit that is not its own, its padding is the same on all four sides, and its members
-//! start in the column every other exhibit does.
+//! padding outside its members on every side, so it never takes in an exhibit that is not its
+//! own, its padding is the same on all four sides, and its members start in the column every
+//! other exhibit does. Sideways the frame hangs into the gap; down a column (Vertical,
+//! Adaptive Grid) the gap is kept to the frame, as it is to any other exhibit (the block's
+//! `hang`), and atop a column the frame hangs into the area's inset.
 //!
 //! These began as cce-ui's `ContainerLayout` strategies, which the gallery was the one user
 //! of; they live here as arithmetic so the gallery lands its widgets itself
@@ -44,6 +46,14 @@ pub struct Block {
     /// Whether Vertical and Adaptive Grid may widen the content to their cell. A control with
     /// a size of its own — a grip, a dot, a square pad — keeps its width in the cell.
     pub stretch: bool,
+    /// How far a frame drawn around the block hangs past it, above and below: a lasso's
+    /// padding, 0 for an exhibit. Vertical and Adaptive Grid keep the gap to the frame —
+    /// between two blocks of a column it grows by their hangs; hung into the gap, the frame
+    /// left `gap - padding` between a group and the exhibit beside it, and half the gap
+    /// between two groups. Atop a column there is no gap to keep, and the frame hangs into
+    /// the area's inset (a fitted group's seat). Mosaic ignores it: its rows line content
+    /// up, and a group's members would sit a padding below their neighbours'.
+    pub hang: f32,
 }
 
 impl Block {
@@ -54,7 +64,7 @@ impl Block {
         let (x, _, width, h) = w.rect();
         let strip = w.label_strip();
         let label_w = w.detached_label_rect().map_or(0.0, |l| l.x + l.width - x);
-        Block { width: width.max(label_w), content_w: width, content_h: w.preferred_height().unwrap_or(h - strip), strip, stretch }
+        Block { width: width.max(label_w), content_w: width, content_h: w.preferred_height().unwrap_or(h - strip), strip, stretch, hang: 0.0 }
     }
 }
 
@@ -144,7 +154,7 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
                 .collect();
             let w = members.iter().zip(&rects).map(|(b, r)| r.x + r.width.max(b.width.min(inner_w))).fold(0.0, f32::max);
             let h = rects.iter().map(|r| r.y + r.height).fold(0.0, f32::max);
-            (rects, Block { width: w, content_w: w, content_h: h, strip: lasso.tab, stretch: true })
+            (rects, Block { width: w, content_w: w, content_h: h, strip: lasso.tab, stretch: true, hang: lasso.padding })
         })
         .collect();
     let unit_blocks: Vec<Block> = units
@@ -260,10 +270,14 @@ fn vertical(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f3
     let width = area.width.max(1.0);
     let mut y = area.y;
     let mut rects = Vec::with_capacity(blocks.len());
-    for b in blocks {
+    for (i, b) in blocks.iter().enumerate() {
         let h = stacked_h(b);
+        // The gap is kept to a frame's hang; atop the column there is none to keep.
+        if i > 0 {
+            y += b.hang;
+        }
         rects.push(Rect { x: area.x, y: y + lead, width: in_cell(b, width), height: h });
-        y += lead + h + gap;
+        y += lead + h + b.hang + gap;
     }
     (rects, (y - area.y).max(0.0))
 }
@@ -286,9 +300,13 @@ fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (V
                 col = i;
             }
         }
+        // The gap is kept to a frame's hang; atop the column there is none to keep.
+        if bottoms[col] > area.y {
+            bottoms[col] += b.hang;
+        }
         let x = area.x + col as f32 * (col_w + gap);
         rects.push(Rect { x, y: bottoms[col] + lead, width: in_cell(b, col_w), height: h });
-        bottoms[col] += lead + h + gap;
+        bottoms[col] += lead + h + b.hang + gap;
     }
     let bottom = bottoms.iter().copied().fold(0.0, f32::max);
     (rects, (bottom - area.y).max(0.0))
@@ -410,7 +428,7 @@ mod tests {
     use super::*;
 
     fn block(width: f32, content_h: f32) -> Block {
-        Block { width, content_w: width, content_h, strip: 0.0, stretch: true }
+        Block { width, content_w: width, content_h, strip: 0.0, stretch: true, hang: 0.0 }
     }
 
     fn labeled(width: f32, content_h: f32, strip: f32) -> Block {
@@ -484,6 +502,18 @@ mod tests {
         // Each block keeps its own strip: the labeled one its 6, the unlabeled one none.
         assert_eq!(r, vec![area(5.0, 16.0, 200.0, 20.0), area(5.0, 40.0, 200.0, 30.0)]);
         assert_eq!(h, (6.0 + 20.0 + 4.0) + (30.0 + 4.0));
+    }
+
+    /// Down a column the gap is kept to a frame's hang, on both sides of it; atop the column
+    /// the frame hangs into the area's inset instead.
+    #[test]
+    fn the_gap_down_a_column_is_kept_to_a_frames_hang() {
+        let framed = Block { hang: 6.0, ..block(100.0, 20.0) };
+        for kind in [Arrangement::Vertical, Arrangement::AdaptiveGrid { min_col_width: 100.0 }] {
+            let (r, _) = place(kind, &[framed, framed, block(100.0, 20.0)], area(0.0, 0.0, 100.0, 0.0), 10.0);
+            let ys: Vec<_> = r.iter().map(|r| r.y).collect();
+            assert_eq!(ys, vec![0.0, 20.0 + 6.0 + 10.0 + 6.0, 42.0 + 20.0 + 6.0 + 10.0], "{kind:?}");
+        }
     }
 
     #[test]
@@ -663,7 +693,7 @@ mod tests {
         fn a_block_takes_the_declared_height_else_the_rect_less_its_strip() {
             let mut m = Mock { base: Widget::new(), strip: 18.0, declared: Declared(None) };
             m.set_rect(5.0, 6.0, 190.0, 18.0 + 40.0);
-            let b = Block { width: 190.0, content_w: 190.0, content_h: 40.0, strip: 18.0, stretch: true };
+            let b = Block { width: 190.0, content_w: 190.0, content_h: 40.0, strip: 18.0, stretch: true, hang: 0.0 };
             assert_eq!(Block::of(&m, true), b);
             m.declared = Declared(Some(24.0));
             assert_eq!(Block::of(&m, false), Block { content_h: 24.0, stretch: false, ..b });
@@ -679,7 +709,7 @@ mod tests {
             let blocks: Vec<Block> = table
                 .iter()
                 .enumerate()
-                .map(|(k, e)| Block { width: e.w, content_w: e.w, content_h: e.h, strip: [0.0, 18.0][k % 2], stretch: e.stretch })
+                .map(|(k, e)| Block { width: e.w, content_w: e.w, content_h: e.h, strip: [0.0, 18.0][k % 2], stretch: e.stretch, hang: 0.0 })
                 .collect();
             let slots: Vec<usize> = table.iter().map(|e| e.slot).collect();
             let lassos = crate::lassos(&slots, |_| (6.0, 22.0));

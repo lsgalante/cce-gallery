@@ -2070,8 +2070,9 @@ mod tests {
     /// Down every column of the stacking layouts — Vertical and Adaptive Grid — the gap from one
     /// exhibit's foot to the next one's top is the control gap, whether the next has a label
     /// or not: each reserves its own label strip and no shared row (a shared one put 46 px
-    /// over an unlabeled exhibit and 26 over a labeled one). A Group counts by its block —
-    /// its members, under its tab — the frame hanging one padding outside it.
+    /// over an unlabeled exhibit and 26 over a labeled one). A Group counts by its frame,
+    /// tab to foot: measured by its members, as it was, two stacked groups stood half a
+    /// gap apart.
     #[test]
     fn stacked_layouts_space_their_columns_evenly() {
         let mut st = gallery();
@@ -2104,7 +2105,7 @@ mod tests {
                     let g = ui[st.roster.gallery().group(group)].inner();
                     let (p, f) = (g.padding(), g.frame(ui).expect("a frame"));
                     let tab = f.tab.map_or(f.body.y - g.tab_height(), |t| t.y);
-                    units.push(((f.body.x + p).round() as i32, tab + p, f.body.y + f.body.height - p, format!("Group {group}")));
+                    units.push(((f.body.x + p).round() as i32, tab, f.body.y + f.body.height, format!("Group {group}")));
                 }
                 units.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
                 for pair in units.windows(2) {
