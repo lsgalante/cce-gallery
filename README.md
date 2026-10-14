@@ -71,14 +71,15 @@ Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
 the page is a record of the defaults; only the draw-in canvases (Trackpad,
 Plate, TreeList, the previews, the Ramp) are sized here. The `Layout` dropdown
-picks how the exhibits are arranged — Vertical, Grid, Adaptive Grid, Mosaic
+picks how the exhibits are arranged — Vertical, Adaptive Grid, Mosaic
 (the default), Reverse Mosaic — at the toolkit's control gap
 (`layout::control_gap()`, one control height, the one gap the row builders use
-in both axes). Vertical and the grids widen a control to its cell, except one
+in both axes). Vertical and Adaptive Grid widen a control to its cell, except one
 with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,
 the StatusDots, the copy-icon button, the vertical ButtonStrip), which keeps
-its width there; a grid drops columns rather than let its widest exhibit run
-into the next. Reverse Mosaic spreads Mosaic's packing over the area: the
+its width there. Adaptive Grid fits as many columns of at least an exhibit's
+width (190 px) as the window holds, and drops one rather than let its widest
+exhibit run into the next. Reverse Mosaic spreads Mosaic's packing over the area: the
 exhibits' places, and the widths of the ones that stretch, scale to fill it,
 while every exhibit keeps its own height; when they run taller than the
 window it keeps Mosaic's rows and scrolls, never squashing them. The arrangements are the gallery's own arithmetic
@@ -90,7 +91,7 @@ that runs wider (the Splitter's, a StatusDot's) — a detached label hangs in
 the gap above its control,
 mixed labeled and unlabeled controls packed side by side line up by content
 (Mosaic and Reverse Mosaic reserve the tallest label row above every exhibit),
-while Vertical and the grids, which stack exhibits in columns, give each only
+while Vertical and Adaptive Grid, which stack exhibits in columns, give each only
 its own label strip, so the gap down a column is the same above a labeled
 control and an unlabeled one; every detached label is the adapter's — the
 one label convention: drawn in the strip above the control at the same

@@ -218,7 +218,7 @@ pub struct Exhibit {
     pub id: WidgetId,
     pub w: f32,
     pub h: f32,
-    /// Whether Vertical and the grids may widen it to their cell ([`ExhibitSize::stretch`]).
+    /// Whether Vertical and Adaptive Grid may widen it to their cell ([`ExhibitSize::stretch`]).
     pub stretch: bool,
 }
 
@@ -244,8 +244,8 @@ impl Exhibit {
 
 /// A SliderSpinbox exhibit's width: a control row's, as every other control exhibit's is —
 /// the box and its gap, and an 82 px band. A band as long as a plain slider's (298 px in
-/// all) was the widest exhibit on the page, and Grid, which never lets its widest exhibit
-/// run into the next column, dropped to two columns below 1000 px for it.
+/// all) was the widest exhibit on the page, and the grid, which never lets its widest
+/// exhibit run into the next column, dropped columns for it.
 const SLIDER_SPINBOX_W: f32 = 190.0;
 
 /// An exhibit's slot and the content size it is reset to before it is arranged.
@@ -254,7 +254,7 @@ pub struct ExhibitSize {
     pub slot: usize,
     pub w: f32,
     pub h: f32,
-    /// Whether Vertical and the grids may widen it to their cell. A control with a size
+    /// Whether Vertical and Adaptive Grid may widen it to their cell. A control with a size
     /// of its own — the Splitter's grip, a StatusDot, the Slider2D's square pad, the
     /// Toggle's switch, an icon button — keeps `w` there, as it does under Mosaic.
     pub stretch: bool,
@@ -1714,15 +1714,14 @@ fn spawn_editor(kind: ChildKind) {
 /// The arrangements the Layout dropdown offers, by name (`arrange`). `layout_exhibits` runs
 /// them at the toolkit's control gap (`layout::control_gap()`) with no padding — the
 /// exhibit area is already inset — so the page shows the rhythm controls get by default.
-const LAYOUTS: [(&str, Arrangement); 5] = [
+const LAYOUTS: [(&str, Arrangement); 4] = [
     ("Vertical", Arrangement::Vertical),
-    ("Grid", Arrangement::Grid { columns: 3 }),
     ("Adaptive Grid", Arrangement::AdaptiveGrid { min_col_width: 190.0 }),
     ("Mosaic", Arrangement::Mosaic),
     ("Reverse Mosaic", Arrangement::ReverseMosaic),
 ];
 /// Mosaic: what the gallery opens on.
-const DEFAULT_LAYOUT: usize = 3;
+const DEFAULT_LAYOUT: usize = 2;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
 /// by `layout_exhibits` instead.
@@ -2031,19 +2030,31 @@ mod tests {
         }
     }
 
-    /// Grid keeps the three columns it asks for at a tiled window's width and at the default
-    /// one: no exhibit is wider than a third of the area (`grid_columns` drops a column for
-    /// one that is). Every exhibit outside a Group starts one of the three.
+    /// Adaptive Grid keeps every column its minimum width allows at a tiled window's width
+    /// and at the default one: no exhibit is wider than the minimum (`grid_columns` drops a
+    /// column for one that is). Every exhibit outside a Group starts one of the columns.
     #[test]
-    fn grid_keeps_three_columns() {
+    fn adaptive_grid_keeps_every_column_its_minimum_allows() {
         let mut st = gallery();
-        let grid = LAYOUTS.iter().position(|(_, k)| *k == Arrangement::Grid { columns: 3 }).unwrap();
+        let gap = cce_ui::layout::control_gap();
+        let (grid, min_col_width) = LAYOUTS
+            .iter()
+            .enumerate()
+            .find_map(|(i, (_, k))| match *k {
+                Arrangement::AdaptiveGrid { min_col_width } => Some((i, min_col_width)),
+                _ => None,
+            })
+            .unwrap();
         for (sw, sh) in [(726.0, 912.0), (1000.0, 680.0)] {
             st.width = sw;
             st.height = sh;
             st.relayout();
             st.layout_idx = grid;
             st.apply_layout();
+            // The area `layout_exhibits` arranges in: the floor, two paddings in a side.
+            let pad = st.ui_context[st.roster.gallery().group_fitted].inner().padding();
+            let width = st.exhibit_floor().0.width - 4.0 * pad;
+            let columns = ((width + gap) / (min_col_width + gap)).floor() as usize;
             // A Group's members share a row inside their column when they fit: not columns.
             let member = |i: usize| GROUPS.iter().any(|(_, m)| m.contains(&i));
             let mut starts: Vec<i32> = (0..st.roster.len())
@@ -2052,11 +2063,11 @@ mod tests {
                 .collect();
             starts.sort_unstable();
             starts.dedup();
-            assert_eq!(starts.len(), 3, "{sw}x{sh}: exhibits start at {starts:?}");
+            assert_eq!(starts.len(), columns, "{sw}x{sh}: exhibits start at {starts:?}");
         }
     }
 
-    /// Down every column of the stacking layouts — Vertical and the grids — the gap from one
+    /// Down every column of the stacking layouts — Vertical and Adaptive Grid — the gap from one
     /// exhibit's foot to the next one's top is the control gap, whether the next has a label
     /// or not: each reserves its own label strip and no shared row (a shared one put 46 px
     /// over an unlabeled exhibit and 26 over a labeled one). A Group counts by its block —
@@ -2066,7 +2077,7 @@ mod tests {
         let mut st = gallery();
         let gap = cce_ui::layout::control_gap();
         let mut failures = Vec::new();
-        let stacking = |k: &Arrangement| matches!(k, Arrangement::Vertical | Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. });
+        let stacking = |k: &Arrangement| matches!(k, Arrangement::Vertical | Arrangement::AdaptiveGrid { .. });
         for (sw, sh) in [(600.0, 800.0), (726.0, 912.0), (1000.0, 680.0), (1600.0, 1000.0)] {
             st.width = sw;
             st.height = sh;

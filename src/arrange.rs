@@ -6,7 +6,7 @@
 //! detached label) and its label strip (the label's row above the content). Mosaic and Reverse
 //! Mosaic, which pack blocks side by side, reserve the tallest strip among the blocks — the
 //! `lead` — above EVERY block's content, so labeled and unlabeled controls packed beside each
-//! other line up by content. Vertical and the grids stack blocks in columns, where nothing
+//! other line up by content. Vertical and Adaptive Grid stack blocks in columns, where nothing
 //! stands beside a block to line up with: each block reserves its own strip and no more, so
 //! the gap down a column is the same above a labeled block and an unlabeled one. Every
 //! arrangement puts `gap` between footprints in both axes. [`arrange`] returns each block's content rect (its
@@ -41,7 +41,7 @@ pub struct Block {
     pub content_h: f32,
     /// The detached-label strip above the content (0 unlabeled).
     pub strip: f32,
-    /// Whether Vertical and the grids may widen the content to their cell. A control with
+    /// Whether Vertical and Adaptive Grid may widen the content to their cell. A control with
     /// a size of its own — a grip, a dot, a square pad — keeps its width in the cell.
     pub stretch: bool,
 }
@@ -77,10 +77,8 @@ pub const FALLBACK_H: f32 = 44.0;
 pub enum Arrangement {
     /// One column, every stretching block widened to the area's width.
     Vertical,
-    /// Masonry over a fixed number of columns — fewer where the widest block would not fit
-    /// in one: each block goes to the shortest column.
-    Grid { columns: usize },
-    /// [`Grid`](Arrangement::Grid) with as many columns of at least `min_col_width` as fit.
+    /// Masonry over as many columns of at least `min_col_width` as fit — fewer where the
+    /// widest block would not fit in one: each block goes to the shortest column.
     AdaptiveGrid { min_col_width: f32 },
     /// Blocks packed at their own widths, top-left first.
     Mosaic,
@@ -122,7 +120,7 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
     // reserves its own label strip and no one else's: a block of content and strip together.
     let columns = grid_columns(kind, blocks, area, gap);
     let cell = match kind {
-        Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => column_width(area, gap, columns),
+        Arrangement::AdaptiveGrid { .. } => column_width(area, gap, columns),
         Arrangement::Vertical | Arrangement::Mosaic | Arrangement::ReverseMosaic => area.width.max(1.0),
     };
     let inner: Vec<(Vec<Rect>, Block)> = lassos
@@ -185,12 +183,11 @@ fn columns_of(area: Rect, gap: f32, width: f32) -> usize {
     ((area.width.max(1.0) + gap) / (width + gap)).floor().max(1.0) as usize
 }
 
-/// A grid's column count: the one it asks for — a fixed number, or as many of the minimum
-/// width as fit — but never so many that the widest block (a footprint, label included)
-/// runs past its column into the next. 1 for the arrangements without columns.
+/// Adaptive Grid's column count: as many of the minimum width as fit, but never so many
+/// that the widest block (a footprint, label included) runs past its column into the
+/// next. 1 for the arrangements without columns.
 fn grid_columns(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32) -> usize {
     let asked = match kind {
-        Arrangement::Grid { columns } => columns.max(1),
         Arrangement::AdaptiveGrid { min_col_width } => columns_of(area, gap, min_col_width),
         Arrangement::Vertical | Arrangement::Mosaic | Arrangement::ReverseMosaic => return 1,
     };
@@ -203,11 +200,11 @@ fn column_width(area: Rect, gap: f32, columns: usize) -> f32 {
     (area.width - gap * (cols - 1) as f32).max(1.0) / cols as f32
 }
 
-/// [`arrange`] without lassos: every block placed on its own, the grids over `columns`.
+/// [`arrange`] without lassos: every block placed on its own, Adaptive Grid over `columns`.
 fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, columns: usize) -> (Vec<Rect>, f32) {
     let lead = blocks.iter().map(|b| b.strip).fold(0.0, f32::max);
     match kind {
-        Arrangement::Vertical | Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => {
+        Arrangement::Vertical | Arrangement::AdaptiveGrid { .. } => {
             // Stacked in columns: each block's strip is its own, part of its height, and no
             // lead is shared — a lead row over an unlabeled block was 22 px of nothing, and
             // the gap above it nearly twice the gap above a labeled one.
@@ -474,7 +471,7 @@ mod tests {
     #[test]
     fn a_block_without_a_height_gets_the_fallback() {
         let blocks = [block(100.0, 0.0), block(100.0, -3.0)];
-        for kind in [Arrangement::Vertical, Arrangement::Grid { columns: 2 }, Arrangement::Mosaic] {
+        for kind in [Arrangement::Vertical, Arrangement::AdaptiveGrid { min_col_width: 100.0 }, Arrangement::Mosaic] {
             let (r, _) = place(kind, &blocks, area(0.0, 0.0, 400.0, 400.0), 10.0);
             assert!(r.iter().all(|r| r.height == FALLBACK_H), "{kind:?}: {r:?}");
         }
@@ -492,7 +489,8 @@ mod tests {
     #[test]
     fn grid_ties_go_to_the_leftmost_column() {
         let blocks = [block(1.0, 10.0), block(1.0, 10.0), block(1.0, 30.0), block(1.0, 5.0)];
-        let (r, h) = place(Arrangement::Grid { columns: 2 }, &blocks, area(0.0, 0.0, 90.0, 0.0), 10.0);
+        // (90 + 10) / (40 + 10) = 2 columns.
+        let (r, h) = place(Arrangement::AdaptiveGrid { min_col_width: 40.0 }, &blocks, area(0.0, 0.0, 90.0, 0.0), 10.0);
         let xy: Vec<_> = r.iter().map(|r| (r.x, r.y)).collect();
         assert_eq!(xy, vec![(0.0, 0.0), (50.0, 0.0), (0.0, 20.0), (50.0, 20.0)]);
         assert_eq!(h, 60.0);
@@ -521,7 +519,6 @@ mod tests {
         let a = area(1.0, 2.0, 30.0, 40.0);
         for kind in [
             Arrangement::Vertical,
-            Arrangement::Grid { columns: 3 },
             Arrangement::AdaptiveGrid { min_col_width: 10.0 },
             Arrangement::Mosaic,
             Arrangement::ReverseMosaic,
@@ -540,12 +537,12 @@ mod tests {
         assert_eq!(r[1].x, 70.0 + 24.0);
     }
 
-    /// Vertical and the grids widen a stretching block to its cell; a block that does not
+    /// Vertical and Adaptive Grid widen a stretching block to its cell; a block that does not
     /// stretch keeps its own width there.
     #[test]
     fn a_fixed_block_keeps_its_width_in_a_cell() {
         let dot = Block { stretch: false, content_w: 12.0, ..block(80.0, 12.0) };
-        for kind in [Arrangement::Vertical, Arrangement::Grid { columns: 2 }, Arrangement::AdaptiveGrid { min_col_width: 100.0 }] {
+        for kind in [Arrangement::Vertical, Arrangement::AdaptiveGrid { min_col_width: 100.0 }] {
             let (r, _) = place(kind, &[dot, block(80.0, 12.0)], area(0.0, 0.0, 300.0, 0.0), 10.0);
             assert_eq!(r[0].width, 12.0, "{kind:?}");
             assert!(r[1].width > 80.0, "{kind:?}: {:?}", r[1]);
@@ -586,12 +583,12 @@ mod tests {
         assert_eq!(tops, vec![22.0, 22.0 + 24.0 + 24.0 + 20.0, 22.0 + 24.0 + 24.0 + 44.0 + 24.0]);
     }
 
-    /// A grid holds fewer columns than it asks for where its widest block would not fit in
-    /// one: three asked of 300px with a 120px block is two.
+    /// The grid holds fewer columns than its minimum allows where its widest block would not
+    /// fit in one: the three a 90px minimum fits in 300px are two with a 120px block.
     #[test]
     fn a_grid_drops_columns_its_widest_block_would_overrun() {
         let blocks = [block(120.0, 10.0), block(10.0, 10.0), block(10.0, 10.0)];
-        let (r, _) = place(Arrangement::Grid { columns: 3 }, &blocks, area(0.0, 0.0, 300.0, 0.0), 10.0);
+        let (r, _) = place(Arrangement::AdaptiveGrid { min_col_width: 90.0 }, &blocks, area(0.0, 0.0, 300.0, 0.0), 10.0);
         let xs: Vec<_> = r.iter().map(|r| r.x).collect();
         assert_eq!(xs, vec![0.0, 155.0, 0.0]);
     }
@@ -612,7 +609,6 @@ mod tests {
         let lasso = Lasso { members: vec![1, 3], padding: p, tab };
         for kind in [
             Arrangement::Vertical,
-            Arrangement::Grid { columns: 2 },
             Arrangement::AdaptiveGrid { min_col_width: 150.0 },
             Arrangement::Mosaic,
             Arrangement::ReverseMosaic,
