@@ -54,6 +54,10 @@ pub struct Block {
     /// the area's inset (a fitted group's seat). Mosaic ignores it: its rows line content
     /// up, and a group's members would sit a padding below their neighbours'.
     pub hang: f32,
+    /// How many of Adaptive Grid's columns the block lies across (1 for most; the gaps
+    /// between them included in its cell), fewer where the grid has fewer. The others
+    /// ignore it: Vertical has one column, the mosaics place blocks at their own widths.
+    pub span: usize,
 }
 
 impl Block {
@@ -64,7 +68,7 @@ impl Block {
         let (x, _, width, h) = w.rect();
         let strip = w.label_strip();
         let label_w = w.detached_label_rect().map_or(0.0, |l| l.x + l.width - x);
-        Block { width: width.max(label_w), content_w: width, content_h: w.preferred_height().unwrap_or(h - strip), strip, stretch, hang: 0.0 }
+        Block { width: width.max(label_w), content_w: width, content_h: w.preferred_height().unwrap_or(h - strip), strip, stretch, hang: 0.0, span: 1 }
     }
 }
 
@@ -88,7 +92,8 @@ pub enum Arrangement {
     /// One column, every stretching block widened to the area's width.
     Vertical,
     /// Masonry over as many columns of at least `min_col_width` as fit — fewer where the
-    /// widest block would not fit in one: each block goes to the shortest column.
+    /// widest block would not fit in one: each block goes to the shortest column, or one
+    /// across several (its `span`) to the run of them whose tallest is shortest.
     AdaptiveGrid { min_col_width: f32 },
     /// Blocks packed at their own widths, top-left first.
     Mosaic,
@@ -154,7 +159,7 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
                 .collect();
             let w = members.iter().zip(&rects).map(|(b, r)| r.x + r.width.max(b.width.min(inner_w))).fold(0.0, f32::max);
             let h = rects.iter().map(|r| r.y + r.height).fold(0.0, f32::max);
-            (rects, Block { width: w, content_w: w, content_h: h, strip: lasso.tab, stretch: true, hang: lasso.padding })
+            (rects, Block { width: w, content_w: w, content_h: h, strip: lasso.tab, stretch: true, hang: lasso.padding, span: 1 })
         })
         .collect();
     let unit_blocks: Vec<Block> = units
@@ -194,14 +199,23 @@ fn columns_of(area: Rect, gap: f32, width: f32) -> usize {
 }
 
 /// Adaptive Grid's column count: as many of the minimum width as fit, but never so many
-/// that the widest block (a footprint, label included) runs past its column into the
-/// next. 1 for the arrangements without columns.
+/// that the widest block (a footprint, label included) runs past its cell into the next:
+/// past its column, or for a block across several, past them and the gaps between. 1 for
+/// the arrangements without columns.
 fn grid_columns(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32) -> usize {
     let asked = match kind {
         Arrangement::AdaptiveGrid { min_col_width } => columns_of(area, gap, min_col_width),
         Arrangement::Vertical | Arrangement::Mosaic | Arrangement::ReverseMosaic => return 1,
     };
-    let widest = blocks.iter().map(|b| b.width).fold(0.0, f32::max);
+    // The column width each block needs: a block across `span` columns shares its
+    // footprint, less the gaps it bridges, among them.
+    let widest = blocks
+        .iter()
+        .map(|b| {
+            let span = b.span.max(1) as f32;
+            (b.width - gap * (span - 1.0)) / span
+        })
+        .fold(0.0, f32::max);
     asked.min(columns_of(area, gap, widest))
 }
 
@@ -284,6 +298,12 @@ fn vertical(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f3
 
 /// A tie for the shortest column goes to the leftmost; the height is measured from the
 /// tallest column's bottom, gap included.
+///
+/// A block across several columns goes to the run of them whose tallest is shortest (a tie
+/// to the leftmost), below that tallest; every column of the run then continues from its
+/// foot. The shorter columns of the run keep the space above it empty: later blocks are
+/// only ever stacked at a column's foot, so it is a hole, never filled — choosing the run
+/// whose tallest is shortest keeps it as small as it can be.
 fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
@@ -294,19 +314,25 @@ fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (V
     let mut rects = Vec::with_capacity(blocks.len());
     for b in blocks {
         let h = stacked_h(b);
+        let span = b.span.clamp(1, cols);
+        let run_top = |c: usize| bottoms[c..c + span].iter().copied().fold(f32::MIN, f32::max);
         let mut col = 0;
-        for i in 1..cols {
-            if bottoms[i] < bottoms[col] {
-                col = i;
+        for c in 1..=cols - span {
+            if run_top(c) < run_top(col) {
+                col = c;
             }
         }
+        let mut top = run_top(col);
         // The gap is kept to a frame's hang; atop the column there is none to keep.
-        if bottoms[col] > area.y {
-            bottoms[col] += b.hang;
+        if top > area.y {
+            top += b.hang;
         }
         let x = area.x + col as f32 * (col_w + gap);
-        rects.push(Rect { x, y: bottoms[col] + lead, width: in_cell(b, col_w), height: h });
-        bottoms[col] += lead + h + b.hang + gap;
+        let cell = span as f32 * col_w + (span - 1) as f32 * gap;
+        rects.push(Rect { x, y: top + lead, width: in_cell(b, cell), height: h });
+        for bottom in &mut bottoms[col..col + span] {
+            *bottom = top + lead + h + b.hang + gap;
+        }
     }
     let bottom = bottoms.iter().copied().fold(0.0, f32::max);
     (rects, (bottom - area.y).max(0.0))
@@ -428,7 +454,7 @@ mod tests {
     use super::*;
 
     fn block(width: f32, content_h: f32) -> Block {
-        Block { width, content_w: width, content_h, strip: 0.0, stretch: true, hang: 0.0 }
+        Block { width, content_w: width, content_h, strip: 0.0, stretch: true, hang: 0.0, span: 1 }
     }
 
     fn labeled(width: f32, content_h: f32, strip: f32) -> Block {
@@ -514,6 +540,41 @@ mod tests {
             let ys: Vec<_> = r.iter().map(|r| r.y).collect();
             assert_eq!(ys, vec![0.0, 20.0 + 6.0 + 10.0 + 6.0, 42.0 + 20.0 + 6.0 + 10.0], "{kind:?}");
         }
+    }
+
+    /// A block across two columns goes to the pair whose taller is shorter, below it, and
+    /// both columns continue from its foot.
+    #[test]
+    fn a_spanning_block_takes_the_run_whose_tallest_is_shortest() {
+        let wide = Block { span: 2, ..block(1.0, 10.0) };
+        let blocks = [block(1.0, 30.0), block(1.0, 10.0), block(1.0, 20.0), wide, block(1.0, 5.0)];
+        // (320 + 10) / (100 + 10) = 3 columns of 100; their feet, gap included: 40, 20, 30.
+        let (r, _) = place(Arrangement::AdaptiveGrid { min_col_width: 100.0 }, &blocks, area(0.0, 0.0, 320.0, 0.0), 10.0);
+        // Columns 1-2 top out at 30, columns 0-1 at 40: the wide block goes below 30.
+        assert_eq!(r[3], area(110.0, 30.0, 210.0, 10.0));
+        // Columns 1 and 2 now end at 50; column 0, at 40, is the shortest.
+        assert_eq!((r[4].x, r[4].y), (0.0, 40.0));
+    }
+
+    /// Where the grid has fewer columns than a block spans, it spans them all.
+    #[test]
+    fn a_span_is_clamped_to_the_columns() {
+        let wide = Block { span: 2, ..block(1.0, 10.0) };
+        let (r, _) = place(Arrangement::AdaptiveGrid { min_col_width: 100.0 }, &[wide], area(0.0, 0.0, 150.0, 0.0), 10.0);
+        assert_eq!(r[0], area(0.0, 0.0, 150.0, 10.0));
+    }
+
+    /// A block across two columns needs only its share of their width: one 210 px wide over
+    /// two columns of 100 and their 10 px gap leaves the grid its three columns.
+    #[test]
+    fn a_spanning_block_needs_only_its_share_of_the_width() {
+        let wide = Block { span: 2, ..block(210.0, 10.0) };
+        let blocks = [wide, block(1.0, 10.0), block(1.0, 10.0), block(1.0, 10.0)];
+        let (r, _) = place(Arrangement::AdaptiveGrid { min_col_width: 100.0 }, &blocks, area(0.0, 0.0, 320.0, 0.0), 10.0);
+        // The wide block across columns 0-1, the next in column 2; then all three end level,
+        // and the rest go left to right.
+        let xs: Vec<_> = r.iter().map(|r| r.x).collect();
+        assert_eq!(xs, vec![0.0, 220.0, 0.0, 110.0]);
     }
 
     #[test]
@@ -693,7 +754,7 @@ mod tests {
         fn a_block_takes_the_declared_height_else_the_rect_less_its_strip() {
             let mut m = Mock { base: Widget::new(), strip: 18.0, declared: Declared(None) };
             m.set_rect(5.0, 6.0, 190.0, 18.0 + 40.0);
-            let b = Block { width: 190.0, content_w: 190.0, content_h: 40.0, strip: 18.0, stretch: true, hang: 0.0 };
+            let b = Block { width: 190.0, content_w: 190.0, content_h: 40.0, strip: 18.0, stretch: true, hang: 0.0, span: 1 };
             assert_eq!(Block::of(&m, true), b);
             m.declared = Declared(Some(24.0));
             assert_eq!(Block::of(&m, false), Block { content_h: 24.0, stretch: false, ..b });
@@ -709,7 +770,7 @@ mod tests {
             let blocks: Vec<Block> = table
                 .iter()
                 .enumerate()
-                .map(|(k, e)| Block { width: e.w, content_w: e.w, content_h: e.h, strip: [0.0, 18.0][k % 2], stretch: e.stretch, hang: 0.0 })
+                .map(|(k, e)| Block { width: e.w, content_w: e.w, content_h: e.h, strip: [0.0, 18.0][k % 2], stretch: e.stretch, hang: 0.0, span: e.span })
                 .collect();
             let slots: Vec<usize> = table.iter().map(|e| e.slot).collect();
             let lassos = crate::lassos(&slots, |_| (6.0, 22.0));

@@ -262,10 +262,16 @@ pub struct ExhibitSize {
     /// rect ends ([`content_extent`]) — the Checkbox, a box and its label at the left of
     /// whatever rect it is given, which drew a frame 190 px wide round a 90 px control.
     pub hug: bool,
+    /// How many of Adaptive Grid's columns it lies across ([`Block::span`]).
+    pub span: usize,
 }
 
 /// The Checkbox's slot: the one exhibit narrowed to its content ([`ExhibitSize::hug`]).
 const CHECKBOX_SLOT: usize = 2;
+
+/// The TreeList's slot: the one exhibit across two of Adaptive Grid's columns
+/// ([`ExhibitSize::span`]). One column cut its key and type columns short.
+const TREELIST_SLOT: usize = 26;
 
 /// How far from its rect's left edge a control's drawn content reaches: the end of the
 /// furthest text it paints (`painted_prims`), measured in its font, plus a pixel so the clip
@@ -688,7 +694,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines)
         (24, W, 2.0 * ddh, FIT),                       // InteractiveListItem (title + subtitle)
         (25, W, bh, FIT),                              // Breadcrumb (button plates)
-        (26, W, CANVAS_H, FIT),                        // TreeList
+        (TREELIST_SLOT, W, CANVAS_H, FIT),             // TreeList (across two grid columns: `span`)
         (8, W, CANVAS_H, FIT),                         // Trackpad
         (10, W, CANVAS_H, FIT),                        // Plate
         (27, W, CANVAS_H, FIT),                        // BevelPreview
@@ -698,8 +704,8 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (13, W, bh, FIT),                              // Ramp...
         (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
     ];
-    let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch, hug: slot == CHECKBOX_SLOT }).collect();
-    sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch, hug: false }));
+    let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch, hug: slot == CHECKBOX_SLOT, span: if slot == TREELIST_SLOT { 2 } else { 1 } }).collect();
+    sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch, hug: false, span: 1 }));
     sizes
 }
 
@@ -845,7 +851,7 @@ impl State {
             if let Some(cw) = e.hug.then(|| content_extent(widget)).flatten() {
                 widget.set_rect(0.0, 0.0, cw.min(e.w), e.h + strip);
             }
-            exhibits.push((e.slot, Block::of(widget, e.stretch)));
+            exhibits.push((e.slot, Block { span: e.span, ..Block::of(widget, e.stretch) }));
         }
         // The exhibits start two paddings in from the floor's sides and top: one for the
         // fitted lasso's frame, which hangs one padding outside its members and so lands
@@ -2078,7 +2084,9 @@ mod tests {
     /// or not: each reserves its own label strip and no shared row (a shared one put 46 px
     /// over an unlabeled exhibit and 26 over a labeled one). A Group counts by its frame,
     /// tab to foot: measured by its members, as it was, two stacked groups stood half a
-    /// gap apart.
+    /// gap apart. An exhibit across several columns counts in each of them, and above it a
+    /// shorter column may leave more than the gap (a hole the grid never fills) — but the
+    /// tallest column of its run, the one it is placed below, leaves exactly the gap.
     #[test]
     fn stacked_layouts_space_their_columns_evenly() {
         let mut st = gallery();
@@ -2097,27 +2105,52 @@ mod tests {
                 st.apply_layout();
                 let ui = &st.ui_context;
                 let member = |i: usize| GROUPS.iter().any(|(_, m)| m.contains(&i));
-                // (column x, top, bottom, what)
-                let mut units: Vec<(i32, f32, f32, String)> = (0..st.roster.len())
+                // (left, right, top, bottom, what)
+                let mut found: Vec<(f32, f32, f32, f32, String)> = (0..st.roster.len())
                     .filter(|&i| is_exhibit(i) && !member(i))
                     .map(|i| {
                         let w = st.roster.get_dyn(ui, i);
-                        let (x, y, _, h) = w.rect();
+                        let (x, y, width, h) = w.rect();
                         let top = w.detached_label_rect().map_or(y, |l| l.y.min(y));
-                        (x.round() as i32, top, y + h, format!("slot {i}"))
+                        (x, x + width, top, y + h, format!("slot {i}"))
                     })
                     .collect();
                 for (group, _) in GROUPS {
                     let g = ui[st.roster.gallery().group(group)].inner();
                     let (p, f) = (g.padding(), g.frame(ui).expect("a frame"));
                     let tab = f.tab.map_or(f.body.y - g.tab_height(), |t| t.y);
-                    units.push(((f.body.x + p).round() as i32, tab, f.body.y + f.body.height, format!("Group {group}")));
+                    found.push((f.body.x + p, f.body.x + f.body.width - p, tab, f.body.y + f.body.height, format!("Group {group}")));
+                }
+                // Each unit in every column it lies across: (column x, top, bottom, what,
+                // whether it spans).
+                let mut starts: Vec<i32> = found.iter().map(|u| u.0.round() as i32).collect();
+                starts.sort_unstable();
+                starts.dedup();
+                let mut units: Vec<(i32, f32, f32, String, bool)> = Vec::new();
+                for (left, right, top, bottom, what) in &found {
+                    let cols: Vec<i32> = starts.iter().copied().filter(|&c| c >= left.round() as i32 && (c as f32) < *right).collect();
+                    let spans = cols.len() > 1;
+                    units.extend(cols.into_iter().map(|c| (c, *top, *bottom, what.clone(), spans)));
                 }
                 units.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+                // Above each spanning unit, the smallest gap over the columns it lies across.
+                let mut above_span: std::collections::BTreeMap<String, f32> = Default::default();
                 for pair in units.windows(2) {
                     let (a, b) = (&pair[0], &pair[1]);
-                    if a.0 == b.0 && ((b.1 - a.2) - gap).abs() > 0.5 {
-                        failures.push(format!("{sw}x{sh} {name}: {} to {} is {:.1}, not {gap}", a.3, b.3, b.1 - a.2));
+                    if a.0 != b.0 {
+                        continue;
+                    }
+                    let between = b.1 - a.2;
+                    if b.4 {
+                        let least = above_span.entry(b.3.clone()).or_insert(f32::MAX);
+                        *least = least.min(between);
+                    } else if (between - gap).abs() > 0.5 {
+                        failures.push(format!("{sw}x{sh} {name}: {} to {} is {between:.1}, not {gap}", a.3, b.3));
+                    }
+                }
+                for (what, least) in above_span {
+                    if (least - gap).abs() > 0.5 {
+                        failures.push(format!("{sw}x{sh} {name}: above {what} the least gap is {least:.1}, not {gap}"));
                     }
                 }
             }

@@ -79,7 +79,9 @@ with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,
 the StatusDots, the copy-icon button, the vertical ButtonStrip), which keeps
 its width there. Adaptive Grid fits as many columns of at least an exhibit's
 width (190 px) as the window holds, and drops one rather than let its widest
-exhibit run into the next. Reverse Mosaic spreads Mosaic's packing over the area: the
+exhibit run into the next. The TreeList lies across two of its columns, so its
+key, type and value columns all show: it goes below the pair whose taller column
+is shorter, and the shorter one keeps the space above it empty. Reverse Mosaic spreads Mosaic's packing over the area: the
 exhibits' places, and the widths of the ones that stretch, scale to fill it,
 while every exhibit keeps its own height; when they run taller than the
 window it keeps Mosaic's rows and scrolls, never squashing them. The arrangements are the gallery's own arithmetic
