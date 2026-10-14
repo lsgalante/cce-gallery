@@ -537,10 +537,17 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     let tbh = cce_ui::layout::textbox_height();
     let ddh = cce_ui::layout::dropdown_height();
     let csh = cce_ui::layout::color_selector_height();
-    // A column of three rotated tabs, and the sidebar width a vertical strip is drawn for.
-    const TABS_H: f32 = 120.0;
+    // The sidebar width a vertical strip is drawn for.
     const TAB_COLUMN_W: f32 = 40.0;
     let three = || vec!["One".to_string(), "Two".to_string(), "Three".to_string()];
+    // A column of three rotated tabs, each as long as its label: the height a vertical
+    // strip of them takes (it declares none, so a fixed height cut the last tab short),
+    // and the Paginator's too, whose sidebar is the same strip.
+    let tabs_h = {
+        let strip = ButtonStrip::new(0.0, 0.0, TAB_COLUMN_W, 0.0).with_buttons(three()).with_vertical(true);
+        let (_, y, _, h) = strip.item_rect(2);
+        y + h
+    };
     vec![
         // Button: the other four kinds.
         Exhibit::new(ctx, Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
@@ -561,13 +568,13 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
         // ButtonStrip: the vertical column (rotated tabs), and the Paginator sidebar built on it.
         Exhibit::sized(
             ctx,
-            Adapted::new(ButtonStrip::new(0.0, 0.0, W, TABS_H).with_buttons(three()).with_selected(Some(0)).with_vertical(true))
+            Adapted::new(ButtonStrip::new(0.0, 0.0, W, tabs_h).with_buttons(three()).with_selected(Some(0)).with_vertical(true))
                 .with_label("ButtonStrip (vertical)"),
             TAB_COLUMN_W,
-            TABS_H,
+            tabs_h,
         )
         .fixed(),
-        Exhibit::sized(ctx, Paginator::new(three()).with_label("Paginator"), W, TABS_H),
+        Exhibit::sized(ctx, Paginator::new(three()).with_label("Paginator"), W, tabs_h),
         // ColorSelector: the alpha swatch.
         Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
         // Label: the plain text widget.
@@ -789,8 +796,14 @@ impl State {
         let (lx, ly) = (floor.x + 2.0 * pad, floor.y + 2.0 * pad);
         let area = cce_ui::scene::layout::Rect { x: lx, y: ly, width: floor.width - 4.0 * pad, height: floor.y + floor.height - ly };
         let blocks: Vec<Block> = exhibits.iter().map(|&(_, b)| b).collect();
-        let (contents, content_h) = arrange(kind, &blocks, &lassos, area, cce_ui::layout::control_gap());
-        self.exhibit_scroll.update_bounds(content_h + (ly - y), y, h);
+        let (contents, _) = arrange(kind, &blocks, &lassos, area, cce_ui::layout::control_gap());
+        // The scroll runs to where the lowest exhibit ends — not the arrangement's height,
+        // which counts a trailing gap under some layouts and none under others — plus the
+        // same two paddings above the floor's foot that the first row has below its top,
+        // and the wall below that: scrolled to the bottom, nothing ends under the wall.
+        let bottom = contents.iter().map(|r| r.y + r.height).fold(ly, f32::max);
+        let foot = (y + h) - (floor.y + floor.height) + 2.0 * pad;
+        self.exhibit_scroll.update_bounds(bottom + foot - y, y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&(idx, _), r) in exhibits.iter().zip(&contents) {
             // Land each exhibit's content box where the arrangement put it, shifted by the
@@ -1854,6 +1867,39 @@ mod tests {
             }
         }
         assert!(failures.is_empty(), "{} overlaps:\n{}", failures.len(), failures.join("\n"));
+    }
+
+    /// Scrolled all the way down, in every layout and at every window size, the lowest
+    /// exhibit ends as far above the well's floor as the first row starts below it — two
+    /// paddings — so none is cut off by the wall at the foot of the area.
+    #[test]
+    fn scrolled_to_the_bottom_every_exhibit_clears_the_floor() {
+        let mut st = gallery();
+        let pad = st.ui_context[st.roster.gallery().group_fitted].inner().padding();
+        let mut failures = Vec::new();
+        for (sw, sh) in [(600.0, 800.0), (726.0, 912.0), (800.0, 600.0), (1000.0, 680.0), (1280.0, 800.0), (1600.0, 1000.0)] {
+            st.width = sw;
+            st.height = sh;
+            st.relayout();
+            for (li, (name, _)) in LAYOUTS.iter().enumerate() {
+                st.layout_idx = li;
+                st.exhibit_scroll.scroll_y = f32::MAX;
+                st.apply_layout();
+                let (floor, _) = st.exhibit_floor();
+                let foot = floor.y + floor.height - 2.0 * pad;
+                let lowest = (0..st.roster.len())
+                    .filter(|&i| is_exhibit(i))
+                    .map(|i| {
+                        let (_, y, _, h) = st.roster.get_dyn(&st.ui_context, i).rect();
+                        (y + h, i)
+                    })
+                    .fold((f32::MIN, 0), |a, b| if b.0 > a.0 { b } else { a });
+                if lowest.0 > foot + 0.5 {
+                    failures.push(format!("{sw}x{sh} {name}: slot {} ends at {} below {foot}", lowest.1, lowest.0));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     /// At its default size every kind of child window has its description (or editor)
