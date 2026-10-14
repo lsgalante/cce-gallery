@@ -9,7 +9,7 @@ use cce_ui::scene::paint::{PaintCtx, PlateSpec};
 use cce_ui::widget::*;
 
 /// Exhibit lookalike of the old cce-ui `Plate`: config plate colour (else page colour)
-/// at plate opacity, alpha negated under blur, plate corner radius, config border, and the
+/// at plate opacity, alpha negated under blur, the panel corner radius, config border, and the
 /// adapter's detached control label above it.
 pub struct Plate {
     blur: bool,
@@ -47,7 +47,7 @@ impl cce_ui::widget::Paint for Plate {
     }
 
     fn corner_style(&self, _rect: Rect) -> Option<(f32, (bool, bool, bool, bool))> {
-        let r = cce_ui::layout::plate_corner_radius();
+        let r = cce_ui::layout::panel_corner_radius();
         let on = r > 0.0;
         Some((r, (on, on, on, on)))
     }
@@ -59,7 +59,7 @@ impl cce_ui::widget::Paint for Plate {
     fn paint(&self, rect: Rect, pc: &mut PaintCtx) {
         // Rounded background over the content rect, only while corners are on and the
         // colour has alpha.
-        let radius = cce_ui::layout::plate_corner_radius();
+        let radius = cce_ui::layout::panel_corner_radius();
         let c = self.plate_color();
         if radius > 0.0 && c[3].abs() > 0.001 {
             pc.rounded_rect(rect, radius, (true, true, true, true), c);
