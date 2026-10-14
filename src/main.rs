@@ -1286,12 +1286,6 @@ impl cce_ui::engine::Application for State {
                 let (f, _) = self.exhibit_floor();
                 let (vx, vy, vw, vh) = (f.x, f.y, f.width, f.height);
                 Some([vx, vy, vx + vw, vy + vh])
-            } else if self.is_child && i == 1 && !self.child_kind.is_some_and(ChildKind::is_editor) {
-                // A simulated window's description is cut at its slot: a one-row bar
-                // gives it less room than its line needs, and the bounds a Label sets
-                // in its own paint do not reach this pass.
-                let (x, y, w, h) = w.rect();
-                Some([x, y, x + w, y + h])
             } else {
                 None
             };
