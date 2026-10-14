@@ -19,9 +19,9 @@ RangeSlider (bands that swell at the value, the one slider style), Slider2D,
 Spinbox, Float3, TextBox, KeybindRecorder,
 ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
-TreeList, Plate, BevelPreview, RampPreview, Ramp. The window's title stands
-on the root plate above the header dropdowns, and the StatusBar runs along
-the bottom.
+TreeList, Plate, BevelPreview, RampPreview, Ramp. No chrome frames it: the
+Layout and Style dropdowns stand in the root plate's top-left corner, and the
+exhibit area runs down to the window's foot.
 
 After those come the variants: every further look a widget can take, one
 exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
