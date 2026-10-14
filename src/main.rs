@@ -1190,10 +1190,16 @@ impl cce_ui::engine::Application for State {
         // ── Text ──
         // A child window's title (the gallery paints none): on its MenuBar when it
         // has one, else on the root plate, one inset in from the window's corner.
+        // Every simulated window builds a MenuBar (slot 3) but shows it only with
+        // `--menubar`; a hidden one carries nothing.
         if let Some(kind) = self.child_kind {
             let label_text = kind.title().to_string();
+            let vis = self.visibility();
             let mut has_menu_bar = false;
             for i in 0..self.roster.len() {
+                if !vis.is_visible(i) {
+                    continue;
+                }
                 let w = self.roster.get_dyn_mut(&mut self.ui_context, i);
                 if let Some(menu_bar) = w.as_any_mut().downcast_mut::<MenuBar>() {
                     menu_bar.title = label_text.clone();
