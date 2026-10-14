@@ -803,10 +803,10 @@ impl State {
             exhibits.push((e.slot, Block::of(widget, e.stretch)));
         }
         // The exhibits start two paddings in from the floor's sides and top: one for the
-        // fitted lasso's frame — which snaps out from there to its seat, one padding in —
-        // and one for its members inside the frame, so the row has the same padding on
-        // every side. Its title tab rides in the label strip the arrangement reserves above
-        // every row, which a lasso's tab counts toward.
+        // fitted lasso's frame, which hangs one padding outside its members and so lands
+        // on its seat, one padding in, and one between the frame and the members inside it
+        // — the same padding as on its other sides. Its title tab rides in the label strip
+        // the arrangement reserves above every row, which a lasso's tab counts toward.
         let s = self.roster.gallery();
         let pad = self.ui_context[s.group_fitted].inner().padding();
         let slots: Vec<usize> = exhibits.iter().map(|&(slot, _)| slot).collect();
@@ -1895,6 +1895,66 @@ mod tests {
             }
         }
         assert!(failures.is_empty(), "{} overlaps:\n{}", failures.len(), failures.join("\n"));
+    }
+
+    /// Each Group's frame stands one padding off its members on every side — their footprints,
+    /// labels included — in every layout and at every size: the padding hangs outside the
+    /// members' block, so the fitted lasso, whose sides nearest the well's edge land on their
+    /// seat, has nothing to snap. (A side the fit does move, landing within `snap` of the
+    /// edge, is on its seat, and is let be.)
+    #[test]
+    fn a_groups_padding_is_even_on_every_side() {
+        use cce_ui::scene::layout::Rect;
+        let mut st = gallery();
+        let mut failures = Vec::new();
+        for (sw, sh) in [(600.0, 800.0), (726.0, 912.0), (800.0, 600.0), (1000.0, 680.0), (1280.0, 800.0), (1600.0, 1000.0)] {
+            st.width = sw;
+            st.height = sh;
+            st.relayout();
+            for (li, (name, _)) in LAYOUTS.iter().enumerate() {
+                st.layout_idx = li;
+                st.apply_layout();
+                let ui = &st.ui_context;
+                let (floor, _) = st.exhibit_floor();
+                let s = st.roster.gallery();
+                for (group, members) in GROUPS {
+                    let g = ui[s.group(group)].inner();
+                    let (p, f) = (g.padding(), g.frame(ui).expect("a frame"));
+                    let hull = members
+                        .iter()
+                        .map(|&i| {
+                            let w = st.roster.get_dyn(ui, i);
+                            let (x, y, ww, hh) = w.rect();
+                            let mut r = Rect { x, y, width: ww, height: hh };
+                            if let Some(l) = w.detached_label_rect() {
+                                let (x1, y1) = ((r.x + r.width).max(l.x + l.width), (r.y + r.height).max(l.y + l.height));
+                                (r.x, r.y) = (r.x.min(l.x), r.y.min(l.y));
+                                (r.width, r.height) = (x1 - r.x, y1 - r.y);
+                            }
+                            r
+                        })
+                        .reduce(|a, b| {
+                            let (x0, y0) = (a.x.min(b.x), a.y.min(b.y));
+                            Rect { x: x0, y: y0, width: (a.x + a.width).max(b.x + b.width) - x0, height: (a.y + a.height).max(b.y + b.height) - y0 }
+                        })
+                        .unwrap();
+                    let b = f.body;
+                    let tab = g.tab_height();
+                    let sides = [
+                        ("left", hull.x - b.x, (b.x - (floor.x + p)).abs()),
+                        ("top", hull.y - b.y, (b.y - (floor.y + p + tab)).abs()),
+                        ("right", b.x + b.width - (hull.x + hull.width), (floor.x + floor.width - p - (b.x + b.width)).abs()),
+                        ("bottom", b.y + b.height - (hull.y + hull.height), (floor.y + floor.height - p - (b.y + b.height)).abs()),
+                    ];
+                    for (side, gap, off_seat) in sides {
+                        if (gap - p).abs() > 0.5 && off_seat > 0.5 {
+                            failures.push(format!("{sw}x{sh} {name}: Group {group}'s {side} padding is {gap:.1}, not {p}"));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     /// Scrolled all the way down, in every layout and at every window size, the lowest

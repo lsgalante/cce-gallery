@@ -11,10 +11,12 @@
 //! exhibit area scrolls over.
 //!
 //! A [`Lasso`] (a `Group` drawn around some of the blocks) is arranged as ONE block: its
-//! members are laid out together inside it, and the block is their footprint plus the
-//! lasso's padding, with its title tab in the strip above. The group's frame — the padded
-//! hull of wherever its members land — is then that block, so it never takes in an exhibit
-//! that is not its own, and the arrangement leaves room for its tab.
+//! members are laid out together inside it, each under its own label strip alone (no shared
+//! label row inside a group), and the block is their footprint, with its title tab in the
+//! strip above. The group's frame — the padded hull of wherever its members land — hangs one
+//! padding outside that block on every side, into the gaps around it, so it never takes in an
+//! exhibit that is not its own, its padding is the same on all four sides, and its members
+//! start in the column every other exhibit does.
 //!
 //! These began as cce-ui's `ContainerLayout` strategies, which the gallery was the one user
 //! of; they live here as arithmetic so the gallery lands its widgets itself
@@ -111,9 +113,9 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
             Some(_) => {}
         }
     }
-    // Each lasso's members laid out inside it — stacked under Vertical, packed otherwise —
-    // at the width of the cell the lasso will get, from the frame's inner top-left.
-    let inner_kind = if kind == Arrangement::Vertical { Arrangement::Vertical } else { Arrangement::Mosaic };
+    // Each lasso's members laid out inside it — stacked under Vertical, in rows otherwise —
+    // at the width of the cell the lasso will get, from the block's top-left. Each member
+    // reserves its own label strip and no one else's: a block of content and strip together.
     let columns = grid_columns(kind, blocks, area, gap);
     let cell = match kind {
         Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => column_width(area, gap, columns),
@@ -122,14 +124,25 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
     let inner: Vec<(Vec<Rect>, Block)> = lassos
         .iter()
         .map(|lasso| {
-            let p = lasso.padding;
-            let inner_w = (cell - 2.0 * p).max(1.0);
+            let inner_w = cell.max(1.0);
             let members: Vec<Block> = lasso.members.iter().map(|&m| blocks[m]).collect();
-            let (rects, _) = arrange_blocks(inner_kind, &members, Rect { x: 0.0, y: 0.0, width: inner_w, height: 0.0 }, gap, 1);
+            let whole: Vec<Block> = members.iter().map(|b| Block { content_h: stacked_h(b) + b.strip, strip: 0.0, ..*b }).collect();
+            // Stacked under Vertical; in rows otherwise (`flow`: Mosaic's packer would put a
+            // member taller than the one before it on a row of its own).
+            let at = Rect { x: 0.0, y: 0.0, width: inner_w, height: 0.0 };
+            let placed = match kind {
+                Arrangement::Vertical => arrange_blocks(Arrangement::Vertical, &whole, at, gap, 1).0,
+                _ => flow(&whole, at, gap),
+            };
+            // Each member's content rect: its block less its own strip.
+            let rects: Vec<Rect> = members
+                .iter()
+                .zip(&placed)
+                .map(|(b, r)| Rect { y: r.y + b.strip, height: r.height - b.strip, ..*r })
+                .collect();
             let w = members.iter().zip(&rects).map(|(b, r)| r.x + r.width.max(b.width.min(inner_w))).fold(0.0, f32::max);
             let h = rects.iter().map(|r| r.y + r.height).fold(0.0, f32::max);
-            let (bw, bh) = (w + 2.0 * p, h + 2.0 * p);
-            (rects, Block { width: bw, content_w: bw, content_h: bh, strip: lasso.tab, stretch: true })
+            (rects, Block { width: w, content_w: w, content_h: h, strip: lasso.tab, stretch: true })
         })
         .collect();
     let unit_blocks: Vec<Block> = units
@@ -145,9 +158,8 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
         match *u {
             Unit::One(i) => rects[i] = ur,
             Unit::Lasso(l) => {
-                let p = lassos[l].padding;
                 // Reverse Mosaic widens the lasso's block like any other stretching block; its
-                // members spread across it, padding included, so they stay inside it. Every
+                // members spread across it, so they stay inside it. Every
                 // arrangement gives the block the height it asked for, and every other one a
                 // cell at least as wide as the members were laid out for.
                 let kx = match kind {
@@ -156,7 +168,7 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
                 };
                 for (&m, mr) in lassos[l].members.iter().zip(&inner[l].0) {
                     let width = if blocks[m].stretch { mr.width * kx } else { mr.width };
-                    rects[m] = Rect { x: ur.x + (p + mr.x) * kx, y: ur.y + p + mr.y, width, height: mr.height };
+                    rects[m] = Rect { x: ur.x + mr.x * kx, y: ur.y + mr.y, width, height: mr.height };
                 }
             }
         }
@@ -196,6 +208,26 @@ fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, col
         Arrangement::Mosaic => mosaic(blocks, area, gap, lead),
         Arrangement::ReverseMosaic => reverse_mosaic(blocks, area, gap, lead),
     }
+}
+
+/// Blocks in rows, left to right, a row wrapping before a block that would run past the area's
+/// width; each row as tall as its tallest block, every block at its row's top and at its own
+/// size. What a lasso's members are laid out by outside Vertical.
+fn flow(blocks: &[Block], area: Rect, gap: f32) -> Vec<Rect> {
+    let avail = area.width.max(1.0);
+    let (mut x, mut y, mut row_h) = (area.x, area.y, 0.0f32);
+    let mut out = Vec::with_capacity(blocks.len());
+    for b in blocks {
+        let w = b.width.min(avail);
+        if x > area.x && x + w > area.x + avail {
+            (x, y, row_h) = (area.x, y + row_h + gap, 0.0);
+        }
+        let h = stacked_h(b);
+        out.push(Rect { x, y, width: b.content_w.min(avail), height: h });
+        x += w + gap;
+        row_h = row_h.max(h);
+    }
+    out
 }
 
 /// A block's content height, [`FALLBACK_H`] when it declares none.
@@ -501,6 +533,22 @@ mod tests {
             assert_eq!(r[0].width, 12.0, "{kind:?}");
             assert!(r[1].width > 80.0, "{kind:?}: {:?}", r[1]);
         }
+    }
+
+    /// A lasso's block is its members alone: at the area's left edge they start at its edge,
+    /// as any block does, and the frame's padding hangs outside them. Inside it there is no
+    /// shared label row: an unlabelled member beside a labelled one starts at the labelled
+    /// one's strip, not under an empty one of its own.
+    #[test]
+    fn a_lassos_members_start_at_its_block_under_their_own_strips() {
+        let blocks = [block(100.0, 24.0), labeled(100.0, 24.0, 20.0), block(80.0, 30.0)];
+        let lasso = Lasso { members: vec![0, 1], padding: 6.0, tab: 22.0 };
+        let (r, _) = arrange(Arrangement::Mosaic, &blocks, std::slice::from_ref(&lasso), area(10.0, 50.0, 600.0, 0.0), 24.0);
+        assert_eq!(r[0].x, 10.0, "the first member starts the column");
+        // The lead (the tab, 22) is above the block; the members share no label row in it.
+        assert_eq!(r[0].y, 50.0 + 22.0, "the unlabelled member at the block's top");
+        assert_eq!(r[1].y - 20.0, r[0].y, "the labelled one's strip at the same top");
+        assert_eq!(r[2].x, 10.0 + 100.0 + 24.0 + 100.0 + 24.0, "the next block a gap past the members");
     }
 
     /// A grid holds fewer columns than it asks for where its widest block would not fit in

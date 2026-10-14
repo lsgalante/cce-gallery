@@ -11,7 +11,8 @@ It is a *visual* test harness: you look at what it draws and what the
 compositor does with the windows it spawns. Its unit tests (`cargo test -p
 cce-gallery`) cover the exhibit arrangements (`src/arrange.rs`), that no
 layout overlaps its exhibits or lets a Group frame take in one that is not its
-member (the real page, at window sizes from 600 to 2400 wide), that the
+member, and that a Group's padding is even on every side (the real page, at
+window sizes from 600 to 2400 wide), that the
 exhibit table names every exhibit once, that every kind of child window lays
 out on its own surface, and the bevel ramp file's parsing.
 
@@ -51,13 +52,16 @@ FontSelector and the StatusDot, and `Group (fitted)` around the top row,
 fitted to the exhibit area's edges (`GROUPS` in `src/main.rs`). A group's
 frame is the padded hull of wherever its members land, so the arrangement
 treats each group as ONE block: its members are laid out together inside it
-(stacked under Vertical, packed otherwise), the block is their footprint plus
-the group's padding, and its title tab rides in the label row the arrangement
-reserves above every block. A frame therefore never takes in an exhibit that
-is not its member, and its tab never lands on the row above. The exhibits
-start two paddings in from the area's sides and top — one for the fitted
-frame, which snaps out to its seat, and one for its members inside it — so
-the tab stays inside the area and the row has the same padding on every side.
+(stacked under Vertical, in top-aligned rows otherwise), each under its own
+label strip alone — a group has no shared label row, so an unlabelled member
+sits at the top beside a labelled one — and the block is their footprint, its
+title tab riding in the label row the arrangement reserves above every block.
+The frame hangs one padding outside the block on every side, into the gaps
+around it. A frame therefore never takes in an exhibit that is not its member,
+its padding is the same on all four sides, and its members start in the same
+column as every other exhibit. The exhibits start two paddings in from the
+area's sides and top: one for the fitted frame, which lands on its seat, and
+one between it and its members.
 
 Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
