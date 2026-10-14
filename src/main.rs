@@ -699,7 +699,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (10, W, CANVAS_H, FIT),                        // Plate
         (27, W, CANVAS_H, FIT),                        // BevelPreview
         (28, W, 2.0 * rmh, FIT),                       // RampPreview (a ramp's curve)
-        (12, W, CANVAS_H, FIT),                        // Ramp (its editor declares 150)
+        (12, W, CANVAS_H, FIT),                        // Ramp (declares its own: a 120 graph over its controls)
         (11, W, bh, FIT),                              // Color Ramp...
         (13, W, bh, FIT),                              // Ramp...
         (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
