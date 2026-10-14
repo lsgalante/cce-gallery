@@ -284,13 +284,15 @@ impl GallerySlots {
     }
 }
 
-/// A child window's five slots — background, main, Close, and the optional menu bar
-/// and status bar rows (3, 4) — as the ids of the widgets the context owns.
+/// A child window's slots — background, main, Close, and for a simulated window the
+/// optional menu bar and status bar rows (3, 4) — as the ids of the widgets the context
+/// owns. An editor has the first three.
 pub struct ChildSlots {
-    pub ids: [WidgetId; CHILD_COUNT],
+    pub ids: Vec<WidgetId>,
     pub close: Handle<Adapted<Button>>,
 }
 
+/// The most slots a child window has (a simulated window's).
 pub const CHILD_COUNT: usize = 5;
 
 /// The two roster modes. The widgets are the context's; a roster names them by slot.
@@ -305,7 +307,7 @@ impl Roster {
     pub fn len(&self) -> usize {
         match self {
             Roster::Gallery(s) => GALLERY_COUNT + s.extra.len(),
-            Roster::Child(_) => CHILD_COUNT,
+            Roster::Child(s) => s.ids.len(),
         }
     }
 
@@ -366,8 +368,6 @@ struct State {
     roster: Roster,
     positions: Vec<(f32, f32, f32, f32)>,
 
-    focused_widget: Option<usize>,
-
     width: f32,
     height: f32,
     scale: f64,
@@ -388,9 +388,28 @@ struct State {
     /// Posts to `update`: how a hook that returns no message (tick, pointer motion, wheel)
     /// hands one on.
     sender: cce_ui::engine::AppSender<String>,
+    /// A Ramp editor's curve as the bevel ramp file last had it (`bevel_ramp_kdl`): a
+    /// tick reports focus changes and inertia as well as edits, and only a curve that
+    /// differs is written.
+    saved_ramp: Option<String>,
 }
 
-fn save_bevel_ramp(keys: &[RampKey], line_type: &str) {
+/// `~/.config/cce/bevel_ramp.kdl`: the Ramp editor's curve, kept between runs. Nothing
+/// else reads it.
+fn bevel_ramp_path() -> std::path::PathBuf {
+    cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl")
+}
+
+/// The `line_type` a Ramp's line-type dropdown selects.
+fn ramp_line_type(ramp: &Ramp) -> &'static str {
+    match ramp.line_type_dropdown.selected {
+        1 => "bezier",
+        _ => "linear",
+    }
+}
+
+/// The bevel ramp file's contents for `keys` and `line_type`.
+fn bevel_ramp_kdl(keys: &[RampKey], line_type: &str) -> String {
     let mut s = String::new();
     s.push_str("keys {\n");
     for k in keys {
@@ -398,52 +417,72 @@ fn save_bevel_ramp(keys: &[RampKey], line_type: &str) {
     }
     s.push_str("}\n");
     s.push_str(&format!("line_type \"{}\"\n", line_type));
-    let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
-    let _ = std::fs::write(path, s);
+    s
 }
 
+/// Replace the bevel ramp file whole: written beside it, then renamed over it, so a
+/// reader never finds it truncated or half-written.
+fn save_bevel_ramp(contents: &str) -> std::io::Result<()> {
+    let path = bevel_ramp_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let tmp = path.with_extension("kdl.tmp");
+    std::fs::write(&tmp, contents)?;
+    std::fs::rename(&tmp, &path)
+}
+
+/// The Ramp editor's curve from the bevel ramp file, else the toolkit Ramp's default.
 fn load_bevel_ramp() -> (Vec<RampKey>, String) {
-    let path = cce_ui::config::get_config_path().parent().unwrap().join("bevel_ramp.kdl");
+    std::fs::read_to_string(bevel_ramp_path())
+        .ok()
+        .and_then(|content| parse_bevel_ramp(&content))
+        .unwrap_or_else(|| {
+            (
+                vec![
+                    RampKey { pos: 0.0, value: 0.5 },
+                    RampKey { pos: 0.2, value: 1.0 },
+                    RampKey { pos: 0.8, value: 1.0 },
+                    RampKey { pos: 1.0, value: 0.5 },
+                ],
+                "linear".to_string(),
+            )
+        })
+}
+
+/// A bevel ramp file's keys, sorted by position, and its line type; `None` when it
+/// holds no key.
+fn parse_bevel_ramp(content: &str) -> Option<(Vec<RampKey>, String)> {
     let mut line_type = "linear".to_string();
     let mut keys = Vec::new();
-    if let Ok(content) = std::fs::read_to_string(path) {
-        for line in content.lines() {
-            let line = line.trim();
-            if line.starts_with("key ") {
-                let mut pos = 0.0;
-                let mut val = 0.5;
-                for part in line.split_whitespace() {
-                    if let Some(rest) = part.strip_prefix("pos=") {
-                        pos = rest.parse().unwrap_or(0.0);
-                    } else if let Some(rest) = part.strip_prefix("val=") {
-                        val = rest.parse().unwrap_or(0.5);
-                    }
-                }
-                keys.push(RampKey { pos, value: val });
-            } else if line.starts_with("line_type ") {
-                if let Some(val_str) = line.split_whitespace().nth(1) {
-                    line_type = val_str.trim_matches('"').to_string();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("key ") {
+            let mut pos: f32 = 0.0;
+            let mut val: f32 = 0.5;
+            for part in line.split_whitespace() {
+                if let Some(rest) = part.strip_prefix("pos=") {
+                    pos = rest.parse().unwrap_or(0.0);
+                } else if let Some(rest) = part.strip_prefix("val=") {
+                    val = rest.parse().unwrap_or(0.5);
                 }
             }
-        }
-        if !keys.is_empty() {
-            keys.sort_by(|a, b| a.pos.partial_cmp(&b.pos).unwrap());
-            return (keys, line_type);
+            // A key the file cannot place (`pos=nan`) is dropped, not sorted.
+            if pos.is_finite() && val.is_finite() {
+                keys.push(RampKey { pos, value: val });
+            }
+        } else if line.starts_with("line_type ") {
+            if let Some(val_str) = line.split_whitespace().nth(1) {
+                line_type = val_str.trim_matches('"').to_string();
+            }
         }
     }
-    (
-        vec![
-            RampKey { pos: 0.0, value: 0.5 },
-            RampKey { pos: 0.2, value: 1.0 },
-            RampKey { pos: 0.8, value: 1.0 },
-            RampKey { pos: 1.0, value: 0.5 },
-        ],
-        "linear".to_string()
-    )
+    keys.sort_by(|a, b| a.pos.total_cmp(&b.pos));
+    (!keys.is_empty()).then_some((keys, line_type))
 }
 
 /// Every further style of a widget the named slots show once: the toolkit's own
-/// variants — a constructor (`Button::new_reset`) or a builder (`with_band`) —
+/// variants — a constructor (`Button::new_reset`) or a builder (`with_readout`) —
 /// so the page shows each look a widget can take, in the toolkit's default size
 /// for it.
 ///
@@ -593,10 +632,30 @@ impl State {
         self.visibility().is_visible(index)
     }
 
+    /// The roster slot holding the window's focus, when a slot itself holds it. Read off
+    /// the context, which Tab moves as well as a click: a widget inside a slot (a Ramp's
+    /// field) is reached by the key sweep instead.
+    fn focused_slot(&self) -> Option<usize> {
+        let id = self.ui_context.focused_widget?;
+        (0..self.roster.len()).find(|&i| self.roster.id(i) == id)
+    }
+
+    /// Write a Ramp editor's curve to the bevel ramp file if it differs from what the
+    /// file holds. A failed write is reported once and retried on the next change.
+    fn save_ramp(&mut self, kdl: String) {
+        if self.saved_ramp.as_deref() == Some(kdl.as_str()) {
+            return;
+        }
+        if let Err(e) = save_bevel_ramp(&kdl) {
+            eprintln!("cce-gallery: writing {}: {e}", bevel_ramp_path().display());
+        }
+        self.saved_ramp = Some(kdl);
+    }
+
     /// Recompute the positions table for the current size, mode and layout.
     fn relayout(&mut self) {
         self.positions = if self.is_child {
-            child_positions(self.width, self.height, self.use_menubar, self.use_statusbar, self.child_kind.is_some_and(ChildKind::is_editor))
+            child_positions(self.width, self.height, self.use_menubar, self.use_statusbar)
         } else {
             demo_positions(self.roster.len())
         };
@@ -716,13 +775,6 @@ impl State {
         idx.checked_sub(GALLERY_COUNT).and_then(|k| self.roster.gallery().extra[k].content_w)
     }
 
-    /// Register every roster widget in the ui_context (idempotent — `register` is
-    /// id-keyed and the boxed slots keep pointers stable). The id-rooted router
-    /// resolves roots through this registry, and the gallery's own paint loop registers
-    /// nothing as it goes.
-    fn register_roster(&mut self) {
-    }
-
     /// Hear what the widgets reported since the last sweep (`UiContext::take_events`) and
     /// act on it: Layout (14) picks the arrangement, Style (0) switches every control
     /// between Relief and Flat (`set_control_relief` — the toolkit reads it live at paint,
@@ -747,8 +799,8 @@ impl State {
                 // A dropdown reports a pick as Changed.
                 Roster::Gallery(s) if id == s.layout_dd.id() => layout = true,
                 Roster::Gallery(s) if id == s.style_dd.id() => style = true,
-                Roster::Gallery(s) if clicked && id == s.color_ramp_btn.id() => spawn_editor("ColorRamp"),
-                Roster::Gallery(s) if clicked && id == s.ramp_btn.id() => spawn_editor("Ramp"),
+                Roster::Gallery(s) if clicked && id == s.color_ramp_btn.id() => spawn_editor(ChildKind::ColorRamp),
+                Roster::Gallery(s) if clicked && id == s.ramp_btn.id() => spawn_editor(ChildKind::Ramp),
                 Roster::Gallery(_) => {}
             }
         }
@@ -823,13 +875,15 @@ impl cce_ui::engine::Application for State {
 
         let is_child = flag("--child");
         let use_root_plate = if is_child { flag("--root-plate") } else { !flag("--no-root-plate") };
-        let use_menubar = flag("--menubar");
-        let use_statusbar = flag("--statusbar");
         let child_kind = if is_child {
             Some(value("--type").and_then(|t| ChildKind::from_arg(&t)).unwrap_or(ChildKind::Floating))
         } else {
             None
         };
+        // An editor has no menu bar or status bar to show.
+        let editor = child_kind.is_some_and(ChildKind::is_editor);
+        let use_menubar = flag("--menubar") && !editor;
+        let use_statusbar = flag("--statusbar") && !editor;
         let opacity = flag("--opacity");
         let transparency = number("--transparency").unwrap_or(1.0);
         let border_enabled = !flag("--no-border");
@@ -842,52 +896,46 @@ impl cce_ui::engine::Application for State {
             (None, _, _) => (1000.0, 680.0),
         };
 
-        let opacity = opacity || child_kind.is_some_and(ChildKind::is_editor);
+        let opacity = opacity || editor;
 
         // The context owns the widgets; the roster names them by slot.
         let mut ui_context = cce_ui::context::UiContext::new();
         let ctx = &mut ui_context;
+        // The curve a Ramp editor opened on, as the file holds it.
+        let mut saved_ramp = None;
         let roster = if let Some(kind) = child_kind {
             let bg = if use_root_plate {
                 ctx.insert(RootPlate::new(0.0, 0.0, c_w, c_h)).id()
             } else {
                 ctx.insert(ContentBg::new()).id()
             };
-            let (main, aux3, aux4) = if kind == ChildKind::ColorRamp {
-                (
-                    ctx.insert(ColorRamp::new()).id(),
-                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
-                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
-                )
+            // The main slot, then the bars a simulated window can show.
+            let (main, bars) = if kind == ChildKind::ColorRamp {
+                (ctx.insert(ColorRamp::new()).id(), None)
             } else if kind == ChildKind::Ramp {
-                (
-                    ctx.insert({
-                        let mut ramp = Ramp::new();
-                        let (loaded_keys, loaded_type) = load_bevel_ramp();
-                        ramp.keys = loaded_keys;
-                        ramp.line_type_dropdown.selected = match loaded_type.as_str() {
-                            "bezier" => 1,
-                            _ => 0,
-                        };
-                        ramp
-                    })
-                    .id(),
-                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
-                    ctx.insert(Label::new("").with_font_size(12.0)).id(),
-                )
+                let mut ramp = Ramp::new();
+                let (loaded_keys, loaded_type) = load_bevel_ramp();
+                ramp.keys = loaded_keys;
+                ramp.line_type_dropdown.selected = match loaded_type.as_str() {
+                    "bezier" => 1,
+                    _ => 0,
+                };
+                saved_ramp = Some(bevel_ramp_kdl(&ramp.keys, ramp_line_type(&ramp)));
+                (ctx.insert(ramp).id(), None)
             } else {
-                let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
+                let menu_bar = MenuBar::new(0.0, 0.0, c_w, CHILD_MENUBAR_H)
                     .with_item("File", &["New", "Open", "Save", "Exit"])
                     .with_item("Edit", &["Undo", "Redo", "Cut", "Copy", "Paste"])
                     .with_right_aligned_title(true);
                 (
                     ctx.insert(Label::new(kind.child_text()).with_font_size(12.0).with_color([0xcc, 0xcc, 0xd4])).id(),
-                    ctx.insert(menu_bar).id(),
-                    ctx.insert(StatusBar::new()).id(),
+                    Some([ctx.insert(menu_bar).id(), ctx.insert(StatusBar::new()).id()]),
                 )
             };
-            let close = ctx.insert(Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close"));
-            Roster::Child(Box::new(ChildSlots { ids: [bg, main, close.id(), aux3, aux4], close }))
+            let close = ctx.insert(Button::new(0.0, 0.0, CHILD_CLOSE_W, cce_ui::layout::button_height()).with_label("Close"));
+            let mut ids = vec![bg, main, close.id()];
+            ids.extend(bars.into_iter().flatten());
+            Roster::Child(Box::new(ChildSlots { ids, close }))
         } else {
             Roster::Gallery(Box::new(GallerySlots {
                 button_demo: ctx.insert(Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button")),
@@ -971,7 +1019,6 @@ impl cce_ui::engine::Application for State {
         let mut state = Self {
             roster,
             positions: Vec::new(),
-            focused_widget: None,
             width: c_w,
             height: c_h,
             scale: 1.0,
@@ -995,21 +1042,14 @@ impl cce_ui::engine::Application for State {
                 sb
             },
             sender,
+            saved_ramp,
         };
 
-        let main = state.roster.get_dyn_mut(&mut state.ui_context, 1);
-        if main.as_any_mut().downcast_mut::<Ramp>().is_some() && is_child {
-            // Only a `--type Ramp` child hosts a Ramp in slot 1: it opens with the
-            // preset dropdown focused so the keyboard drives it at once — the ramp
-            // takes the window's focus and gives its first field, the preset
-            // dropdown, the keyboard. Every other child kind (ColorRamp, or the
-            // description Label of the Toplevel / Popup / Layer* windows) starts with
-            // nothing focused — the key sweep in handle_key reaches every visible
-            // child slot anyway, and a click focuses whatever it lands on. This used
-            // to downcast unconditionally and panic for those kinds ("child ramp
-            // widget"), which is why Create Window on the Windows page spawned
-            // children that died at startup.
-            state.focused_widget = Some(1);
+        if child_kind == Some(ChildKind::Ramp) {
+            // A Ramp editor opens with the ramp focused, which hands its first field, the
+            // preset dropdown, the keyboard at once. Every other child starts with nothing
+            // focused: the key sweep in handle_key_input reaches every visible slot anyway,
+            // and a click focuses whatever it lands on.
             let ramp_id = state.roster.id(1);
             state.ui_context.set_focused_id(ramp_id);
         }
@@ -1076,19 +1116,17 @@ impl cce_ui::engine::Application for State {
                 let ramp_child = self.child_kind == Some(ChildKind::Ramp) && i == 1;
                 let ticked = self.ui_context.lend(self.roster.id(i), |w, ctx| {
                     let ticked = w.tick(dt, ctx);
-                    if ticked && ramp_child {
-                        if let Some(ramp) = w.as_any().downcast_ref::<Ramp>() {
-                            let line_type_str = match ramp.line_type_dropdown.selected {
-                                1 => "bezier",
-                                _ => "linear",
-                            };
-                            save_bevel_ramp(&ramp.keys, line_type_str);
-                        }
-                    }
-                    ticked
+                    // A Ramp editor's curve, to save if the tick changed it.
+                    let ramp = (ticked && ramp_child)
+                        .then(|| w.as_any().downcast_ref::<Ramp>().map(|r| bevel_ramp_kdl(&r.keys, ramp_line_type(r))))
+                        .flatten();
+                    (ticked, ramp)
                 });
-                if ticked == Some(true) {
-                    changed = true;
+                if let Some((ticked, ramp)) = ticked {
+                    changed |= ticked;
+                    if let Some(kdl) = ramp {
+                        self.save_ramp(kdl);
+                    }
                 }
             }
         }
@@ -1103,7 +1141,6 @@ impl cce_ui::engine::Application for State {
         // The whole frame — rounded geometry, plain geometry, popovers, then text — is
         // one display list, rebuilt each frame.
         use cce_ui::scene::layout::Rect;
-        self.register_roster();
         // Panel children follow the scroll offset at layout time: re-arrange every frame
         // so a wheel scroll moves the content on the frame it repaints. Idempotent and
         // cheap (~20 set_rects).
@@ -1189,7 +1226,8 @@ impl cce_ui::engine::Application for State {
 
         // ── Text ──
         // A child window's title (the gallery paints none): on its MenuBar when it
-        // has one, else on the root plate, one inset in from the window's corner.
+        // has one, else on the root plate, one inset in from the window's corner —
+        // when the window stacks (`child_stacks`); a one-row bar has no line for it.
         // Every simulated window builds a MenuBar (slot 3) but shows it only with
         // `--menubar`; a hidden one carries nothing.
         if let Some(kind) = self.child_kind {
@@ -1206,7 +1244,7 @@ impl cce_ui::engine::Application for State {
                     has_menu_bar = true;
                 }
             }
-            if !has_menu_bar {
+            if !has_menu_bar && child_stacks(self.height, self.use_menubar, self.use_statusbar) {
                 let inset = cce_ui::layout::root_plate_inset();
                 pc.text_with(label_text, inset, inset, CHILD_TITLE_SIZE, [255, 255, 255], Some(cce_ui::layout::statusbar_font()), None);
             }
@@ -1248,6 +1286,12 @@ impl cce_ui::engine::Application for State {
                 let (f, _) = self.exhibit_floor();
                 let (vx, vy, vw, vh) = (f.x, f.y, f.width, f.height);
                 Some([vx, vy, vx + vw, vy + vh])
+            } else if self.is_child && i == 1 && !self.child_kind.is_some_and(ChildKind::is_editor) {
+                // A simulated window's description is cut at its slot: a one-row bar
+                // gives it less room than its line needs, and the bounds a Label sets
+                // in its own paint do not reach this pass.
+                let (x, y, w, h) = w.rect();
+                Some([x, y, x + w, y + h])
             } else {
                 None
             };
@@ -1371,7 +1415,6 @@ impl cce_ui::engine::Application for State {
         let is_visible = move |index: usize| vis.is_visible(index);
 
         if state == ElementState::Pressed {
-            let mut clicked_idx = None;
             // The exhibit area's scrollbar takes a press on its track before any
             // exhibit — while it is RAISED. A sunk bar is behind the well's floor
             // and is not hit, so a press on its lane falls through to the exhibit
@@ -1380,26 +1423,22 @@ impl cce_ui::engine::Application for State {
             if exhibit_bar {
                 changed = true;
             }
-            if clicked_idx.is_none() && !exhibit_bar {
-                for i in (0..self.roster.len()).rev() {
-                    if !is_visible(i) {
-                        continue;
-                    }
+            let clicked_idx = if exhibit_bar {
+                None
+            } else {
+                (0..self.roster.len()).rev().find(|&i| {
                     // An exhibit scrolled out of the viewport is not there to click.
-                    if !self.is_child && is_exhibit(i) && !self.in_exhibit_viewport(lx, ly) {
-                        continue;
-                    }
-                    if self.roster.get_dyn(&self.ui_context, i).hit_test(lx, ly, &self.ui_context) {
-                        clicked_idx = Some(i);
-                        break;
-                    }
-                }
-            }
+                    is_visible(i)
+                        && (self.is_child || !is_exhibit(i) || self.in_exhibit_viewport(lx, ly))
+                        && self.roster.get_dyn(&self.ui_context, i).hit_test(lx, ly, &self.ui_context)
+                })
+            };
             if button == MouseButton::Left {
-                if let Some(old) = self.focused_widget {
-                    if Some(old) != clicked_idx {
-                        self.ui_context.unfocus_id(self.roster.id(old));
-                        self.focused_widget = None;
+                // A press anywhere else takes the focus from whatever holds it — the
+                // slot last clicked, or a widget Tab moved to.
+                if let Some(holder) = self.ui_context.focused_widget {
+                    if clicked_idx.map(|i| self.roster.id(i)) != Some(holder) {
+                        self.ui_context.unfocus_id(holder);
                     }
                 }
             }
@@ -1419,7 +1458,6 @@ impl cce_ui::engine::Application for State {
                 }
                 if button == MouseButton::Left {
                     self.ui_context.focus_id(self.roster.id(i));
-                    self.focused_widget = Some(i);
                 }
             }
         } else {
@@ -1491,7 +1529,8 @@ impl cce_ui::engine::Application for State {
         let is_visible = move |index: usize| vis.is_visible(index);
         let mut handled = false;
         let key_ev = cce_ui::widget::Event::KeyInput(event.clone());
-        if let Some(focused) = self.focused_widget {
+        let focused = self.focused_slot();
+        if let Some(focused) = focused {
             let root = self.roster.id(focused);
             if self.ui_context.propagate_event(&key_ev, root) {
                 changed = true;
@@ -1501,7 +1540,7 @@ impl cce_ui::engine::Application for State {
 
         if !handled {
             for i in 0..self.roster.len() {
-                if Some(i) == self.focused_widget {
+                if Some(i) == focused {
                     continue;
                 }
                 if !is_visible(i) {
@@ -1546,20 +1585,22 @@ impl cce_ui::engine::LayerApp for State {
 }
 
 /// A `Command` that re-runs this binary as a child window; the caller adds the flags.
-fn child_command() -> Option<std::process::Command> {
-    let exe = std::env::current_exe().ok()?;
-    let mut cmd = std::process::Command::new(exe);
+/// The binary is found by name beside the running one (`de_bin`), not at
+/// `current_exe`: once `ccebuild install` has replaced it, the running process's own
+/// path reads `… (deleted)` and names nothing that can be run.
+fn child_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new(cce_ui::process::de_bin("cce-gallery"));
     cmd.arg("--child");
-    Some(cmd)
+    cmd
 }
 
-/// Opens a Ramp or ColorRamp editor window. Untracked on purpose: an editor outlives
-/// the gallery, unlike the simulated windows Create Window spawns.
-fn spawn_editor(kind: &str) {
-    if let Some(mut cmd) = child_command() {
-        // The editor kinds' `default_size`, spelled out for the child's argv.
-        cmd.args(["--type", kind, "--width", "450", "--height", "390", "--root-plate"]);
-        let _ = spawn_detached(cmd);
+/// Opens a Ramp or ColorRamp editor window, at the kind's `default_size`. Untracked on
+/// purpose: an editor outlives the gallery.
+fn spawn_editor(kind: ChildKind) {
+    let mut cmd = child_command();
+    cmd.args(["--type", kind.arg(), "--root-plate"]);
+    if let Err(e) = spawn_detached(cmd) {
+        eprintln!("cce-gallery: opening the {}: {e}", kind.title());
     }
 }
 
@@ -1598,42 +1639,71 @@ fn demo_positions(count: usize) -> Vec<(f32, f32, f32, f32)> {
 /// carry it; the description below leaves this line of headroom.
 const CHILD_TITLE_SIZE: f32 = 16.0;
 
-/// The five `ChildSlots` rects for a child window of `sw`x`sh`: 0 background,
-/// 1 main (editor or description), 2 Close, 3 and 4 the MenuBar / StatusBar of a
-/// simulated window or the two aux Labels of a Ramp / ColorRamp editor.
-/// Everything stands on the child's root plate: one root inset in from the
-/// window's edges, one root gap between the main slot and Close.
-fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, editor: bool) -> Vec<(f32, f32, f32, f32)> {
-    let dy = if use_menubar { 40.0 } else { 0.0 };
-    let dh = if use_statusbar { 24.0 } else { 0.0 };
-    let inner_h = sh - dy - dh;
+/// A simulated window's MenuBar and StatusBar rows.
+const CHILD_MENUBAR_H: f32 = 40.0;
+const CHILD_STATUSBAR_H: f32 = 24.0;
+
+/// A child window's Close button's width (its height is the toolkit's button height).
+const CHILD_CLOSE_W: f32 = 100.0;
+
+/// The height a child of `sh` has between its menu bar and status bar.
+fn child_inner_h(sh: f32, use_menubar: bool, use_statusbar: bool) -> f32 {
+    let dy = if use_menubar { CHILD_MENUBAR_H } else { 0.0 };
+    let dh = if use_statusbar { CHILD_STATUSBAR_H } else { 0.0 };
+    sh - dy - dh
+}
+
+/// Whether a child window of `sh` is tall enough to stack its title line, a main slot
+/// at least one control tall, and Close, each one root gap apart inside the root inset.
+/// A shorter one — the Top-layer bar, a status segment — lays them out in one row.
+fn child_stacks(sh: f32, use_menubar: bool, use_statusbar: bool) -> bool {
     let inset = cce_ui::layout::root_plate_inset();
     let gap = cce_ui::layout::root_plate_gap();
-    let (close_w, close_h) = (100.0, cce_ui::layout::button_height());
+    let bh = cce_ui::layout::button_height();
+    child_inner_h(sh, use_menubar, use_statusbar) >= 2.0 * inset + CHILD_TITLE_SIZE + 2.0 * gap + 2.0 * bh
+}
+
+/// The `ChildSlots` rects for a child window of `sw`x`sh`: 0 background, 1 main
+/// (editor or description), 2 Close, 3 and 4 a simulated window's MenuBar and
+/// StatusBar (an editor has no 3 or 4, and leaves those entries unused).
+/// Everything stands on the child's root plate: one root inset in from the
+/// window's edges, one root gap between the main slot and Close.
+fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool) -> Vec<(f32, f32, f32, f32)> {
+    let dy = if use_menubar { CHILD_MENUBAR_H } else { 0.0 };
+    let inner_h = child_inner_h(sh, use_menubar, use_statusbar);
+    let inset = cce_ui::layout::root_plate_inset();
+    let gap = cce_ui::layout::root_plate_gap();
+    let close_h = cce_ui::layout::button_height();
     let mut vec = vec![(-1000.0, -1000.0, 0.0, 0.0); CHILD_COUNT];
 
     if use_menubar {
-        vec[3] = (0.0, 0.0, sw, 40.0);
+        vec[3] = (0.0, 0.0, sw, CHILD_MENUBAR_H);
     }
     if use_statusbar {
-        vec[4] = (0.0, sh - 24.0, sw, 24.0);
+        vec[4] = (0.0, sh - CHILD_STATUSBAR_H, sw, CHILD_STATUSBAR_H);
     }
 
     vec[0] = (0.0, dy, sw, inner_h);
-    // Close is centred, one inset up from the bottom edge; the main slot fills the
-    // room above it, one root gap off, under the title line's headroom (kept whether
-    // the title is painted or a MenuBar carries it).
-    let close_y = dy + inner_h - inset - close_h;
-    vec[2] = ((sw - close_w) / 2.0, close_y, close_w, close_h);
-    let main_y = dy + inset + CHILD_TITLE_SIZE + gap;
-    let main_h = close_y - gap - main_y;
-    vec[1] = (inset, main_y, sw - 2.0 * inset, main_h);
-    if editor {
-        // TODO(style): the two aux labels' 20px row lies over the editor's bottom
-        // strip, as it always has; that overlap is the editor's layout, not a rung.
-        let label_y = main_y + main_h - 20.0;
-        vec[3] = (inset, label_y, 200.0, 20.0);
-        vec[4] = (sw - inset - 200.0, label_y, 200.0, 20.0);
+    if child_stacks(sh, use_menubar, use_statusbar) {
+        // Close is centred, one inset up from the bottom edge; the main slot fills the
+        // room above it, one root gap off, under the title line's headroom (kept whether
+        // the title is painted or a MenuBar carries it).
+        let close_y = dy + inner_h - inset - close_h;
+        vec[2] = ((sw - CHILD_CLOSE_W) / 2.0, close_y, CHILD_CLOSE_W, close_h);
+        let main_y = dy + inset + CHILD_TITLE_SIZE + gap;
+        vec[1] = (inset, main_y, sw - 2.0 * inset, close_y - gap - main_y);
+    } else {
+        // One row: Close at the right end, the description filling the room to its
+        // left one root gap off (a Label clips what does not fit), both centred in the
+        // band. The margin is the root inset where the band has room for it, else
+        // what is left around the button — never less than half a gap at the sides.
+        let close_h = close_h.min(inner_h).max(0.0);
+        let close_w = CHILD_CLOSE_W.min(sw / 2.0);
+        let margin = inset.min((inner_h - close_h) / 2.0).max(0.0);
+        let side = margin.max(gap / 2.0);
+        let close_x = sw - side - close_w;
+        vec[2] = (close_x, dy + (inner_h - close_h) / 2.0, close_w, close_h);
+        vec[1] = (side, dy + margin, (close_x - gap - side).max(0.0), inner_h - 2.0 * margin);
     }
 
     vec
@@ -1641,4 +1711,95 @@ fn child_positions(sw: f32, sh: f32, use_menubar: bool, use_statusbar: bool, edi
 
 fn main() {
     cce_ui::engine::run::<State>();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KINDS: [ChildKind; 9] = [
+        ChildKind::Floating,
+        ChildKind::Fullscreen,
+        ChildKind::Utility,
+        ChildKind::LayerTop,
+        ChildKind::LayerOverlay,
+        ChildKind::LayerBackground,
+        ChildKind::Status,
+        ChildKind::Ramp,
+        ChildKind::ColorRamp,
+    ];
+
+    #[test]
+    fn every_kind_round_trips_through_its_type_arg() {
+        for kind in KINDS {
+            assert_eq!(ChildKind::from_arg(kind.arg()), Some(kind));
+        }
+    }
+
+    /// The slot numbers `exhibit_table` sizes are exactly the ones `is_exhibit` lays out:
+    /// a slot missing from the table is never placed, one listed twice is placed twice.
+    #[test]
+    fn the_exhibit_table_lists_every_exhibit_once() {
+        let mut ui = UiContext::new();
+        let extra = variant_exhibits(&mut ui);
+        let mut listed: Vec<usize> = exhibit_table(120.0, &extra).iter().map(|&(i, _, _)| i).collect();
+        listed.sort_unstable();
+        let exhibits: Vec<usize> = (0..GALLERY_COUNT + extra.len()).filter(|&i| is_exhibit(i)).collect();
+        assert_eq!(listed, exhibits);
+    }
+
+    /// At its default size every kind of child window has its description (or editor)
+    /// and its Close button on the surface, with room, and apart.
+    #[test]
+    fn every_child_kind_lays_out_on_its_surface() {
+        for kind in KINDS {
+            let (sw, sh) = kind.default_size();
+            let p = child_positions(sw, sh, false, false);
+            let on_surface = |(x, y, w, h): (f32, f32, f32, f32)| {
+                w > 0.0 && h > 0.0 && x >= 0.0 && y >= 0.0 && x + w <= sw && y + h <= sh
+            };
+            let (main, close) = (p[1], p[2]);
+            assert!(on_surface(main), "{kind:?} main {main:?} on {sw}x{sh}");
+            assert!(on_surface(close), "{kind:?} Close {close:?} on {sw}x{sh}");
+            let apart = main.0 + main.2 <= close.0 || close.0 + close.2 <= main.0
+                || main.1 + main.3 <= close.1 || close.1 + close.3 <= main.1;
+            assert!(apart, "{kind:?}: main {main:?} overlaps Close {close:?}");
+            if child_stacks(sh, false, false) {
+                // The title line is painted above the main slot.
+                let title_foot = cce_ui::layout::root_plate_inset() + CHILD_TITLE_SIZE;
+                assert!(main.1 >= title_foot, "{kind:?}: main {main:?} under the title");
+            }
+        }
+    }
+
+    #[test]
+    fn the_short_kinds_lay_out_in_one_row() {
+        for kind in [ChildKind::LayerTop, ChildKind::Status] {
+            let (_, sh) = kind.default_size();
+            assert!(!child_stacks(sh, false, false), "{kind:?}");
+        }
+        for kind in [ChildKind::Floating, ChildKind::Utility, ChildKind::Ramp] {
+            let (_, sh) = kind.default_size();
+            assert!(child_stacks(sh, false, false), "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn a_bevel_ramp_file_round_trips() {
+        let keys = vec![RampKey { pos: 0.0, value: 0.25 }, RampKey { pos: 0.5, value: 1.0 }];
+        let (parsed, line_type) = parse_bevel_ramp(&bevel_ramp_kdl(&keys, "bezier")).unwrap();
+        assert_eq!(parsed.iter().map(|k| (k.pos, k.value)).collect::<Vec<_>>(), vec![(0.0, 0.25), (0.5, 1.0)]);
+        assert_eq!(line_type, "bezier");
+    }
+
+    /// A key it cannot place is dropped rather than handed to the sort, which a NaN
+    /// position used to panic; the rest come back in position order.
+    #[test]
+    fn a_malformed_bevel_ramp_file_does_not_panic() {
+        let file = "keys {\n    key pos=nan val=1\n    key pos=0.9 val=0.5\n    key pos=0.1 val=inf\n    key pos=0.2 val=0.3\n}\n";
+        let (keys, line_type) = parse_bevel_ramp(file).unwrap();
+        assert_eq!(keys.iter().map(|k| k.pos).collect::<Vec<_>>(), vec![0.2, 0.9]);
+        assert_eq!(line_type, "linear");
+        assert!(parse_bevel_ramp("keys {\n    key pos=nan val=0\n}\n").is_none());
+    }
 }
