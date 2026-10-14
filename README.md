@@ -9,7 +9,9 @@ so it appears in the launcher.
 
 It is a *visual* test harness: you look at what it draws and what the
 compositor does with the windows it spawns. Its unit tests (`cargo test -p
-cce-gallery`) cover the exhibit arrangements (`src/arrange.rs`), that the
+cce-gallery`) cover the exhibit arrangements (`src/arrange.rs`), that no
+layout overlaps its exhibits or lets a Group frame take in one that is not its
+member (the real page, at window sizes from 600 to 2400 wide), that the
 exhibit table names every exhibit once, that every kind of child window lays
 out on its own surface, and the bevel ramp file's parsing.
 
@@ -44,23 +46,37 @@ not follow the switch is a toolkit bug — every control's `with_raised` /
 
 Two `Group` lassos lie over the named exhibits — `Group`, loose around the
 FontSelector and the StatusDot, and `Group (fitted)` around the top row,
-fitted to the exhibit area's edges. The exhibits are laid out at that fit's
-seat — a padding in from the sides, the lasso's headroom down — so the tab
-stays inside the area and the row has the same padding on every side. A lasso is laid out by its members, not
-by the arrangement: under Mosaic it is the hull of wherever they landed.
+fitted to the exhibit area's edges (`GROUPS` in `src/main.rs`). A group's
+frame is the padded hull of wherever its members land, so the arrangement
+treats each group as ONE block: its members are laid out together inside it
+(stacked under Vertical, packed otherwise), the block is their footprint plus
+the group's padding, and its title tab rides in the label row the arrangement
+reserves above every block. A frame therefore never takes in an exhibit that
+is not its member, and its tab never lands on the row above. The exhibits
+start two paddings in from the area's sides and top — one for the fitted
+frame, which snaps out to its seat, and one for its members inside it — so
+the tab stays inside the area and the row has the same padding on every side.
 
 Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
 the page is a record of the defaults; only the draw-in canvases (Trackpad,
 Plate, TreeList, the previews, the Ramp) are sized here. The `Layout` dropdown
-picks how the exhibits are arranged — Vertical, Columns, Grid, Adaptive Grid,
-Mosaic (the default), Reverse Mosaic, Overlay — at the toolkit's control gap
+picks how the exhibits are arranged — Vertical, Grid, Adaptive Grid, Mosaic
+(the default), Reverse Mosaic — at the toolkit's control gap
 (`layout::control_gap()`, one control height, the one gap the row builders use
-in both axes). The arrangements are the gallery's own arithmetic
-(`src/arrange.rs`: each exhibit's block in, its content rect out; they were
-cce-ui's `ContainerLayout` strategies, kept number for number), and the
-gallery lands each widget at its rect through `layout`: an arrangement places
-controls' CONTENT boxes, a detached label hangs in the gap above its control,
+in both axes). Vertical and the grids widen a control to its cell, except one
+with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,
+the StatusDots, the copy-icon button, the vertical ButtonStrip), which keeps
+its width there; a grid drops columns rather than let its widest exhibit run
+into the next. Reverse Mosaic stretches Mosaic's packing over the area — and
+squashes it into the area when the exhibits run taller than the window, where
+its exhibits overlap. The arrangements are the gallery's own arithmetic
+(`src/arrange.rs`: each exhibit's block in, its content rect out; they began
+as cce-ui's `ContainerLayout` strategies), and the gallery lands each widget
+at its rect through `layout`: an arrangement places controls' CONTENT boxes
+and keeps the gap between FOOTPRINTS — a control, or its detached label where
+that runs wider (the Splitter's, a StatusDot's) — a detached label hangs in
+the gap above its control,
 mixed labeled and unlabeled controls line up by content (an arrangement
 reserves the tallest label row above every exhibit), every detached label is the adapter's — the
 one label convention: drawn in the strip above the control at the same
@@ -152,7 +168,8 @@ for example). Nothing else is bound; the `cce-gallery` domain of
   wheel, key and tick dispatch (`drain_widget_events`, over cce-ui's
   `UiContext::take_events`), so a keyboard activation acts at once.
 - `src/arrange.rs` — the exhibit arrangements the `Layout` dropdown offers, as
-  pure functions (`arrange`), and their unit tests.
+  pure functions (`arrange`, which takes the Group lassos as blocks too), and
+  their unit tests.
 - `src/gallery_widgets.rs` — lookalikes of the retired toolkit `Plate` (an
   exhibit) and root plate (the child windows' background).
 

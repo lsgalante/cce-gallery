@@ -3,7 +3,7 @@ use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
 use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, WidgetHostExt};
 mod arrange;
-use arrange::{arrange, Arrangement, Block};
+use arrange::{arrange, Arrangement, Block, Lasso};
 mod gallery_widgets;
 use gallery_widgets::{RootPlate, Plate};
 use cce_ui::widget::{Adapted, LayoutConstraints, Point, WidgetEvent};
@@ -196,7 +196,8 @@ pub struct GallerySlots {
     pub separator_demo: Handle<Adapted<Separator>>,
     pub splitter_demo: Handle<Adapted<Splitter>>,
     /// Two `Group` lassos over other exhibits (slots 31 and 32): overlays, not
-    /// exhibits — laid out by their members, drawn under the exhibit clip.
+    /// exhibits — each arranged as one block around its members (`GROUPS`), drawn under
+    /// the exhibit clip.
     pub group_loose: Handle<Adapted<Group>>,
     pub group_fitted: Handle<Adapted<Group>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
@@ -215,31 +216,71 @@ pub struct Exhibit {
     pub id: WidgetId,
     pub w: f32,
     pub h: f32,
-    /// A content width narrower than `w`: the arrangement places the exhibit at `w` (room
-    /// for its label) and the widget is then given this width — a StatusDot stays a dot.
-    pub content_w: Option<f32>,
+    /// Whether Vertical and the grids may widen it to their cell ([`ExhibitSize::stretch`]).
+    pub stretch: bool,
 }
 
 impl Exhibit {
     /// Sized by the widget's own preferred (content) height, `fallback_h` when it declares none.
     fn new<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, fallback_h: f32) -> Self {
         let h = widget.preferred_height().unwrap_or(fallback_h);
-        Exhibit { id: ctx.insert(widget).id(), w, h, content_w: None }
+        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true }
     }
 
     /// Sized by hand: for widgets whose declared height is a single row (a multiline
     /// TextBox, a vertical ButtonStrip) when the exhibit wants several.
     fn sized<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, h: f32) -> Self {
-        Exhibit { id: ctx.insert(widget).id(), w, h, content_w: None }
+        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true }
     }
 
-    fn with_content_width(mut self, w: f32) -> Self {
-        self.content_w = Some(w);
+    /// Kept at its own width in every arrangement: a control with a size of its own.
+    fn fixed(mut self) -> Self {
+        self.stretch = false;
         self
     }
 }
 
+/// An exhibit's slot and the content size it is reset to before it is arranged.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ExhibitSize {
+    pub slot: usize,
+    pub w: f32,
+    pub h: f32,
+    /// Whether Vertical and the grids may widen it to their cell. A control with a size
+    /// of its own — the Splitter's grip, a StatusDot, the Slider2D's square pad, the
+    /// Toggle's switch, an icon button — keeps `w` there, as it does under Mosaic.
+    pub stretch: bool,
+}
+
+/// The `Group` lassos (slots 31, 32) and the exhibit slots each draws around, in the order
+/// they are laid out inside it: a loose one around the FontSelector and the StatusDot, and
+/// the fitted one around the top row (Button, ButtonStrip, Checkbox, Toggle).
+const GROUPS: [(usize, &[usize]); 2] = [(31, &[16, 22]), (32, &[1, 18, 2, 3])];
+
+/// The lassos to arrange over blocks whose slots are `slots`, in order: each group's members
+/// as indexes into the blocks, with the group's (padding, tab height) from `frame`. A member
+/// with no block (one being dragged) is left out, and a group with none is dropped.
+fn lassos(slots: &[usize], frame: impl Fn(usize) -> (f32, f32)) -> Vec<Lasso> {
+    GROUPS
+        .iter()
+        .filter_map(|&(group, members)| {
+            let members: Vec<usize> = members.iter().filter_map(|m| slots.iter().position(|s| s == m)).collect();
+            let (padding, tab) = frame(group);
+            (!members.is_empty()).then_some(Lasso { members, padding, tab })
+        })
+        .collect()
+}
+
 impl GallerySlots {
+    /// The `Group` lasso in slot `idx` (31 or 32).
+    pub fn group(&self, idx: usize) -> Handle<Adapted<Group>> {
+        match idx {
+            31 => self.group_loose,
+            32 => self.group_fitted,
+            _ => panic!("gallery slot {idx} is not a Group"),
+        }
+    }
+
     /// The widget in slot `idx`.
     pub fn id(&self, idx: usize) -> WidgetId {
         if idx >= GALLERY_COUNT {
@@ -496,8 +537,6 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     let tbh = cce_ui::layout::textbox_height();
     let ddh = cce_ui::layout::dropdown_height();
     let csh = cce_ui::layout::color_selector_height();
-    // A StatusDot is 12px square; its exhibit is as wide as its label.
-    const DOT_W: f32 = 200.0;
     // A column of three rotated tabs, and the sidebar width a vertical strip is drawn for.
     const TABS_H: f32 = 120.0;
     const TAB_COLUMN_W: f32 = 40.0;
@@ -507,7 +546,7 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
         Exhibit::new(ctx, Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
         Exhibit::new(ctx, Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
         Exhibit::new(ctx, Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh),
-        Exhibit::new(ctx, Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh),
+        Exhibit::new(ctx, Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh).fixed(),
         // Slider: with a readout.
         Exhibit::new(ctx, Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
         // TextBox: multiline, chromeless, password.
@@ -524,22 +563,20 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
             ctx,
             Adapted::new(ButtonStrip::new(0.0, 0.0, W, TABS_H).with_buttons(three()).with_selected(Some(0)).with_vertical(true))
                 .with_label("ButtonStrip (vertical)"),
-            W,
+            TAB_COLUMN_W,
             TABS_H,
         )
-        .with_content_width(TAB_COLUMN_W),
+        .fixed(),
         Exhibit::sized(ctx, Paginator::new(three()).with_label("Paginator"), W, TABS_H),
         // ColorSelector: the alpha swatch.
         Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
         // Label: the plain text widget.
         Exhibit::new(ctx, Label::new("Label"), W, ddh),
-        // StatusDot: the other three statuses.
-        Exhibit::new(ctx, StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), DOT_W, StatusDot::SIZE)
-            .with_content_width(StatusDot::SIZE),
-        Exhibit::new(ctx, StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), DOT_W, StatusDot::SIZE)
-            .with_content_width(StatusDot::SIZE),
-        Exhibit::new(ctx, StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), DOT_W, StatusDot::SIZE)
-            .with_content_width(StatusDot::SIZE),
+        // StatusDot: the other three statuses. A dot is 12px square; its label is wider,
+        // and the arrangement reserves the label's width (`Block::of`).
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), StatusDot::SIZE, StatusDot::SIZE).fixed(),
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), StatusDot::SIZE, StatusDot::SIZE).fixed(),
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), StatusDot::SIZE, StatusDot::SIZE).fixed(),
     ]
 }
 
@@ -547,7 +584,7 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
 /// before it is arranged: an exhibit's block is read off its own rect (`Block::of`) after
 /// the reset, and the previous frame's landing may have stretched it. `s2d_w` is the
 /// Slider2D's measured width; `extra` the variant exhibits, which follow the named slots.
-fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<(usize, f32, f32)> {
+fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
     // Every height below is the toolkit's default for that control — its
     // configured `style.control.<name>.height`, or the intrinsic size the
     // widget declares — so the page is a record of the defaults, not of
@@ -568,42 +605,42 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<(usize, f32, f32)> {
     // or drag in, sized here and only here.
     const CANVAS_H: f32 = 120.0;
     const W: f32 = 190.0;
-    // A StatusDot is 12px square; its exhibit is as wide as its label
-    // (`content_width` hands the dot its own size back after layout).
-    const DOT_W: f32 = 200.0;
-    let raw: [(usize, f32, f32); 29] = [
-        (1, W, bh),                                   // Button
-        (18, W, bh),                                  // ButtonStrip
-        (2, W, tgh),                                  // Checkbox (a toggle row)
-        (3, W, tgh),                                  // Toggle
-        (5, W, slh),                                  // Slider
-        (7, W, rsh),                                 // RangeSlider
-        (19, s2d_w, 64.0),                            // Slider2D (a 64px pad, wide enough for its label)
-        (6, W, sph),                                  // Spinbox
-        (20, W, Float3::preferred_height(false)),     // Float3 (three slider rows)
-        (9, W, tbh),                                 // TextBox
-        (17, W, tbh),                                 // KeybindRecorder (a textbox)
-        (15, W, csh),                                 // ColorSelector
-        (16, W, fsh),                                 // FontSelector
-        (4, W, pbh),                                  // ProgressBar
-        (21, W, pbh),                                 // UsageBar
-        (22, DOT_W, StatusDot::SIZE),                 // StatusDot (its label needs the width)
-        (29, W, 1.0),                                 // Separator (a rule)
-        (30, 6.0, CANVAS_H),                          // Splitter (a vertical grip)
-        (23, W, 3.0 * ddh),                           // InfoBox (title + two lines)
-        (24, W, 2.0 * ddh),                           // InteractiveListItem (title + subtitle)
-        (25, W, bh),                                  // Breadcrumb (button plates)
-        (26, W, CANVAS_H),                            // TreeList
-        (8, W, CANVAS_H),                            // Trackpad
-        (10, W, CANVAS_H),                            // Plate
-        (27, W, CANVAS_H),                            // BevelPreview
-        (28, W, 2.0 * rmh),                           // RampPreview (a ramp's curve)
-        (12, W, CANVAS_H),                            // Ramp (its editor declares 150)
-        (11, W, bh),                                  // Color Ramp...
-        (13, W, bh),                                  // Ramp...
+    // Whether the exhibit stretches to a Vertical or grid cell (`ExhibitSize::stretch`).
+    const FIT: bool = true;
+    const OWN: bool = false;
+    let raw: [(usize, f32, f32, bool); 29] = [
+        (1, W, bh, FIT),                               // Button
+        (18, W, bh, FIT),                              // ButtonStrip
+        (2, W, tgh, FIT),                              // Checkbox (a toggle row)
+        (3, W, tgh, OWN),                              // Toggle (its switch is drawn for its own width)
+        (5, W, slh, FIT),                              // Slider
+        (7, W, rsh, FIT),                              // RangeSlider
+        (19, s2d_w, 64.0, OWN),                        // Slider2D (a 64px pad)
+        (6, W, sph, FIT),                              // Spinbox
+        (20, W, Float3::preferred_height(false), FIT), // Float3 (three slider rows)
+        (9, W, tbh, FIT),                              // TextBox
+        (17, W, tbh, FIT),                             // KeybindRecorder (a textbox)
+        (15, W, csh, FIT),                             // ColorSelector
+        (16, W, fsh, FIT),                             // FontSelector
+        (4, W, pbh, FIT),                              // ProgressBar
+        (21, W, pbh, FIT),                             // UsageBar
+        (22, StatusDot::SIZE, StatusDot::SIZE, OWN),   // StatusDot (12px square; its label is wider)
+        (29, W, 1.0, FIT),                             // Separator (a rule)
+        (30, 6.0, CANVAS_H, OWN),                      // Splitter (a vertical grip)
+        (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines)
+        (24, W, 2.0 * ddh, FIT),                       // InteractiveListItem (title + subtitle)
+        (25, W, bh, FIT),                              // Breadcrumb (button plates)
+        (26, W, CANVAS_H, FIT),                        // TreeList
+        (8, W, CANVAS_H, FIT),                         // Trackpad
+        (10, W, CANVAS_H, FIT),                        // Plate
+        (27, W, CANVAS_H, FIT),                        // BevelPreview
+        (28, W, 2.0 * rmh, FIT),                       // RampPreview (a ramp's curve)
+        (12, W, CANVAS_H, FIT),                        // Ramp (its editor declares 150)
+        (11, W, bh, FIT),                              // Color Ramp...
+        (13, W, bh, FIT),                              // Ramp...
     ];
-    let mut sizes = raw.to_vec();
-    sizes.extend(extra.iter().enumerate().map(|(k, e)| (GALLERY_COUNT + k, e.w, e.h)));
+    let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch }).collect();
+    sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch }));
     sizes
 }
 
@@ -663,7 +700,7 @@ impl State {
 
     /// The Controls exhibits in layout order, each with the content size it is reset to
     /// before it is arranged (`exhibit_table`).
-    fn exhibit_sizes(&self) -> Vec<(usize, f32, f32)> {
+    fn exhibit_sizes(&self) -> Vec<ExhibitSize> {
         let s2d_w = self
             .roster
             .get_dyn(&self.ui_context, 19)
@@ -711,9 +748,9 @@ impl State {
     }
 
     /// Lay the Controls exhibits out with the arrangement the Layout dropdown selects
-    /// (`LAYOUTS`), then shift them by the scroll frame's offset; painting clips them to
-    /// the viewport. Runs from apply_layout and from display_list, which is what
-    /// re-arranges after a scroll.
+    /// (`LAYOUTS`), each `Group` lasso as one block around its members (`GROUPS`), then shift
+    /// them by the scroll frame's offset; painting clips them to the viewport. Runs from
+    /// apply_layout and from display_list, which is what re-arranges after a scroll.
     fn layout_exhibits(&mut self) {
         let (x, y, w, h) = self.exhibit_viewport();
         self.exhibit_scroll.set_rect(x, y, w, h);
@@ -727,52 +764,41 @@ impl State {
         // its block back: `set_rect` may adjust the rect, and a height the widget declares
         // overrides the table's.
         let mut exhibits: Vec<(usize, Block)> = Vec::new();
-        for (idx, cw, ch) in self.exhibit_sizes() {
-            if self.roster.is_dragging(&self.ui_context, idx) {
+        for e in self.exhibit_sizes() {
+            if self.roster.is_dragging(&self.ui_context, e.slot) {
                 continue;
             }
-            let widget = self.roster.get_dyn_mut(&mut self.ui_context, idx);
+            let widget = self.roster.get_dyn_mut(&mut self.ui_context, e.slot);
             let strip = widget.label_strip();
-            widget.set_rect(0.0, 0.0, cw, ch + strip);
-            exhibits.push((idx, Block::of(widget)));
+            widget.set_rect(0.0, 0.0, e.w, e.h + strip);
+            exhibits.push((e.slot, Block::of(widget, e.stretch)));
         }
-        // The exhibits start at the fitted lasso's seat: one padding in from the
-        // area's sides for the frame plus one for the members inside it, and the
-        // lasso's headroom (padding + title tab) plus a padding down. A fitted group
-        // snaps to the area's edges one padding in, and its tab needs room inside
-        // the area above its members — laid out flush with the corner, the row had
-        // the frame's wall on its left edge and the tab over its labels.
-        let (inset_x, inset_top) = match &self.roster {
-            Roster::Gallery(s) => {
-                let g = self.ui_context[s.group_fitted].inner();
-                (2.0 * g.padding(), g.padding() + g.headroom())
-            }
-            _ => (0.0, 0.0),
-        };
+        // The exhibits start two paddings in from the floor's sides and top: one for the
+        // fitted lasso's frame — which snaps out from there to its seat, one padding in —
+        // and one for its members inside the frame, so the row has the same padding on
+        // every side. Its title tab rides in the label strip the arrangement reserves above
+        // every row, which a lasso's tab counts toward.
+        let s = self.roster.gallery();
+        let pad = self.ui_context[s.group_fitted].inner().padding();
+        let slots: Vec<usize> = exhibits.iter().map(|&(slot, _)| slot).collect();
+        let lassos = lassos(&slots, |group| {
+            let g = self.ui_context[s.group(group)].inner();
+            (g.padding(), g.tab_height())
+        });
         let kind = LAYOUTS.get(self.layout_idx).unwrap_or(&LAYOUTS[DEFAULT_LAYOUT]).1;
-        let (lx, ly) = (floor.x + inset_x, floor.y + inset_top);
-        let area = cce_ui::scene::layout::Rect { x: lx, y: ly, width: floor.width - 2.0 * inset_x, height: floor.y + floor.height - ly };
+        let (lx, ly) = (floor.x + 2.0 * pad, floor.y + 2.0 * pad);
+        let area = cce_ui::scene::layout::Rect { x: lx, y: ly, width: floor.width - 4.0 * pad, height: floor.y + floor.height - ly };
         let blocks: Vec<Block> = exhibits.iter().map(|&(_, b)| b).collect();
-        let (contents, content_h) = arrange(kind, &blocks, area, cce_ui::layout::control_gap());
+        let (contents, content_h) = arrange(kind, &blocks, &lassos, area, cce_ui::layout::control_gap());
         self.exhibit_scroll.update_bounds(content_h + (ly - y), y, h);
         let scroll_y = self.exhibit_scroll.scroll_y;
         for (&(idx, _), r) in exhibits.iter().zip(&contents) {
             // Land each exhibit's content box where the arrangement put it, shifted by the
             // scroll; its label hangs in the strip above.
-            let cw = self.content_width(idx).unwrap_or(r.width);
             self.ui_context.lend(self.roster.id(idx), |widget, ctx| {
-                widget.layout(Point { x: r.x, y: r.y - scroll_y }, LayoutConstraints::new(cw, cw, r.height, r.height), ctx);
+                widget.layout(Point { x: r.x, y: r.y - scroll_y }, LayoutConstraints::new(r.width, r.width, r.height, r.height), ctx);
             });
         }
-    }
-
-    /// An exhibit's content width where it is narrower than the width it is laid out at
-    /// (`Exhibit::content_w`; the named StatusDot slot likewise).
-    fn content_width(&self, idx: usize) -> Option<f32> {
-        if idx == 22 {
-            return Some(StatusDot::SIZE);
-        }
-        idx.checked_sub(GALLERY_COUNT).and_then(|k| self.roster.gallery().extra[k].content_w)
     }
 
     /// Hear what the widgets reported since the last sweep (`UiContext::take_events`) and
@@ -1004,15 +1030,13 @@ impl cce_ui::engine::Application for State {
         let roster = {
             let mut roster = roster;
             if let Roster::Gallery(s) = &mut roster {
-                // The lassos: a loose one around the FontSelector and the StatusDot, and
-                // one around the top row (Button, ButtonStrip, Checkbox, Toggle) that
-                // fits the exhibit area's edges — its top snaps to the area's top with
-                // the title tab kept inside, its left to the area's left edge.
-                let ids = |s: &GallerySlots, idx: &[usize]| idx.iter().map(|&i| s.id(i)).collect::<Vec<_>>();
-                let loose = ids(s, &[16, 22]);
-                let fitted = ids(s, &[1, 18, 2, 3]);
-                ui_context[s.group_loose].inner_mut().set_members(loose);
-                ui_context[s.group_fitted].inner_mut().set_members(fitted);
+                // The lassos (`GROUPS`): the fitted one fits the exhibit area's edges —
+                // its top snaps to the area's top with the title tab kept inside, its
+                // left to the area's left edge.
+                for (group, members) in GROUPS {
+                    let ids = members.iter().map(|&i| s.id(i)).collect();
+                    ui_context[s.group(group)].inner_mut().set_members(ids);
+                }
             }
             roster
         };
@@ -1601,17 +1625,15 @@ fn spawn_editor(kind: ChildKind) {
 /// The arrangements the Layout dropdown offers, by name (`arrange`). `layout_exhibits` runs
 /// them at the toolkit's control gap (`layout::control_gap()`) with no padding — the
 /// exhibit area is already inset — so the page shows the rhythm controls get by default.
-const LAYOUTS: [(&str, Arrangement); 7] = [
+const LAYOUTS: [(&str, Arrangement); 5] = [
     ("Vertical", Arrangement::Vertical),
-    ("Columns", Arrangement::Columns),
     ("Grid", Arrangement::Grid { columns: 3 }),
     ("Adaptive Grid", Arrangement::AdaptiveGrid { min_col_width: 190.0 }),
     ("Mosaic", Arrangement::Mosaic),
     ("Reverse Mosaic", Arrangement::ReverseMosaic),
-    ("Overlay", Arrangement::Overlay),
 ];
 /// Mosaic: what the gallery opens on.
-const DEFAULT_LAYOUT: usize = 4;
+const DEFAULT_LAYOUT: usize = 3;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
 /// by `layout_exhibits` instead.
@@ -1736,10 +1758,105 @@ mod tests {
     fn the_exhibit_table_lists_every_exhibit_once() {
         let mut ui = UiContext::new();
         let extra = variant_exhibits(&mut ui);
-        let mut listed: Vec<usize> = exhibit_table(120.0, &extra).iter().map(|&(i, _, _)| i).collect();
+        let mut listed: Vec<usize> = exhibit_table(120.0, &extra).iter().map(|e| e.slot).collect();
         listed.sort_unstable();
         let exhibits: Vec<usize> = (0..GALLERY_COUNT + extra.len()).filter(|&i| is_exhibit(i)).collect();
         assert_eq!(listed, exhibits);
+    }
+
+    /// The gallery as it starts, in gallery mode.
+    fn gallery() -> State {
+        let (tx, _rx) = calloop::channel::channel::<String>();
+        <State as cce_ui::engine::Application>::create(tx.into())
+    }
+
+    fn overlap(a: cce_ui::scene::layout::Rect, b: cce_ui::scene::layout::Rect) -> bool {
+        // Half a pixel of slack: abutting rects are not overlapping ones.
+        let w = (a.x + a.width).min(b.x + b.width) - a.x.max(b.x);
+        let h = (a.y + a.height).min(b.y + b.height) - a.y.max(b.y);
+        w > 0.5 && h > 0.5
+    }
+
+    /// In every layout but Reverse Mosaic, at window sizes from narrow to wide, no exhibit
+    /// overlaps another — control or detached label — and every exhibit lies across the
+    /// well's floor; no Group's frame (out to its wall's outer half) or title tab takes in
+    /// an exhibit that is not its member, its tab covers no member either, and the two
+    /// Groups stay apart. Reverse Mosaic squashes its packing into the area when the
+    /// exhibits run taller than the window, so it is held to this only where they fit.
+    #[test]
+    fn no_layout_overlaps_its_exhibits() {
+        use cce_ui::scene::layout::Rect;
+        let mut st = gallery();
+        let mut failures = Vec::new();
+        let sizes = [(600.0, 800.0), (726.0, 912.0), (800.0, 600.0), (1000.0, 680.0), (1280.0, 800.0), (1600.0, 1000.0), (2400.0, 1400.0)];
+        for (sw, sh) in sizes {
+            st.width = sw;
+            st.height = sh;
+            st.relayout();
+            for (li, (name, kind)) in LAYOUTS.iter().enumerate() {
+                if *kind == Arrangement::ReverseMosaic && sw < 2400.0 {
+                    continue;
+                }
+                st.layout_idx = li;
+                st.apply_layout();
+                let ui = &st.ui_context;
+                let (floor, _) = st.exhibit_floor();
+                let at = format!("{sw}x{sh} {name}");
+                // Each exhibit's footprint: its rect (content and label strip) and its label.
+                let footprints: Vec<(usize, Rect)> = (0..st.roster.len())
+                    .filter(|&i| is_exhibit(i))
+                    .map(|i| {
+                        let w = st.roster.get_dyn(ui, i);
+                        let (x, y, ww, hh) = w.rect();
+                        let mut r = Rect { x, y, width: ww, height: hh };
+                        if let Some(l) = w.detached_label_rect() {
+                            let (x1, y1) = ((r.x + r.width).max(l.x + l.width), (r.y + r.height).max(l.y + l.height));
+                            r.x = r.x.min(l.x);
+                            r.y = r.y.min(l.y);
+                            r.width = x1 - r.x;
+                            r.height = y1 - r.y;
+                        }
+                        (i, r)
+                    })
+                    .collect();
+                for (k, &(i, a)) in footprints.iter().enumerate() {
+                    for &(j, b) in &footprints[k + 1..] {
+                        if overlap(a, b) {
+                            failures.push(format!("{at}: slot {i} {a:?} overlaps slot {j} {b:?}"));
+                        }
+                    }
+                    if a.x < floor.x - 0.5 || a.x + a.width > floor.x + floor.width + 0.5 {
+                        failures.push(format!("{at}: slot {i} {a:?} runs off the floor {floor:?}"));
+                    }
+                }
+                let s = st.roster.gallery();
+                let wall = cce_ui::layout::bevel_width() * 0.5;
+                let mut frames = Vec::new();
+                for (group, members) in GROUPS {
+                    let Some(f) = ui[s.group(group)].inner().frame(ui) else {
+                        failures.push(format!("{at}: Group {group} has no frame"));
+                        continue;
+                    };
+                    let body = Rect { x: f.body.x - wall, y: f.body.y - wall, width: f.body.width + 2.0 * wall, height: f.body.height + 2.0 * wall };
+                    for &(i, r) in &footprints {
+                        let member = members.contains(&i);
+                        if !member && overlap(body, r) {
+                            failures.push(format!("{at}: Group {group}'s frame {body:?} takes in slot {i} {r:?}"));
+                        }
+                        if f.tab.is_some_and(|t| overlap(t, r)) {
+                            failures.push(format!("{at}: Group {group}'s tab {:?} covers slot {i} {r:?}", f.tab));
+                        }
+                    }
+                    frames.push(body);
+                }
+                if let [a, b] = frames[..] {
+                    if overlap(a, b) {
+                        failures.push(format!("{at}: the Groups overlap, {a:?} and {b:?}"));
+                    }
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{} overlaps:\n{}", failures.len(), failures.join("\n"));
     }
 
     /// At its default size every kind of child window has its description (or editor)

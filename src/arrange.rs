@@ -1,18 +1,24 @@
-//! Where the exhibits go: the seven arrangements the `Layout` dropdown offers, as pure
+//! Where the exhibits go: the five arrangements the `Layout` dropdown offers, as pure
 //! functions from each exhibit's [`Block`] to the rect its CONTENT lands in.
 //!
-//! A block is a widget as an arrangement sees it: its width, its content height (the
-//! control below its detached label) and its label strip (the label's row above the
-//! content). Every arrangement but Overlay reserves the tallest strip among the blocks —
-//! the `lead` — above EVERY block's content, so a row of labeled and unlabeled controls
-//! lines up by content, and puts `gap` between blocks in both axes. [`arrange`] returns
-//! each block's content rect (its label hangs in the strip above it) and the height the
-//! arrangement takes, which the exhibit area scrolls over.
+//! A block is a widget as an arrangement sees it: its footprint width (the control, or its
+//! label where that runs wider), its content width and height (the control below its
+//! detached label) and its label strip (the label's row above the content). Every
+//! arrangement reserves the tallest strip among the blocks — the `lead` — above EVERY
+//! block's content, so a row of labeled and unlabeled controls lines up by content, and puts
+//! `gap` between footprints in both axes. [`arrange`] returns each block's content rect (its
+//! label hangs in the strip above it) and the height the arrangement takes, which the
+//! exhibit area scrolls over.
 //!
-//! These were cce-ui's `ContainerLayout` strategies, which the gallery was the one user of;
-//! they live here as arithmetic so the gallery lands its widgets itself (`layout_exhibits`),
-//! and they reproduce the strategies number for number, quirks included (each is noted on
-//! its arm).
+//! A [`Lasso`] (a `Group` drawn around some of the blocks) is arranged as ONE block: its
+//! members are laid out together inside it, and the block is their footprint plus the
+//! lasso's padding, with its title tab in the strip above. The group's frame — the padded
+//! hull of wherever its members land — is then that block, so it never takes in an exhibit
+//! that is not its own, and the arrangement leaves room for its tab.
+//!
+//! These began as cce-ui's `ContainerLayout` strategies, which the gallery was the one user
+//! of; they live here as arithmetic so the gallery lands its widgets itself
+//! (`layout_exhibits`). The quirks they kept from the toolkit are noted on their arms.
 
 use cce_ui::scene::layout::Rect;
 use cce_ui::widget::{WidgetHost, WidgetHostExt};
@@ -20,24 +26,42 @@ use cce_ui::widget::{WidgetHost, WidgetHostExt};
 /// One exhibit as an arrangement sees it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Block {
-    /// The block's width: what Mosaic packs (Vertical, Columns and the grids stretch it).
+    /// The block's footprint: what Mosaic packs and every arrangement keeps `gap` between.
+    /// At least the content width, wider where the detached label runs past the control.
     pub width: f32,
+    /// The control's own width, which a block that does not stretch is always laid out at.
+    pub content_w: f32,
     /// The content height below the label strip; 0 or less means "none", and the
     /// arrangements that stack blocks give it [`FALLBACK_H`].
     pub content_h: f32,
     /// The detached-label strip above the content (0 unlabeled).
     pub strip: f32,
+    /// Whether Vertical and the grids may widen the content to their cell. A control with
+    /// a size of its own — a grip, a dot, a square pad — keeps its width in the cell.
+    pub stretch: bool,
 }
 
 impl Block {
     /// A widget's block, read off it after it is seeded at its exhibit size: the width it
-    /// landed at, its declared content height (else its rect less the strip) and its
-    /// strip — what the toolkit strategies read off a child.
-    pub fn of(w: &dyn WidgetHost) -> Block {
-        let (_, _, width, h) = w.rect();
+    /// landed at, widened to its detached label's extent; its declared content height (else
+    /// its rect less the strip) and its strip.
+    pub fn of(w: &dyn WidgetHost, stretch: bool) -> Block {
+        let (x, _, width, h) = w.rect();
         let strip = w.label_strip();
-        Block { width, content_h: w.preferred_height().unwrap_or(h - strip), strip }
+        let label_w = w.detached_label_rect().map_or(0.0, |l| l.x + l.width - x);
+        Block { width: width.max(label_w), content_w: width, content_h: w.preferred_height().unwrap_or(h - strip), strip, stretch }
     }
+}
+
+/// A `Group` drawn around some of the blocks, arranged as one block (see the module doc).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lasso {
+    /// Indexes into the blocks, in the order they are laid out inside the lasso.
+    pub members: Vec<usize>,
+    /// The frame's inset around its members' hull.
+    pub padding: f32,
+    /// The title tab's height above the frame (0 untitled): the lasso block's strip.
+    pub tab: f32,
 }
 
 /// The content height a stacking arrangement gives a block that declares none.
@@ -46,11 +70,10 @@ pub const FALLBACK_H: f32 = 44.0;
 /// The arrangements, as the `Layout` dropdown lists them.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Arrangement {
-    /// One column, every block stretched to the area's width.
+    /// One column, every stretching block widened to the area's width.
     Vertical,
-    /// One equal column per block, every block the area's height.
-    Columns,
-    /// Masonry over a fixed number of columns: each block goes to the shortest column.
+    /// Masonry over a fixed number of columns — fewer where the widest block would not fit
+    /// in one: each block goes to the shortest column.
     Grid { columns: usize },
     /// [`Grid`](Arrangement::Grid) with as many columns of at least `min_col_width` as fit.
     AdaptiveGrid { min_col_width: f32 },
@@ -58,39 +81,131 @@ pub enum Arrangement {
     Mosaic,
     /// Mosaic's packing stretched, unevenly, over the whole area.
     ReverseMosaic,
-    /// Every block over the whole area.
-    Overlay,
 }
 
-/// Lay `blocks` out in `area` with `gap` between them: each block's content rect, in
-/// order, and the height the arrangement takes.
-pub fn arrange(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32) -> (Vec<Rect>, f32) {
+/// Lay `blocks` out in `area` with `gap` between them, each of `lassos` as one block: each
+/// block's content rect, in order, and the height the arrangement takes.
+pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect, gap: f32) -> (Vec<Rect>, f32) {
+    // The units the arrangement places: every block outside a lasso, and each lasso at
+    // the place of its first member.
+    enum Unit {
+        One(usize),
+        Lasso(usize),
+    }
+    let mut owner = vec![None; blocks.len()];
+    for (l, lasso) in lassos.iter().enumerate() {
+        for &m in &lasso.members {
+            owner[m] = Some(l);
+        }
+    }
+    let mut units = Vec::new();
+    let mut placed = vec![false; lassos.len()];
+    for (i, o) in owner.iter().enumerate() {
+        match *o {
+            None => units.push(Unit::One(i)),
+            Some(l) if !placed[l] => {
+                placed[l] = true;
+                units.push(Unit::Lasso(l));
+            }
+            Some(_) => {}
+        }
+    }
+    // Each lasso's members laid out inside it — stacked under Vertical, packed otherwise —
+    // at the width of the cell the lasso will get, from the frame's inner top-left.
+    let inner_kind = if kind == Arrangement::Vertical { Arrangement::Vertical } else { Arrangement::Mosaic };
+    let columns = grid_columns(kind, blocks, area, gap);
+    let cell = match kind {
+        Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => column_width(area, gap, columns),
+        Arrangement::Vertical | Arrangement::Mosaic | Arrangement::ReverseMosaic => area.width.max(1.0),
+    };
+    let inner: Vec<(Vec<Rect>, Block)> = lassos
+        .iter()
+        .map(|lasso| {
+            let p = lasso.padding;
+            let inner_w = (cell - 2.0 * p).max(1.0);
+            let members: Vec<Block> = lasso.members.iter().map(|&m| blocks[m]).collect();
+            let (rects, _) = arrange_blocks(inner_kind, &members, Rect { x: 0.0, y: 0.0, width: inner_w, height: 0.0 }, gap, 1);
+            let w = members.iter().zip(&rects).map(|(b, r)| r.x + r.width.max(b.width.min(inner_w))).fold(0.0, f32::max);
+            let h = rects.iter().map(|r| r.y + r.height).fold(0.0, f32::max);
+            let (bw, bh) = (w + 2.0 * p, h + 2.0 * p);
+            (rects, Block { width: bw, content_w: bw, content_h: bh, strip: lasso.tab, stretch: true })
+        })
+        .collect();
+    let unit_blocks: Vec<Block> = units
+        .iter()
+        .map(|u| match *u {
+            Unit::One(i) => blocks[i],
+            Unit::Lasso(l) => inner[l].1,
+        })
+        .collect();
+    let (unit_rects, height) = arrange_blocks(kind, &unit_blocks, area, gap, columns);
+    let mut rects = vec![Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }; blocks.len()];
+    for (u, ur) in units.iter().zip(unit_rects) {
+        match *u {
+            Unit::One(i) => rects[i] = ur,
+            Unit::Lasso(l) => {
+                let p = lassos[l].padding;
+                // Reverse Mosaic scales the lasso's block like any other; its members are
+                // scaled with it, padding included, so they stay inside it. Every other
+                // arrangement gives the block the height it asked for, and a cell at least
+                // as wide as the members were laid out for.
+                let (kx, ky) = match kind {
+                    Arrangement::ReverseMosaic => (ur.width / inner[l].1.width, ur.height / inner[l].1.content_h),
+                    _ => (1.0, 1.0),
+                };
+                for (&m, mr) in lassos[l].members.iter().zip(&inner[l].0) {
+                    let width = if blocks[m].stretch { mr.width * kx } else { mr.width };
+                    rects[m] = Rect { x: ur.x + (p + mr.x) * kx, y: ur.y + (p + mr.y) * ky, width, height: mr.height * ky };
+                }
+            }
+        }
+    }
+    (rects, height)
+}
+
+/// How many columns of at least `width` fit in `area`, one at the least.
+fn columns_of(area: Rect, gap: f32, width: f32) -> usize {
+    ((area.width.max(1.0) + gap) / (width + gap)).floor().max(1.0) as usize
+}
+
+/// A grid's column count: the one it asks for — a fixed number, or as many of the minimum
+/// width as fit — but never so many that the widest block (a footprint, label included)
+/// runs past its column into the next. 1 for the arrangements without columns.
+fn grid_columns(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32) -> usize {
+    let asked = match kind {
+        Arrangement::Grid { columns } => columns.max(1),
+        Arrangement::AdaptiveGrid { min_col_width } => columns_of(area, gap, min_col_width),
+        Arrangement::Vertical | Arrangement::Mosaic | Arrangement::ReverseMosaic => return 1,
+    };
+    let widest = blocks.iter().map(|b| b.width).fold(0.0, f32::max);
+    asked.min(columns_of(area, gap, widest))
+}
+
+fn column_width(area: Rect, gap: f32, columns: usize) -> f32 {
+    let cols = columns.max(1);
+    (area.width - gap * (cols - 1) as f32).max(1.0) / cols as f32
+}
+
+/// [`arrange`] without lassos: every block placed on its own, the grids over `columns`.
+fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, columns: usize) -> (Vec<Rect>, f32) {
     let lead = blocks.iter().map(|b| b.strip).fold(0.0, f32::max);
     match kind {
         Arrangement::Vertical => vertical(blocks, area, gap, lead),
-        Arrangement::Columns => columns(blocks, area, gap, lead),
-        Arrangement::Grid { columns } => grid(blocks, area, gap, lead, columns),
-        Arrangement::AdaptiveGrid { min_col_width } => {
-            let usable = area.width.max(1.0);
-            let columns = ((usable + gap) / (min_col_width + gap)).floor().max(1.0) as usize;
-            grid(blocks, area, gap, lead, columns)
-        }
+        Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => grid(blocks, area, gap, lead, columns),
         Arrangement::Mosaic => mosaic(blocks, area, gap, lead),
         Arrangement::ReverseMosaic => reverse_mosaic(blocks, area, gap, lead),
-        // Each block's OWN strip comes off the area, not the lead; the height is the area's.
-        Arrangement::Overlay => (
-            blocks
-                .iter()
-                .map(|b| Rect { x: area.x, y: area.y + b.strip, width: area.width, height: area.height - b.strip })
-                .collect(),
-            area.height,
-        ),
     }
 }
 
 /// A block's content height, [`FALLBACK_H`] when it declares none.
 fn stacked_h(b: &Block) -> f32 {
     if b.content_h > 0.0 { b.content_h } else { FALLBACK_H }
+}
+
+/// The content width a block gets in a cell `cell` wide: the cell's if it stretches, else
+/// its own, clamped to the cell.
+fn in_cell(b: &Block, cell: f32) -> f32 {
+    if b.stretch { cell } else { b.content_w.min(cell) }
 }
 
 /// The height counts the gap after the last block too.
@@ -100,28 +215,10 @@ fn vertical(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f3
     let mut rects = Vec::with_capacity(blocks.len());
     for b in blocks {
         let h = stacked_h(b);
-        rects.push(Rect { x: area.x, y: y + lead, width, height: h });
+        rects.push(Rect { x: area.x, y: y + lead, width: in_cell(b, width), height: h });
         y += lead + h + gap;
     }
     (rects, (y - area.y).max(0.0))
-}
-
-/// The blocks' own sizes play no part; the height is the area's less the lead.
-fn columns(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32) {
-    if blocks.is_empty() {
-        return (Vec::new(), 0.0);
-    }
-    let n = blocks.len();
-    let col_w = (area.width - gap * (n - 1) as f32).max(1.0) / n as f32;
-    let h = (area.height - lead).max(1.0);
-    let top = area.y + lead;
-    let mut x = area.x;
-    let mut rects = Vec::with_capacity(n);
-    for _ in blocks {
-        rects.push(Rect { x, y: top, width: col_w, height: h });
-        x += col_w + gap;
-    }
-    (rects, h)
 }
 
 /// A tie for the shortest column goes to the leftmost; the height is measured from the
@@ -131,7 +228,7 @@ fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (V
         return (Vec::new(), 0.0);
     }
     let cols = columns.max(1);
-    let col_w = (area.width - gap * (cols - 1) as f32).max(1.0) / cols as f32;
+    let col_w = column_width(area, gap, cols);
     let mut bottoms = vec![area.y; cols];
     let mut rects = Vec::with_capacity(blocks.len());
     for b in blocks {
@@ -143,14 +240,15 @@ fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (V
             }
         }
         let x = area.x + col as f32 * (col_w + gap);
-        rects.push(Rect { x, y: bottoms[col] + lead, width: col_w, height: h });
+        rects.push(Rect { x, y: bottoms[col] + lead, width: in_cell(b, col_w), height: h });
         bottoms[col] += lead + h + gap;
     }
     let bottom = bottoms.iter().copied().fold(0.0, f32::max);
     (rects, (bottom - area.y).max(0.0))
 }
 
-/// A block's content is clamped to the area's width, its packed footprint is not.
+/// Packs footprints; a block's content is its own width, clamped to the area's (its packed
+/// footprint is not).
 fn mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
@@ -161,14 +259,15 @@ fn mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32)
     for b in blocks {
         let h = stacked_h(b);
         let (x, y) = packer.pack(b.width, lead + h);
-        rects.push(Rect { x, y: y + lead, width: b.width.min(avail), height: h });
+        rects.push(Rect { x, y: y + lead, width: b.content_w.min(avail), height: h });
     }
     (rects, (packer.max_h - area.y).max(0.0))
 }
 
 /// Packs as Mosaic from the origin, then scales the packing's bounding box to the area —
-/// x and y by their own factors, the lead with the rest, the unclamped widths too. The
-/// height is the area's.
+/// x and y by their own factors, the lead with the rest, the unclamped footprints of the
+/// stretching blocks too (a block that does not stretch keeps its own width). The height
+/// is the area's, so a packing taller than the area is squashed into it.
 fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
@@ -192,12 +291,13 @@ fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rec
     }
     let sx = avail / (x_max - x_min).max(1.0);
     let sy = area.height.max(1.0) / (y_max - y_min).max(1.0);
-    let rects = packed
+    let rects = blocks
         .iter()
-        .map(|&(px, py, pw, ph)| Rect {
+        .zip(&packed)
+        .map(|(b, &(px, py, pw, ph))| Rect {
             x: area.x + (px - x_min) * sx,
             y: area.y + (py - y_min) * sy + lead * sy,
-            width: pw * sx,
+            width: if b.stretch { pw * sx } else { b.content_w },
             height: (ph - lead) * sy,
         })
         .collect();
@@ -260,7 +360,20 @@ mod tests {
     use super::*;
 
     fn block(width: f32, content_h: f32) -> Block {
-        Block { width, content_h, strip: 0.0 }
+        Block { width, content_w: width, content_h, strip: 0.0, stretch: true }
+    }
+
+    fn labeled(width: f32, content_h: f32, strip: f32) -> Block {
+        Block { strip, ..block(width, content_h) }
+    }
+
+    /// Place blocks with no lassos.
+    fn place(kind: Arrangement, blocks: &[Block], a: Rect, gap: f32) -> (Vec<Rect>, f32) {
+        arrange(kind, blocks, &[], a, gap)
+    }
+
+    fn overlaps(a: Rect, b: Rect) -> bool {
+        a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
     }
 
     fn area(x: f32, y: f32, width: f32, height: f32) -> Rect {
@@ -271,7 +384,7 @@ mod tests {
     #[test]
     fn mosaic_packs_top_left_first() {
         let blocks = [block(100.0, 50.0), block(100.0, 80.0), block(80.0, 40.0)];
-        let (r, _) = arrange(Arrangement::Mosaic, &blocks, area(15.0, 25.0, 240.0, 490.0), 10.0);
+        let (r, _) = place(Arrangement::Mosaic, &blocks, area(15.0, 25.0, 240.0, 490.0), 10.0);
         assert_eq!((r[0].x, r[0].y), (15.0, 25.0));
         assert_eq!((r[1].x, r[1].y), (15.0, 85.0));
         assert_eq!((r[2].x, r[2].y), (125.0, 25.0));
@@ -281,7 +394,7 @@ mod tests {
     #[test]
     fn reverse_mosaic_stretches_the_packing_over_the_area() {
         let blocks = [block(100.0, 50.0), block(100.0, 80.0), block(80.0, 40.0)];
-        let (r, h) = arrange(Arrangement::ReverseMosaic, &blocks, area(15.0, 25.0, 240.0, 290.0), 10.0);
+        let (r, h) = place(Arrangement::ReverseMosaic, &blocks, area(15.0, 25.0, 240.0, 290.0), 10.0);
         assert_eq!(h, 290.0);
         assert_eq!((r[0].x, r[0].y), (15.0, 25.0));
         assert!((r[0].width - 126.315).abs() < 0.01, "{:?}", r[0]);
@@ -296,32 +409,24 @@ mod tests {
     fn a_block_without_a_height_gets_the_fallback() {
         let blocks = [block(100.0, 0.0), block(100.0, -3.0)];
         for kind in [Arrangement::Vertical, Arrangement::Grid { columns: 2 }, Arrangement::Mosaic] {
-            let (r, _) = arrange(kind, &blocks, area(0.0, 0.0, 400.0, 400.0), 10.0);
+            let (r, _) = place(kind, &blocks, area(0.0, 0.0, 400.0, 400.0), 10.0);
             assert!(r.iter().all(|r| r.height == FALLBACK_H), "{kind:?}: {r:?}");
         }
     }
 
     #[test]
     fn vertical_counts_the_trailing_gap() {
-        let blocks = [Block { width: 50.0, content_h: 20.0, strip: 6.0 }, block(50.0, 30.0)];
-        let (r, h) = arrange(Arrangement::Vertical, &blocks, area(5.0, 10.0, 200.0, 0.0), 4.0);
+        let blocks = [labeled(50.0, 20.0, 6.0), block(50.0, 30.0)];
+        let (r, h) = place(Arrangement::Vertical, &blocks, area(5.0, 10.0, 200.0, 0.0), 4.0);
         // Both blocks keep the lead row, the labeled one's and the unlabeled one's alike.
         assert_eq!(r, vec![area(5.0, 16.0, 200.0, 20.0), area(5.0, 46.0, 200.0, 30.0)]);
         assert_eq!(h, (6.0 + 20.0 + 4.0) + (6.0 + 30.0 + 4.0));
     }
 
     #[test]
-    fn columns_ignore_the_blocks_and_fill_the_area_under_the_lead() {
-        let blocks = [Block { width: 999.0, content_h: 5.0, strip: 8.0 }, block(1.0, 500.0)];
-        let (r, h) = arrange(Arrangement::Columns, &blocks, area(0.0, 0.0, 210.0, 100.0), 10.0);
-        assert_eq!(r, vec![area(0.0, 8.0, 100.0, 92.0), area(110.0, 8.0, 100.0, 92.0)]);
-        assert_eq!(h, 92.0);
-    }
-
-    #[test]
     fn grid_ties_go_to_the_leftmost_column() {
         let blocks = [block(1.0, 10.0), block(1.0, 10.0), block(1.0, 30.0), block(1.0, 5.0)];
-        let (r, h) = arrange(Arrangement::Grid { columns: 2 }, &blocks, area(0.0, 0.0, 90.0, 0.0), 10.0);
+        let (r, h) = place(Arrangement::Grid { columns: 2 }, &blocks, area(0.0, 0.0, 90.0, 0.0), 10.0);
         let xy: Vec<_> = r.iter().map(|r| (r.x, r.y)).collect();
         assert_eq!(xy, vec![(0.0, 0.0), (50.0, 0.0), (0.0, 20.0), (50.0, 20.0)]);
         assert_eq!(h, 60.0);
@@ -330,18 +435,10 @@ mod tests {
     #[test]
     fn adaptive_grid_fits_as_many_columns_as_the_minimum_allows() {
         let blocks = [block(1.0, 10.0); 4];
-        let (r, _) = arrange(Arrangement::AdaptiveGrid { min_col_width: 100.0 }, &blocks, area(0.0, 0.0, 320.0, 0.0), 10.0);
+        let (r, _) = place(Arrangement::AdaptiveGrid { min_col_width: 100.0 }, &blocks, area(0.0, 0.0, 320.0, 0.0), 10.0);
         // (320 + 10) / (100 + 10) = 3 columns.
         let xs: Vec<_> = r.iter().map(|r| r.x).collect();
         assert_eq!(xs, vec![0.0, 110.0, 220.0, 0.0]);
-    }
-
-    #[test]
-    fn overlay_takes_each_blocks_own_strip() {
-        let blocks = [Block { width: 1.0, content_h: 1.0, strip: 12.0 }, block(1.0, 1.0)];
-        let (r, h) = arrange(Arrangement::Overlay, &blocks, area(3.0, 4.0, 50.0, 60.0), 10.0);
-        assert_eq!(r, vec![area(3.0, 16.0, 50.0, 48.0), area(3.0, 4.0, 50.0, 60.0)]);
-        assert_eq!(h, 60.0);
     }
 
     /// A block too tall for any free rect opens a row at the first free rect's x — here the
@@ -349,7 +446,7 @@ mod tests {
     #[test]
     fn mosaic_opens_a_row_at_the_first_free_rect() {
         let blocks = [block(50.0, 20.0), block(50.0, 200000.0)];
-        let (r, _) = arrange(Arrangement::Mosaic, &blocks, area(0.0, 0.0, 200.0, 0.0), 10.0);
+        let (r, _) = place(Arrangement::Mosaic, &blocks, area(0.0, 0.0, 200.0, 0.0), 10.0);
         assert_eq!((r[1].x, r[1].y), (60.0, 30.0));
     }
 
@@ -358,15 +455,80 @@ mod tests {
         let a = area(1.0, 2.0, 30.0, 40.0);
         for kind in [
             Arrangement::Vertical,
-            Arrangement::Columns,
             Arrangement::Grid { columns: 3 },
             Arrangement::AdaptiveGrid { min_col_width: 10.0 },
             Arrangement::Mosaic,
             Arrangement::ReverseMosaic,
         ] {
-            assert_eq!(arrange(kind, &[], a, 5.0), (Vec::new(), 0.0), "{kind:?}");
+            assert_eq!(place(kind, &[], a, 5.0), (Vec::new(), 0.0), "{kind:?}");
         }
-        assert_eq!(arrange(Arrangement::Overlay, &[], a, 5.0), (Vec::new(), 40.0));
+    }
+
+    /// A label wider than its control widens the block's footprint, not the control: the
+    /// next block packs past the label, and the control keeps its own width.
+    #[test]
+    fn a_wide_label_widens_the_footprint() {
+        let grip = Block { width: 70.0, content_w: 6.0, ..labeled(70.0, 100.0, 20.0) };
+        let (r, _) = place(Arrangement::Mosaic, &[grip, block(100.0, 50.0)], area(0.0, 0.0, 400.0, 0.0), 24.0);
+        assert_eq!(r[0], area(0.0, 20.0, 6.0, 100.0));
+        assert_eq!(r[1].x, 70.0 + 24.0);
+    }
+
+    /// Vertical and the grids widen a stretching block to its cell; a block that does not
+    /// stretch keeps its own width there.
+    #[test]
+    fn a_fixed_block_keeps_its_width_in_a_cell() {
+        let dot = Block { stretch: false, content_w: 12.0, ..block(80.0, 12.0) };
+        for kind in [Arrangement::Vertical, Arrangement::Grid { columns: 2 }, Arrangement::AdaptiveGrid { min_col_width: 100.0 }] {
+            let (r, _) = place(kind, &[dot, block(80.0, 12.0)], area(0.0, 0.0, 300.0, 0.0), 10.0);
+            assert_eq!(r[0].width, 12.0, "{kind:?}");
+            assert!(r[1].width > 80.0, "{kind:?}: {:?}", r[1]);
+        }
+    }
+
+    /// A grid holds fewer columns than it asks for where its widest block would not fit in
+    /// one: three asked of 300px with a 120px block is two.
+    #[test]
+    fn a_grid_drops_columns_its_widest_block_would_overrun() {
+        let blocks = [block(120.0, 10.0), block(10.0, 10.0), block(10.0, 10.0)];
+        let (r, _) = place(Arrangement::Grid { columns: 3 }, &blocks, area(0.0, 0.0, 300.0, 0.0), 10.0);
+        let xs: Vec<_> = r.iter().map(|r| r.x).collect();
+        assert_eq!(xs, vec![0.0, 155.0, 0.0]);
+    }
+
+    /// A lasso is one block: its members land together inside it, one padding in, below its
+    /// tab, and the padded hull they make — the group's frame — takes in no other block,
+    /// whatever lies between the members in order, in every arrangement.
+    #[test]
+    fn a_lasso_keeps_its_members_together_and_others_out() {
+        let blocks = [
+            labeled(100.0, 40.0, 20.0),
+            labeled(100.0, 40.0, 20.0), // member
+            block(150.0, 60.0),
+            labeled(80.0, 12.0, 20.0), // member
+            block(120.0, 30.0),
+        ];
+        let (p, tab) = (6.0, 22.0);
+        let lasso = Lasso { members: vec![1, 3], padding: p, tab };
+        for kind in [
+            Arrangement::Vertical,
+            Arrangement::Grid { columns: 2 },
+            Arrangement::AdaptiveGrid { min_col_width: 150.0 },
+            Arrangement::Mosaic,
+            Arrangement::ReverseMosaic,
+        ] {
+            let (r, _) = arrange(kind, &blocks, std::slice::from_ref(&lasso), area(0.0, 0.0, 400.0, 2000.0), 24.0);
+            // The footprints: content plus strip above, at the footprint width.
+            let fp = |i: usize| Rect { x: r[i].x, y: r[i].y - blocks[i].strip, width: r[i].width.max(blocks[i].width), height: r[i].height + blocks[i].strip };
+            let hull = [1, 3].iter().map(|&i| fp(i)).reduce(|a, b| {
+                let (x0, y0) = (a.x.min(b.x), a.y.min(b.y));
+                Rect { x: x0, y: y0, width: (a.x + a.width).max(b.x + b.width) - x0, height: (a.y + a.height).max(b.y + b.height) - y0 }
+            }).unwrap();
+            let frame = Rect { x: hull.x - p, y: hull.y - p - tab, width: hull.width + 2.0 * p, height: hull.height + 2.0 * p + tab };
+            for i in [0, 2, 4] {
+                assert!(!overlaps(frame, fp(i)), "{kind:?}: the frame {frame:?} takes in block {i} {:?}", fp(i));
+            }
+        }
     }
 
     /// What the gallery reads off a widget, and what it arranges: its real exhibits.
@@ -405,9 +567,10 @@ mod tests {
         fn a_block_takes_the_declared_height_else_the_rect_less_its_strip() {
             let mut m = Mock { base: Widget::new(), strip: 18.0, declared: Declared(None) };
             m.set_rect(5.0, 6.0, 190.0, 18.0 + 40.0);
-            assert_eq!(Block::of(&m), Block { width: 190.0, content_h: 40.0, strip: 18.0 });
+            let b = Block { width: 190.0, content_w: 190.0, content_h: 40.0, strip: 18.0, stretch: true };
+            assert_eq!(Block::of(&m, true), b);
             m.declared = Declared(Some(24.0));
-            assert_eq!(Block::of(&m), Block { width: 190.0, content_h: 24.0, strip: 18.0 });
+            assert_eq!(Block::of(&m, false), Block { content_h: 24.0, stretch: false, ..b });
         }
 
         /// Every entry of the Layout dropdown places every exhibit of the real table somewhere
@@ -417,11 +580,16 @@ mod tests {
             let mut ui = UiContext::new();
             let extra = crate::variant_exhibits(&mut ui);
             let table = crate::exhibit_table(120.0, &extra);
-            let blocks: Vec<Block> =
-                table.iter().enumerate().map(|(k, &(_, width, content_h))| Block { width, content_h, strip: [0.0, 18.0][k % 2] }).collect();
+            let blocks: Vec<Block> = table
+                .iter()
+                .enumerate()
+                .map(|(k, e)| Block { width: e.w, content_w: e.w, content_h: e.h, strip: [0.0, 18.0][k % 2], stretch: e.stretch })
+                .collect();
+            let slots: Vec<usize> = table.iter().map(|e| e.slot).collect();
+            let lassos = crate::lassos(&slots, |_| (6.0, 22.0));
             let area = Rect { x: 28.0, y: 131.0, width: 944.0, height: 489.0 };
             for (name, kind) in crate::LAYOUTS {
-                let (rects, height) = arrange(kind, &blocks, area, cce_ui::layout::control_gap());
+                let (rects, height) = arrange(kind, &blocks, &lassos, area, cce_ui::layout::control_gap());
                 assert_eq!(rects.len(), blocks.len(), "{name}");
                 assert!(height.is_finite() && height > 0.0, "{name}: {height}");
                 for r in &rects {
