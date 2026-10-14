@@ -20,7 +20,8 @@ out on its own surface, and the bevel ramp file's parsing.
 One page, the widget gallery: one of each widget `cce_ui::widget` exports
 that stands on its own. Inputs: Button, ButtonStrip, Checkbox, Toggle, Slider and
 RangeSlider (bands that swell at the value, the one slider style), Slider2D,
-Spinbox, Float3, TextBox, KeybindRecorder,
+Spinbox, SliderSpinbox (a slider with a spinbox at its right end, here an
+int), Float3, TextBox, KeybindRecorder,
 ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
 TreeList, Plate, BevelPreview, RampPreview, Ramp. No chrome frames it: the
@@ -30,7 +31,8 @@ exhibit area runs down to the window's foot.
 After those come the variants: every further look a widget can take, one
 exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
 constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
-`new_copy_icon`), a builder (`with_readout` on Slider; `with_multiline`,
+`new_copy_icon`; `SliderSpinbox::new_float`, to two decimals), a builder
+(`with_readout` on Slider; `with_multiline`,
 `with_draw_bg_border(false)` and `with_password` on TextBox; `with_vertical`
 on ButtonStrip, and the Paginator built on it). ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
 plain Label round it off. When a widget gains a style, it gains an exhibit
@@ -158,7 +160,7 @@ for example). Nothing else is bound; the `cce-gallery` domain of
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 33 named slots (`GallerySlots`) followed by the variant exhibits
+  roster of 34 named slots (`GallerySlots`) followed by the variant exhibits
   (`variant_exhibits`, a `Vec<Exhibit>` of widgets the context owns), all
   addressed by numeric index in the layout tables, visibility filters and
   dispatch loops; child windows use `ChildSlots` — five slots for a test

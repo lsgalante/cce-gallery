@@ -1,7 +1,7 @@
 use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
-use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, WidgetHostExt};
+use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, SliderSpinbox, WidgetHostExt};
 mod arrange;
 use arrange::{arrange, Arrangement, Block, Lasso};
 mod gallery_widgets;
@@ -158,7 +158,7 @@ impl Visibility {
     }
 }
 
-/// The gallery roster: 33 named slots. The numeric indexes used by the positions
+/// The gallery roster: 34 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `Roster::id` / `get_dyn` / `get_dyn_mut`.
 pub struct GallerySlots {
@@ -200,6 +200,8 @@ pub struct GallerySlots {
     /// the exhibit clip.
     pub group_loose: Handle<Adapted<Group>>,
     pub group_fitted: Handle<Adapted<Group>>,
+    /// Slot 33, after the lassos: a widget newer than the rest of the roster.
+    pub slider_spinbox_demo: Handle<Adapted<SliderSpinbox>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -207,7 +209,7 @@ pub struct GallerySlots {
 
 /// The number of NAMED gallery slots; the variant exhibits follow them, so the roster's
 /// `len` is this plus `GallerySlots::extra.len()`.
-pub const GALLERY_COUNT: usize = 33;
+pub const GALLERY_COUNT: usize = 34;
 
 /// A variant exhibit: a widget in a style other than the one its named slot shows, with
 /// the content size `layout_exhibits` resets it to.
@@ -239,6 +241,10 @@ impl Exhibit {
         self
     }
 }
+
+/// A SliderSpinbox exhibit's width: the spinbox, its gap, and a band as long as a plain
+/// slider exhibit's.
+const SLIDER_SPINBOX_W: f32 = 190.0 + SliderSpinbox::GAP + SliderSpinbox::SPINBOX_W;
 
 /// An exhibit's slot and the content size it is reset to before it is arranged.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -320,6 +326,7 @@ impl GallerySlots {
             30 => self.splitter_demo.id(),
             31 => self.group_loose.id(),
             32 => self.group_fitted.id(),
+            33 => self.slider_spinbox_demo.id(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -556,6 +563,8 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
         Exhibit::new(ctx, Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh).fixed(),
         // Slider: with a readout.
         Exhibit::new(ctx, Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
+        // SliderSpinbox: a float to two decimals, stepped by 0.05 (the named slot is an int).
+        Exhibit::new(ctx, SliderSpinbox::new_float(0.5, 0.0, 1.0, 0.05, 2).with_label("SliderSpinbox (float)"), SLIDER_SPINBOX_W, slh),
         // TextBox: multiline, chromeless, password.
         Exhibit::sized(
             ctx,
@@ -615,7 +624,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
     // Whether the exhibit stretches to a Vertical or grid cell (`ExhibitSize::stretch`).
     const FIT: bool = true;
     const OWN: bool = false;
-    let raw: [(usize, f32, f32, bool); 29] = [
+    let raw: [(usize, f32, f32, bool); 30] = [
         (1, W, bh, FIT),                               // Button
         (18, W, bh, FIT),                              // ButtonStrip
         (2, W, tgh, FIT),                              // Checkbox (a toggle row)
@@ -645,6 +654,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (12, W, CANVAS_H, FIT),                        // Ramp (its editor declares 150)
         (11, W, bh, FIT),                              // Color Ramp...
         (13, W, bh, FIT),                              // Ramp...
+        (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
     ];
     let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch }).collect();
     sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch }));
@@ -654,7 +664,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
 /// The exhibits: every slot but the lassos (31, 32) and the header dropdowns
 /// (14 Layout, 0 Style), which `layout_exhibits` lays out under the header row.
 fn is_exhibit(i: usize) -> bool {
-    matches!(i, 1..=13 | 15..=30) || i >= GALLERY_COUNT
+    matches!(i, 1..=13 | 15..=30 | 33) || i >= GALLERY_COUNT
 }
 
 /// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
@@ -682,6 +692,18 @@ impl State {
     fn focused_slot(&self) -> Option<usize> {
         let id = self.ui_context.focused_widget?;
         (0..self.roster.len()).find(|&i| self.roster.id(i) == id)
+    }
+
+    /// Whether the window's focus is on `root` or a widget under it in the ui tree.
+    fn focus_within(&self, root: WidgetId) -> bool {
+        let mut at = self.ui_context.focused_widget;
+        while let Some(id) = at {
+            if id == root {
+                return true;
+            }
+            at = self.ui_context.tree.parent_id(id);
+        }
+        false
     }
 
     /// Write a Ramp editor's curve to the bevel ramp file if it differs from what the
@@ -1036,6 +1058,7 @@ impl cce_ui::engine::Application for State {
                 // settings page, and the fitted lasso's padding is what insets the exhibits.
                 group_loose: ctx.insert(Group::new(Vec::new()).with_label("Group").with_padding(6.0)),
                 group_fitted: ctx.insert(Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0)),
+                slider_spinbox_demo: ctx.insert(SliderSpinbox::new_int(5, 0, 10, 1).with_label("SliderSpinbox")),
                 extra: variant_exhibits(ctx),
             }))
         };
@@ -1466,9 +1489,12 @@ impl cce_ui::engine::Application for State {
             };
             if button == MouseButton::Left {
                 // A press anywhere else takes the focus from whatever holds it — the
-                // slot last clicked, or a widget Tab moved to.
+                // slot last clicked, a widget Tab moved to, or one inside a slot (a
+                // SliderSpinbox's box being typed in). A press on the holder itself keeps
+                // it: a click that moves the caret must not end the typing.
                 if let Some(holder) = self.ui_context.focused_widget {
-                    if clicked_idx.map(|i| self.roster.id(i)) != Some(holder) {
+                    let on_holder = self.ui_context.get_widget(holder).is_some_and(|w| w.hit_test(lx, ly, &self.ui_context));
+                    if !on_holder {
                         self.ui_context.unfocus_id(holder);
                     }
                 }
@@ -1487,7 +1513,9 @@ impl cce_ui::engine::Application for State {
                     let id = self.roster.id(i);
                     self.ui_context.drag_target = Some(id);
                 }
-                if button == MouseButton::Left {
+                // The slot pressed takes the focus, unless the press gave it to a widget
+                // inside the slot (an embedded child that opened for typing).
+                if button == MouseButton::Left && !self.focus_within(self.roster.id(i)) {
                     self.ui_context.focus_id(self.roster.id(i));
                 }
             }
