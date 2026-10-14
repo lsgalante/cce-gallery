@@ -673,7 +673,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (3, W, tgh, OWN),                              // Toggle (its switch is drawn for its own width)
         (5, W, slh, FIT),                              // Slider
         (7, W, rsh, FIT),                              // RangeSlider
-        (19, s2d_w, 64.0, OWN),                        // Slider2D (a 64px pad)
+        (19, s2d_w, 120.0, OWN),                       // Slider2D (a 120px pad)
         (6, W, sph, FIT),                              // Spinbox
         (20, W, Float3::preferred_height(false), FIT), // Float3 (three slider rows)
         (9, W, tbh, FIT),                              // TextBox
