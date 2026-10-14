@@ -71,8 +71,8 @@ Every exhibit is drawn at its toolkit default size — the control's configured
 `style.control.<name>.height`, or the intrinsic size the widget declares — so
 the page is a record of the defaults; only the draw-in canvases (Trackpad,
 Plate, TreeList, the previews, the Ramp) are sized here. The `Layout` dropdown
-picks how the exhibits are arranged — Vertical, Adaptive Grid, Mosaic
-(the default), Reverse Mosaic — at the toolkit's control gap
+picks how the exhibits are arranged — Vertical, Adaptive Grid (the default),
+Mosaic, Reverse Mosaic — at the toolkit's control gap
 (`layout::control_gap()`, one control height, the one gap the row builders use
 in both axes). Vertical and Adaptive Grid widen a control to its cell, except one
 with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,

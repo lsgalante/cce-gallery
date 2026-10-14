@@ -1720,8 +1720,8 @@ const LAYOUTS: [(&str, Arrangement); 4] = [
     ("Mosaic", Arrangement::Mosaic),
     ("Reverse Mosaic", Arrangement::ReverseMosaic),
 ];
-/// Mosaic: what the gallery opens on.
-const DEFAULT_LAYOUT: usize = 2;
+/// Adaptive Grid: what the gallery opens on.
+const DEFAULT_LAYOUT: usize = 1;
 
 /// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
 /// by `layout_exhibits` instead.
@@ -2028,6 +2028,12 @@ mod tests {
             assert!(label_end <= x + width, "{name}: the label ends at {label_end}, past {}", x + width);
             assert!(x + width - label_end <= 2.0, "{name}: {} px past the label", x + width - label_end);
         }
+    }
+
+    /// The default is an index into `LAYOUTS`: adding or removing a layout shifts it.
+    #[test]
+    fn the_gallery_opens_on_adaptive_grid() {
+        assert_eq!(LAYOUTS[DEFAULT_LAYOUT].0, "Adaptive Grid");
     }
 
     /// Adaptive Grid keeps every column its minimum width allows at a tiled window's width
