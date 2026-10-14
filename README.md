@@ -36,7 +36,9 @@ constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
 `new_copy_icon`; `SliderSpinbox::new_float`, to two decimals), a builder
 (`with_readout` on Slider; `with_multiline`,
 `with_draw_bg_border(false)` and `with_password` on TextBox; `with_vertical`
-on ButtonStrip, and the Paginator built on it). ColorSelector shows its alpha swatch, and the four StatusDot statuses and the
+on ButtonStrip, and the Paginator built on it). ColorSelector shows its alpha swatch,
+InteractiveListItem a selected row (its style in the subtitle: the row draws
+its own text, and the name with the style does not fit one line), and the four StatusDot statuses and the
 plain Label round it off. When a widget gains a style, it gains an exhibit
 here.
 

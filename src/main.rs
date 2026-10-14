@@ -614,6 +614,20 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
         Exhibit::sized(ctx, Paginator::new(three()).with_label("Paginator"), W, tabs_h),
         // ColorSelector: the alpha swatch.
         Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
+        // InteractiveListItem: selected, its highlight wash (the named slot's shows only
+        // under the pointer).
+        Exhibit::sized(
+            ctx,
+            {
+                // The style rides in the subtitle: "<Widget> (selected)" as one title
+                // line is wider than the exhibit, and the row clips its text.
+                let mut row = InteractiveListItem::new("InteractiveListItem").with_subtitle("(selected)");
+                row.selected = true;
+                row
+            },
+            W,
+            2.0 * ddh,
+        ),
         // Label: the plain text widget.
         Exhibit::new(ctx, Label::new("Label"), W, ddh),
         // StatusDot: the other three statuses. A dot is 12px square; its label is wider,
@@ -1064,7 +1078,10 @@ impl cce_ui::engine::Application for State {
                 usage_bar_demo: ctx.insert(UsageBar::new(0.62).with_label("UsageBar")),
                 status_dot_demo: ctx.insert(StatusDot::new(DotStatus::Active).with_label("StatusDot")),
                 info_box_demo: ctx.insert(InfoBox::new("InfoBox", vec!["A titled box of".to_string(), "plain text lines.".to_string()])),
-                list_item_demo: ctx.insert(InteractiveListItem::new("InteractiveListItem")),
+                // A row as the settings pages draw theirs: a name over a detail line.
+                // Without the subtitle it was one line of text with no wash at rest,
+                // indistinguishable from a Label.
+                list_item_demo: ctx.insert(InteractiveListItem::new("InteractiveListItem").with_subtitle("A title over a subtitle")),
                 breadcrumb_demo: {
                     let mut b = Breadcrumb::new();
                     b.path = vec!["home".to_string(), "lsgalante".to_string(), "projects".to_string()];
