@@ -68,9 +68,10 @@ in both axes). Vertical and the grids widen a control to its cell, except one
 with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,
 the StatusDots, the copy-icon button, the vertical ButtonStrip), which keeps
 its width there; a grid drops columns rather than let its widest exhibit run
-into the next. Reverse Mosaic stretches Mosaic's packing over the area — and
-squashes it into the area when the exhibits run taller than the window, where
-its exhibits overlap. The arrangements are the gallery's own arithmetic
+into the next. Reverse Mosaic spreads Mosaic's packing over the area: the
+exhibits' places, and the widths of the ones that stretch, scale to fill it,
+while every exhibit keeps its own height; when they run taller than the
+window it keeps Mosaic's rows and scrolls, never squashing them. The arrangements are the gallery's own arithmetic
 (`src/arrange.rs`: each exhibit's block in, its content rect out; they began
 as cce-ui's `ContainerLayout` strategies), and the gallery lands each widget
 at its rect through `layout`: an arrangement places controls' CONTENT boxes

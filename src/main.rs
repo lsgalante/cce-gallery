@@ -1777,12 +1777,12 @@ mod tests {
         w > 0.5 && h > 0.5
     }
 
-    /// In every layout but Reverse Mosaic, at window sizes from narrow to wide, no exhibit
-    /// overlaps another — control or detached label — and every exhibit lies across the
-    /// well's floor; no Group's frame (out to its wall's outer half) or title tab takes in
-    /// an exhibit that is not its member, its tab covers no member either, and the two
-    /// Groups stay apart. Reverse Mosaic squashes its packing into the area when the
-    /// exhibits run taller than the window, so it is held to this only where they fit.
+    /// In every layout, at window sizes from narrow to wide, no exhibit overlaps another —
+    /// control or detached label — and every exhibit lies across the well's floor; no
+    /// Group's frame (out to its wall's outer half) or title tab takes in an exhibit that is
+    /// not its member, its tab covers no member either, and the two Groups stay apart. The
+    /// sizes run from ones the exhibits overflow (they scroll) to ones they fit with room
+    /// to spare (Reverse Mosaic spreads them out).
     #[test]
     fn no_layout_overlaps_its_exhibits() {
         use cce_ui::scene::layout::Rect;
@@ -1793,10 +1793,7 @@ mod tests {
             st.width = sw;
             st.height = sh;
             st.relayout();
-            for (li, (name, kind)) in LAYOUTS.iter().enumerate() {
-                if *kind == Arrangement::ReverseMosaic && sw < 2400.0 {
-                    continue;
-                }
+            for (li, (name, _)) in LAYOUTS.iter().enumerate() {
                 st.layout_idx = li;
                 st.apply_layout();
                 let ui = &st.ui_context;

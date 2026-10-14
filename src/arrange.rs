@@ -79,7 +79,8 @@ pub enum Arrangement {
     AdaptiveGrid { min_col_width: f32 },
     /// Blocks packed at their own widths, top-left first.
     Mosaic,
-    /// Mosaic's packing stretched, unevenly, over the whole area.
+    /// Mosaic's packing spread, unevenly, over the whole area: the blocks' places and the
+    /// stretching blocks' widths scale to fill it, every height stays the block's own.
     ReverseMosaic,
 }
 
@@ -145,17 +146,17 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
             Unit::One(i) => rects[i] = ur,
             Unit::Lasso(l) => {
                 let p = lassos[l].padding;
-                // Reverse Mosaic scales the lasso's block like any other; its members are
-                // scaled with it, padding included, so they stay inside it. Every other
-                // arrangement gives the block the height it asked for, and a cell at least
-                // as wide as the members were laid out for.
-                let (kx, ky) = match kind {
-                    Arrangement::ReverseMosaic => (ur.width / inner[l].1.width, ur.height / inner[l].1.content_h),
-                    _ => (1.0, 1.0),
+                // Reverse Mosaic widens the lasso's block like any other stretching block; its
+                // members spread across it, padding included, so they stay inside it. Every
+                // arrangement gives the block the height it asked for, and every other one a
+                // cell at least as wide as the members were laid out for.
+                let kx = match kind {
+                    Arrangement::ReverseMosaic => ur.width / inner[l].1.width,
+                    _ => 1.0,
                 };
                 for (&m, mr) in lassos[l].members.iter().zip(&inner[l].0) {
                     let width = if blocks[m].stretch { mr.width * kx } else { mr.width };
-                    rects[m] = Rect { x: ur.x + (p + mr.x) * kx, y: ur.y + (p + mr.y) * ky, width, height: mr.height * ky };
+                    rects[m] = Rect { x: ur.x + (p + mr.x) * kx, y: ur.y + p + mr.y, width, height: mr.height };
                 }
             }
         }
@@ -264,10 +265,13 @@ fn mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32)
     (rects, (packer.max_h - area.y).max(0.0))
 }
 
-/// Packs as Mosaic from the origin, then scales the packing's bounding box to the area —
-/// x and y by their own factors, the lead with the rest, the unclamped footprints of the
-/// stretching blocks too (a block that does not stretch keeps its own width). The height
-/// is the area's, so a packing taller than the area is squashed into it.
+/// Packs as Mosaic from the origin, then spreads the packing's bounding box over the area:
+/// the blocks' places scale, x and y by their own factors, and so do the unclamped
+/// footprints of the stretching blocks (a block that does not stretch keeps its own width).
+/// Heights do not: every block keeps its own, under the lead, and the vertical factor is
+/// never below 1 — a packing taller than the area keeps Mosaic's rows and runs past it to
+/// scroll, rather than being squashed into it. Scaling places by 1 or more only widens the
+/// gaps the packing left, so blocks that did not overlap packed do not overlap spread.
 fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
@@ -290,18 +294,18 @@ fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rec
         y_max = y_max.max(py + ph);
     }
     let sx = avail / (x_max - x_min).max(1.0);
-    let sy = area.height.max(1.0) / (y_max - y_min).max(1.0);
+    let sy = (area.height.max(1.0) / (y_max - y_min).max(1.0)).max(1.0);
     let rects = blocks
         .iter()
         .zip(&packed)
         .map(|(b, &(px, py, pw, ph))| Rect {
             x: area.x + (px - x_min) * sx,
-            y: area.y + (py - y_min) * sy + lead * sy,
+            y: area.y + (py - y_min) * sy + lead,
             width: if b.stretch { pw * sx } else { b.content_w },
-            height: (ph - lead) * sy,
+            height: ph - lead,
         })
         .collect();
-    (rects, area.height)
+    (rects, (y_max - y_min) * sy)
 }
 
 /// A guillotine packer over free rects: each block takes the topmost (then leftmost) free
@@ -390,19 +394,32 @@ mod tests {
         assert_eq!((r[2].x, r[2].y), (125.0, 25.0));
     }
 
-    /// cce-ui's `test_reverse_mosaic_layout` golden numbers.
+    /// The packing (0,0 100x50; 0,60 100x80; 110,0 80x40 — 190 by 140) spread over 240 by
+    /// 290: places and widths by 240/190, places by 290/140, every height its own.
     #[test]
-    fn reverse_mosaic_stretches_the_packing_over_the_area() {
+    fn reverse_mosaic_spreads_the_packing_over_the_area() {
         let blocks = [block(100.0, 50.0), block(100.0, 80.0), block(80.0, 40.0)];
         let (r, h) = place(Arrangement::ReverseMosaic, &blocks, area(15.0, 25.0, 240.0, 290.0), 10.0);
         assert_eq!(h, 290.0);
         assert_eq!((r[0].x, r[0].y), (15.0, 25.0));
         assert!((r[0].width - 126.315).abs() < 0.01, "{:?}", r[0]);
-        assert!((r[0].height - 103.57).abs() < 0.01, "{:?}", r[0]);
+        assert!((r[1].y - (25.0 + 60.0 * 290.0 / 140.0)).abs() < 0.01, "{:?}", r[1]);
         assert!((r[2].x - 153.947).abs() < 0.01, "{:?}", r[2]);
         assert_eq!(r[2].y, 25.0);
         assert!((r[2].width - 101.05).abs() < 0.01, "{:?}", r[2]);
-        assert!((r[2].height - 82.857).abs() < 0.01, "{:?}", r[2]);
+        assert_eq!([r[0].height, r[1].height, r[2].height], [50.0, 80.0, 40.0]);
+    }
+
+    /// A packing taller than the area keeps Mosaic's rows and its own height, to scroll: the
+    /// widths still spread, nothing is squashed.
+    #[test]
+    fn reverse_mosaic_never_squashes_a_tall_packing() {
+        let blocks = [block(100.0, 50.0), block(100.0, 80.0), block(80.0, 40.0)];
+        let (r, h) = place(Arrangement::ReverseMosaic, &blocks, area(15.0, 25.0, 240.0, 100.0), 10.0);
+        assert_eq!(h, 140.0);
+        assert_eq!(r[1].y, 25.0 + 60.0);
+        assert_eq!([r[0].height, r[1].height, r[2].height], [50.0, 80.0, 40.0]);
+        assert!((r[0].width - 126.315).abs() < 0.01, "{:?}", r[0]);
     }
 
     #[test]
