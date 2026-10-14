@@ -11,8 +11,9 @@ It is a *visual* test harness: you look at what it draws and what the
 compositor does with the windows it spawns. Its unit tests (`cargo test -p
 cce-gallery`) cover the exhibit arrangements (`src/arrange.rs`), that no
 layout overlaps its exhibits or lets a Group frame take in one that is not its
-member, and that a Group's padding is even on every side (the real page, at
-window sizes from 600 to 2400 wide), that the
+member, that a Group's padding is even on every side, and that the gaps down
+the stacking layouts' columns are all the control gap (the real page, at window
+sizes from 600 to 2400 wide), that the
 exhibit table names every exhibit once, that every kind of child window lays
 out on its own surface, and the bevel ramp file's parsing.
 
@@ -56,7 +57,7 @@ treats each group as ONE block: its members are laid out together inside it
 fit across the group's cell, and stacked when they do not), each under its own
 label strip alone — a group has no shared label row, so an unlabelled member
 sits at the top beside a labelled one — and the block is their footprint, its
-title tab riding in the label row the arrangement reserves above every block.
+title tab riding in the label strip the arrangement reserves above the block.
 The frame hangs one padding outside the block on every side, into the gaps
 around it. A frame therefore never takes in an exhibit that is not its member,
 its padding is the same on all four sides, and its members start in the same
@@ -85,8 +86,11 @@ at its rect through `layout`: an arrangement places controls' CONTENT boxes
 and keeps the gap between FOOTPRINTS — a control, or its detached label where
 that runs wider (the Splitter's, a StatusDot's) — a detached label hangs in
 the gap above its control,
-mixed labeled and unlabeled controls line up by content (an arrangement
-reserves the tallest label row above every exhibit), every detached label is the adapter's — the
+mixed labeled and unlabeled controls packed side by side line up by content
+(Mosaic and Reverse Mosaic reserve the tallest label row above every exhibit),
+while Vertical and the grids, which stack exhibits in columns, give each only
+its own label strip, so the gap down a column is the same above a labeled
+control and an unlabeled one; every detached label is the adapter's — the
 one label convention: drawn in the strip above the control at the same
 `DETACHED_LABEL_INSET`, never inside the control's well (no control carves a
 tab for its label; the recess is the control alone) — and every well, trough and raised plateau is carved

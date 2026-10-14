@@ -2039,6 +2039,57 @@ mod tests {
         }
     }
 
+    /// Down every column of the stacking layouts — Vertical and the grids — the gap from one
+    /// exhibit's foot to the next one's top is the control gap, whether the next has a label
+    /// or not: each reserves its own label strip and no shared row (a shared one put 46 px
+    /// over an unlabeled exhibit and 26 over a labeled one). A Group counts by its block —
+    /// its members, under its tab — the frame hanging one padding outside it.
+    #[test]
+    fn stacked_layouts_space_their_columns_evenly() {
+        let mut st = gallery();
+        let gap = cce_ui::layout::control_gap();
+        let mut failures = Vec::new();
+        let stacking = |k: &Arrangement| matches!(k, Arrangement::Vertical | Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. });
+        for (sw, sh) in [(600.0, 800.0), (726.0, 912.0), (1000.0, 680.0), (1600.0, 1000.0)] {
+            st.width = sw;
+            st.height = sh;
+            st.relayout();
+            for (li, (name, kind)) in LAYOUTS.iter().enumerate() {
+                if !stacking(kind) {
+                    continue;
+                }
+                st.layout_idx = li;
+                st.apply_layout();
+                let ui = &st.ui_context;
+                let member = |i: usize| GROUPS.iter().any(|(_, m)| m.contains(&i));
+                // (column x, top, bottom, what)
+                let mut units: Vec<(i32, f32, f32, String)> = (0..st.roster.len())
+                    .filter(|&i| is_exhibit(i) && !member(i))
+                    .map(|i| {
+                        let w = st.roster.get_dyn(ui, i);
+                        let (x, y, _, h) = w.rect();
+                        let top = w.detached_label_rect().map_or(y, |l| l.y.min(y));
+                        (x.round() as i32, top, y + h, format!("slot {i}"))
+                    })
+                    .collect();
+                for (group, _) in GROUPS {
+                    let g = ui[st.roster.gallery().group(group)].inner();
+                    let (p, f) = (g.padding(), g.frame(ui).expect("a frame"));
+                    let tab = f.tab.map_or(f.body.y - g.tab_height(), |t| t.y);
+                    units.push(((f.body.x + p).round() as i32, tab + p, f.body.y + f.body.height - p, format!("Group {group}")));
+                }
+                units.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+                for pair in units.windows(2) {
+                    let (a, b) = (&pair[0], &pair[1]);
+                    if a.0 == b.0 && ((b.1 - a.2) - gap).abs() > 0.5 {
+                        failures.push(format!("{sw}x{sh} {name}: {} to {} is {:.1}, not {gap}", a.3, b.3, b.1 - a.2));
+                    }
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
     /// Scrolled all the way down, in every layout and at every window size, the lowest
     /// exhibit ends as far above the well's floor as the first row starts below it — two
     /// paddings — so none is cut off by the wall at the foot of the area.

@@ -3,10 +3,13 @@
 //!
 //! A block is a widget as an arrangement sees it: its footprint width (the control, or its
 //! label where that runs wider), its content width and height (the control below its
-//! detached label) and its label strip (the label's row above the content). Every
-//! arrangement reserves the tallest strip among the blocks — the `lead` — above EVERY
-//! block's content, so a row of labeled and unlabeled controls lines up by content, and puts
-//! `gap` between footprints in both axes. [`arrange`] returns each block's content rect (its
+//! detached label) and its label strip (the label's row above the content). Mosaic and Reverse
+//! Mosaic, which pack blocks side by side, reserve the tallest strip among the blocks — the
+//! `lead` — above EVERY block's content, so labeled and unlabeled controls packed beside each
+//! other line up by content. Vertical and the grids stack blocks in columns, where nothing
+//! stands beside a block to line up with: each block reserves its own strip and no more, so
+//! the gap down a column is the same above a labeled block and an unlabeled one. Every
+//! arrangement puts `gap` between footprints in both axes. [`arrange`] returns each block's content rect (its
 //! label hangs in the strip above it) and the height the arrangement takes, which the
 //! exhibit area scrolls over.
 //!
@@ -204,8 +207,18 @@ fn column_width(area: Rect, gap: f32, columns: usize) -> f32 {
 fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, columns: usize) -> (Vec<Rect>, f32) {
     let lead = blocks.iter().map(|b| b.strip).fold(0.0, f32::max);
     match kind {
-        Arrangement::Vertical => vertical(blocks, area, gap, lead),
-        Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => grid(blocks, area, gap, lead, columns),
+        Arrangement::Vertical | Arrangement::Grid { .. } | Arrangement::AdaptiveGrid { .. } => {
+            // Stacked in columns: each block's strip is its own, part of its height, and no
+            // lead is shared — a lead row over an unlabeled block was 22 px of nothing, and
+            // the gap above it nearly twice the gap above a labeled one.
+            let whole: Vec<Block> = blocks.iter().map(|b| Block { content_h: stacked_h(b) + b.strip, strip: 0.0, ..*b }).collect();
+            let (rects, h) = match kind {
+                Arrangement::Vertical => vertical(&whole, area, gap, 0.0),
+                _ => grid(&whole, area, gap, 0.0, columns),
+            };
+            let content = blocks.iter().zip(rects).map(|(b, r)| Rect { y: r.y + b.strip, height: r.height - b.strip, ..r }).collect();
+            (content, h)
+        }
         Arrangement::Mosaic => mosaic(blocks, area, gap, lead),
         Arrangement::ReverseMosaic => reverse_mosaic(blocks, area, gap, lead),
     }
@@ -471,9 +484,9 @@ mod tests {
     fn vertical_counts_the_trailing_gap() {
         let blocks = [labeled(50.0, 20.0, 6.0), block(50.0, 30.0)];
         let (r, h) = place(Arrangement::Vertical, &blocks, area(5.0, 10.0, 200.0, 0.0), 4.0);
-        // Both blocks keep the lead row, the labeled one's and the unlabeled one's alike.
-        assert_eq!(r, vec![area(5.0, 16.0, 200.0, 20.0), area(5.0, 46.0, 200.0, 30.0)]);
-        assert_eq!(h, (6.0 + 20.0 + 4.0) + (6.0 + 30.0 + 4.0));
+        // Each block keeps its own strip: the labeled one its 6, the unlabeled one none.
+        assert_eq!(r, vec![area(5.0, 16.0, 200.0, 20.0), area(5.0, 40.0, 200.0, 30.0)]);
+        assert_eq!(h, (6.0 + 20.0 + 4.0) + (30.0 + 4.0));
     }
 
     #[test]
