@@ -158,12 +158,14 @@ impl Visibility {
     }
 }
 
-/// The gallery roster: 32 named slots. The numeric indexes used by the positions
+/// The gallery roster: 34 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `Roster::id` / `get_dyn` / `get_dyn_mut`.
 pub struct GallerySlots {
-    pub menu_bar: Handle<Adapted<MenuBar>>,
     pub status_bar: Handle<Adapted<StatusBar>>,
+    /// The Style dropdown (slot 1), beside Layout in the header: Relief or Flat
+    /// for every control at once (`cce_ui::layout::set_control_relief`).
+    pub style_dd: Handle<Adapted<Dropdown>>,
     pub button_demo: Handle<Adapted<Button>>,
     pub checkbox_demo: Handle<Adapted<Checkbox>>,
     pub toggle_demo: Handle<Adapted<Toggle>>,
@@ -198,9 +200,6 @@ pub struct GallerySlots {
     /// exhibits — laid out by their members, drawn under the exhibit clip.
     pub group_loose: Handle<Adapted<Group>>,
     pub group_fitted: Handle<Adapted<Group>>,
-    /// The Style dropdown (slot 34), beside Layout in the header: Relief or Flat
-    /// for every control at once (`cce_ui::layout::set_control_relief`).
-    pub style_dd: Handle<Adapted<Dropdown>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -208,7 +207,7 @@ pub struct GallerySlots {
 
 /// The number of NAMED gallery slots; the variant exhibits follow them, so the roster's
 /// `len` is this plus `GallerySlots::extra.len()`.
-pub const GALLERY_COUNT: usize = 35;
+pub const GALLERY_COUNT: usize = 34;
 
 /// A variant exhibit: a widget in a style other than the one its named slot shows, with
 /// the content size `layout_exhibits` resets it to.
@@ -248,8 +247,8 @@ impl GallerySlots {
             return self.extra[idx - GALLERY_COUNT].id;
         }
         match idx {
-            0 => self.menu_bar.id(),
-            1 => self.status_bar.id(),
+            0 => self.status_bar.id(),
+            1 => self.style_dd.id(),
             2 => self.button_demo.id(),
             3 => self.checkbox_demo.id(),
             4 => self.toggle_demo.id(),
@@ -282,7 +281,6 @@ impl GallerySlots {
             31 => self.splitter_demo.id(),
             32 => self.group_loose.id(),
             33 => self.group_fitted.id(),
-            34 => self.style_dd.id(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -355,12 +353,12 @@ impl Roster {
         }
     }
 
-    /// The selected entry of a header dropdown (15 Layout, 34 Style).
+    /// The selected entry of a header dropdown (15 Layout, 1 Style).
     pub fn value(&self, ui: &UiContext, idx: usize) -> i32 {
         let s = self.gallery();
         match idx {
             15 => ui[s.layout_dd].value(),
-            34 => ui[s.style_dd].value(),
+            1 => ui[s.style_dd].value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -574,8 +572,8 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<(usize, f32, f32)> {
     sizes
 }
 
-/// The exhibits: every slot but the chrome (0, 1), the lassos (32, 33) and the
-/// header dropdowns (15 Layout, 34 Style), which `layout_exhibits` lays out under
+/// The exhibits: every slot but the status bar (0), the lassos (32, 33) and the
+/// header dropdowns (15 Layout, 1 Style), which `layout_exhibits` lays out under
 /// the header row.
 fn is_exhibit(i: usize) -> bool {
     matches!(i, 2..=14 | 16..=31) || i >= GALLERY_COUNT
@@ -731,7 +729,7 @@ impl State {
     }
 
     /// Hear what the widgets reported since the last sweep (`UiContext::take_events`) and
-    /// act on it: Layout (15) picks the arrangement, Style (34) switches every control
+    /// act on it: Layout (15) picks the arrangement, Style (1) switches every control
     /// between Relief and Flat (`set_control_relief` — the toolkit reads it live at paint,
     /// so a rebuild is all it takes), `Color Ramp...` and `Ramp...` open their editors, and
     /// a child's Close ends it — the returned message. Any report repaints; every other
@@ -763,7 +761,7 @@ impl State {
             self.layout_idx = self.roster.value(&self.ui_context, 15) as usize;
         }
         if style {
-            cce_ui::layout::set_control_relief(self.roster.value(&self.ui_context, 34) == 0);
+            cce_ui::layout::set_control_relief(self.roster.value(&self.ui_context, 1) == 0);
         }
         if layout || style {
             self.relayout();
@@ -791,7 +789,7 @@ impl State {
             }
             let visible = self.is_widget_visible(i);
             let (x, y, w, h) = self.positions[i];
-            if visible && (i == 15 || i == 34) {
+            if visible && (i == 15 || i == 1) {
                 // The header dropdowns land through `layout` at their own preferred
                 // height: `y` is where the label goes, the content sits a strip below.
                 self.ui_context.lend(self.roster.id(i), |widget, ctx| {
@@ -900,13 +898,7 @@ impl cce_ui::engine::Application for State {
             let close = ctx.insert(Button::new(0.0, 0.0, 100.0, cce_ui::layout::button_height()).with_label("Close"));
             Roster::Child(Box::new(ChildSlots { ids: [bg, main, close.id(), aux3, aux4], close }))
         } else {
-            let menu_bar = MenuBar::new(0.0, 0.0, c_w, 40.0)
-                .with_item("File", &["Exit"])
-                .with_item("Edit", &["Settings"])
-                .with_item("Help", &["About"])
-                .with_right_aligned_title(true);
             Roster::Gallery(Box::new(GallerySlots {
-                menu_bar: ctx.insert(menu_bar),
                 status_bar: ctx.insert(StatusBar::new()),
                 button_demo: ctx.insert(Button::new(0.0, 0.0, 140.0, cce_ui::layout::button_height()).with_label("Button")),
                 checkbox_demo: ctx.insert(Checkbox::new().with_label("Checkbox")),
@@ -1622,24 +1614,23 @@ const DEFAULT_LAYOUT: usize = 4;
 /// by `layout_exhibits` instead.
 fn demo_positions(sw: f32, sh: f32, count: usize) -> Vec<(f32, f32, f32, f32)> {
     let mut vec = vec![(0.0, 0.0, 0.0, 0.0); count];
-    vec[0] = (0.0, 0.0, sw, 40.0); // MenuBar
-    vec[1] = (0.0, sh - 24.0, sw, 24.0); // StatusBar
+    vec[0] = (0.0, sh - 24.0, sw, 24.0); // StatusBar
     // The header dropdowns; the exhibits below them are laid out by
     // `layout_exhibits` with the arrangement Layout selects. Their heights are the
     // widgets' own preferred heights (`apply_layout`); the ones here are placeholders.
-    // Both stand on the root plate: one inset in from the window's side, one root
-    // gap below the menu bar's band.
+    // Both stand on the root plate: one inset in from the window's side, under the
+    // title line `display_list` paints at the inset, one root gap below it.
     let inset = cce_ui::layout::root_plate_inset();
     let gap = cce_ui::layout::root_plate_gap();
-    let header_y = 40.0 + gap;
+    let header_y = inset + CHILD_TITLE_SIZE + gap;
     vec[15] = (inset, header_y, 190.0, 0.0);
     // The Style dropdown, one root gap to its right.
-    vec[34] = (inset + 190.0 + gap, header_y, 190.0, 0.0);
+    vec[1] = (inset + 190.0 + gap, header_y, 190.0, 0.0);
     vec
 }
 
-/// A child window's title, painted by `display_list` when it has no MenuBar to
-/// carry it; the description below leaves this line of headroom.
+/// A window's title, painted by `display_list` when it has no MenuBar to carry it
+/// (the gallery never does); what lies below leaves this line of headroom.
 const CHILD_TITLE_SIZE: f32 = 16.0;
 
 /// The five `ChildSlots` rects for a child window of `sw`x`sh`: 0 background,

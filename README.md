@@ -19,8 +19,9 @@ RangeSlider (bands that swell at the value, the one slider style), Slider2D,
 Spinbox, Float3, TextBox, KeybindRecorder,
 ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
-TreeList, Plate, BevelPreview, RampPreview, Ramp. The MenuBar and StatusBar
-frame it.
+TreeList, Plate, BevelPreview, RampPreview, Ramp. The window's title stands
+on the root plate above the header dropdowns, and the StatusBar runs along
+the bottom.
 
 After those come the variants: every further look a widget can take, one
 exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
