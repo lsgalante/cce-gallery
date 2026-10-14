@@ -694,7 +694,7 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines)
         (24, W, 2.0 * ddh, FIT),                       // InteractiveListItem (title + subtitle)
         (25, W, bh, FIT),                              // Breadcrumb (button plates)
-        (TREELIST_SLOT, W, CANVAS_H, FIT),             // TreeList (across two grid columns: `span`)
+        (TREELIST_SLOT, W, 2.0 * CANVAS_H, FIT),       // TreeList (two canvases tall, across two grid columns: `span`)
         (8, W, CANVAS_H, FIT),                         // Trackpad
         (10, W, CANVAS_H, FIT),                        // Plate
         (27, W, CANVAS_H, FIT),                        // BevelPreview
@@ -1095,10 +1095,17 @@ impl cce_ui::engine::Application for State {
                 },
                 tree_list_demo: {
                     let mut t = TreeList::new();
+                    // More keys than its height shows, of each value type, so the
+                    // exhibit fills its list and scrolls it.
                     t.set_flat_keys(vec![
                         ("layout/bar_height".to_string(), serde_json::json!(24)),
+                        ("layout/control_relief".to_string(), serde_json::json!(true)),
+                        ("layout/corner_radius".to_string(), serde_json::json!(6)),
                         ("layout/gap".to_string(), serde_json::json!(12)),
+                        ("style/animations".to_string(), serde_json::json!(true)),
+                        ("theme/accent".to_string(), serde_json::json!("#4080ff")),
                         ("theme/name".to_string(), serde_json::json!("cce")),
+                        ("theme/opacity".to_string(), serde_json::json!(0.92)),
                     ]);
                     t.rebuild_tree();
                     ctx.insert(t.with_label("TreeList"))
