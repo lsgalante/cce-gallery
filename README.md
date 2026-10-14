@@ -52,7 +52,8 @@ FontSelector and the StatusDot, and `Group (fitted)` around the top row,
 fitted to the exhibit area's edges (`GROUPS` in `src/main.rs`). A group's
 frame is the padded hull of wherever its members land, so the arrangement
 treats each group as ONE block: its members are laid out together inside it
-(stacked under Vertical, in top-aligned rows otherwise), each under its own
+(stacked under Vertical; otherwise side by side, top-aligned, when they all
+fit across the group's cell, and stacked when they do not), each under its own
 label strip alone — a group has no shared label row, so an unlabelled member
 sits at the top beside a labelled one — and the block is their footprint, its
 title tab riding in the label row the arrangement reserves above every block.

@@ -113,7 +113,8 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
             Some(_) => {}
         }
     }
-    // Each lasso's members laid out inside it — stacked under Vertical, in rows otherwise —
+    // Each lasso's members laid out inside it — stacked under Vertical, else in one row
+    // if they fit across it and stacked if not —
     // at the width of the cell the lasso will get, from the block's top-left. Each member
     // reserves its own label strip and no one else's: a block of content and strip together.
     let columns = grid_columns(kind, blocks, area, gap);
@@ -127,8 +128,8 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
             let inner_w = cell.max(1.0);
             let members: Vec<Block> = lasso.members.iter().map(|&m| blocks[m]).collect();
             let whole: Vec<Block> = members.iter().map(|b| Block { content_h: stacked_h(b) + b.strip, strip: 0.0, ..*b }).collect();
-            // Stacked under Vertical; in rows otherwise (`flow`: Mosaic's packer would put a
-            // member taller than the one before it on a row of its own).
+            // Stacked under Vertical; else one row or one each (`flow`: Mosaic's packer
+            // would put a member taller than the one before it on a row of its own).
             let at = Rect { x: 0.0, y: 0.0, width: inner_w, height: 0.0 };
             let placed = match kind {
                 Arrangement::Vertical => arrange_blocks(Arrangement::Vertical, &whole, at, gap, 1).0,
@@ -210,22 +211,25 @@ fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, col
     }
 }
 
-/// Blocks in rows, left to right, a row wrapping before a block that would run past the area's
-/// width; each row as tall as its tallest block, every block at its row's top and at its own
-/// size. What a lasso's members are laid out by outside Vertical.
+/// Blocks in ONE row, left to right, each at its row's top and at its own size, when they all
+/// fit across the area; else one to a row, each at the area's left edge. What a lasso's
+/// members are laid out by outside Vertical. Not a row that wraps wherever the widths happen
+/// to break: that put one member on a row, two on the next and one on the last, the middle
+/// one lined up with nothing, and the breaks moved with the window.
 fn flow(blocks: &[Block], area: Rect, gap: f32) -> Vec<Rect> {
     let avail = area.width.max(1.0);
-    let (mut x, mut y, mut row_h) = (area.x, area.y, 0.0f32);
+    let row_w: f32 = blocks.iter().map(|b| b.width.min(avail)).sum::<f32>() + gap * blocks.len().saturating_sub(1) as f32;
+    let one_row = row_w <= avail;
+    let (mut x, mut y) = (area.x, area.y);
     let mut out = Vec::with_capacity(blocks.len());
     for b in blocks {
-        let w = b.width.min(avail);
-        if x > area.x && x + w > area.x + avail {
-            (x, y, row_h) = (area.x, y + row_h + gap, 0.0);
-        }
-        let h = stacked_h(b);
+        let (w, h) = (b.width.min(avail), stacked_h(b));
         out.push(Rect { x, y, width: b.content_w.min(avail), height: h });
-        x += w + gap;
-        row_h = row_h.max(h);
+        if one_row {
+            x += w + gap;
+        } else {
+            y += h + gap;
+        }
     }
     out
 }
@@ -549,6 +553,24 @@ mod tests {
         assert_eq!(r[0].y, 50.0 + 22.0, "the unlabelled member at the block's top");
         assert_eq!(r[1].y - 20.0, r[0].y, "the labelled one's strip at the same top");
         assert_eq!(r[2].x, 10.0 + 100.0 + 24.0 + 100.0 + 24.0, "the next block a gap past the members");
+    }
+
+    /// A lasso's members share one row when they all fit across its cell, and otherwise take a
+    /// row each at the cell's left edge — never a row wrapped wherever the widths break.
+    #[test]
+    fn a_lassos_members_share_a_row_or_take_one_each() {
+        let blocks = [block(100.0, 24.0), labeled(100.0, 24.0, 20.0), block(50.0, 24.0)];
+        let lasso = Lasso { members: vec![0, 1, 2], padding: 6.0, tab: 22.0 };
+        let place_in = |w: f32| arrange(Arrangement::Mosaic, &blocks, std::slice::from_ref(&lasso), area(0.0, 0.0, w, 0.0), 24.0).0;
+        // 100 + 24 + 100 + 24 + 50 = 298: one row at 300.
+        let r = place_in(300.0);
+        assert_eq!(r.iter().map(|r| r.x).collect::<Vec<_>>(), vec![0.0, 124.0, 248.0]);
+        assert!(r[0].y == r[2].y);
+        // At 250 the last would have wrapped beside nothing; instead every member stacks.
+        let r = place_in(250.0);
+        assert!(r.iter().all(|r| r.x == 0.0), "{r:?}");
+        let tops: Vec<f32> = r.iter().map(|r| r.y).collect();
+        assert_eq!(tops, vec![22.0, 22.0 + 24.0 + 24.0 + 20.0, 22.0 + 24.0 + 24.0 + 44.0 + 24.0]);
     }
 
     /// A grid holds fewer columns than it asks for where its widest block would not fit in
