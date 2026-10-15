@@ -20,7 +20,10 @@ exhibit table names every exhibit once and no exhibit is a Paginator, that the
 Relief page shows every tile apart on the floor in every layout and none of the
 widget page (not painted, not hit, not a Tab stop) and that switching back
 restores it, that a switch scrolls to the top, ends a press or drag held across
-it without clicking a held button and closes the context menu, that the header wraps where its
+it without clicking a held button and closes the context menu, that Tab from
+the header reaches the Ramp exhibit and walks into its dropdowns, that a click
+on the Ramp's dropdown leaves the keyboard there (and a press on nothing or a
+page switch takes it), that the header wraps where its
 dropdowns do not fit one row (down to widths under one dropdown), where an
 editor window is anchored, that every kind of child window lays
 out on its own surface, the disc plate tile's face, and the bevel ramp file's
@@ -256,7 +259,10 @@ curve.
 
 Escape quits, unless a widget consumed it first (a dropdown closing its menu,
 for example). Nothing else is bound; the `cce-gallery` domain of
-`~/.config/cce/input.kdl` is free for the toolkit-wide chords.
+`~/.config/cce/input.kdl` is free for the toolkit-wide chords. Tab and
+Shift+Tab are the toolkit's walk over the exhibits; a Ramp or ColorRamp is one
+stop, entered on its graph or track, that walks its own controls before the
+walk moves on. The Ramp editor opens with its graph holding the keyboard.
 
 ## Layout of the source
 

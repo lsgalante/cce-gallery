@@ -866,9 +866,11 @@ impl State {
         (0..self.roster.len()).find(|&i| self.roster.id(i) == id)
     }
 
-    /// Whether the window's focus is on `root` or a widget under it in the ui tree.
+    /// Whether the window's focus is on `root` or a widget under it in the ui tree. Asked of
+    /// the holder (`focus_holder`): a Ramp's dropdown with the keyboard is a field the ramp
+    /// holds by value, in no tree, so the ramp is where the focus is.
     fn focus_within(&self, root: WidgetId) -> bool {
-        self.ui_context.focused_widget.is_some_and(|id| self.holds(root, id))
+        self.ui_context.focus_holder().is_some_and(|id| self.holds(root, id))
     }
 
     /// Whether `id` is `root` or a widget under it in the ui tree.
@@ -1169,7 +1171,7 @@ impl State {
         self.exhibit_scroll.scroll_y = 0.0;
         let vis = self.visibility();
         let hidden = (0..self.roster.len()).any(|i| !vis.is_visible(i) && self.focus_within(self.roster.id(i)));
-        if let Some(holder) = self.ui_context.focused_widget.filter(|_| hidden) {
+        if let Some(holder) = self.ui_context.focus_holder().filter(|_| hidden) {
             self.ui_context.unfocus_id(holder);
         }
         self.relayout();
@@ -1412,10 +1414,10 @@ impl cce_ui::engine::Application for State {
         };
 
         if child_kind == Some(ChildKind::Ramp) {
-            // A Ramp editor opens with the ramp focused, which hands its first field, the
-            // preset dropdown, the keyboard at once. Every other child starts with nothing
-            // focused: the key sweep in handle_key_input reaches every visible slot anyway,
-            // and a click focuses whatever it lands on.
+            // A Ramp editor opens with the ramp focused, its graph holding the keyboard: the
+            // arrows pick a key at once, and Tab walks on to its controls. Every other child
+            // starts with nothing focused: the key sweep in handle_key_input reaches every
+            // visible slot anyway, and a click focuses whatever it lands on.
             let ramp_id = state.roster.id(1);
             state.ui_context.set_focused_id(ramp_id);
         }
@@ -1784,6 +1786,11 @@ impl cce_ui::engine::Application for State {
         let is_visible = move |index: usize| vis.is_visible(index);
 
         if state == ElementState::Pressed {
+            // A press that only moves the keyboard still redraws: a focused control's lit
+            // rim (a ramp's graph, a well) follows the focus, and a press no widget
+            // handled — on bare floor (the exhibit scroll frame drops the focus), or a
+            // ramp's body below its track — set nothing else.
+            let holder_before = self.ui_context.focus_holder();
             // The exhibit area's scrollbar takes a press on its track before any
             // exhibit — while it is RAISED. A sunk bar is behind the well's floor
             // and is not hit, so a press on its lane falls through to the exhibit
@@ -1806,8 +1813,9 @@ impl cce_ui::engine::Application for State {
                 // A press anywhere else takes the focus from whatever holds it — the
                 // slot last clicked, a widget Tab moved to, or one inside a slot (a
                 // SliderSpinbox's box being typed in). A press on the holder itself keeps
-                // it: a click that moves the caret must not end the typing.
-                if let Some(holder) = self.ui_context.focused_widget {
+                // it: a click that moves the caret must not end the typing. The holder is
+                // the Ramp, not its dropdown, while a field of the ramp's has the keyboard.
+                if let Some(holder) = self.ui_context.focus_holder() {
                     let on_holder = self.ui_context.get_widget(holder).is_some_and(|w| w.hit_test(lx, ly, &self.ui_context));
                     if !on_holder {
                         self.ui_context.unfocus_id(holder);
@@ -1833,6 +1841,9 @@ impl cce_ui::engine::Application for State {
                 if button == MouseButton::Left && !self.focus_within(self.roster.id(i)) {
                     self.ui_context.focus_id(self.roster.id(i));
                 }
+            }
+            if self.ui_context.focus_holder() != holder_before {
+                changed = true;
             }
         } else {
             // The router delivers DragEnd to the drag target on the first propagate call
@@ -3041,6 +3052,31 @@ mod tests {
         }
     }
 
+    /// A press that only moves the keyboard asks for a frame: with the ColorRamp focused (its
+    /// track lit), a press on bare floor clears the focus and must redraw, or the rim stays
+    /// lit until something else repaints.
+    #[test]
+    fn a_press_that_only_moves_the_focus_redraws() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        let mut st = gallery();
+        (st.width, st.height) = (1400.0, 1000.0);
+        st.relayout();
+        st.apply_layout();
+        let ramp = st.roster.id(COLOR_RAMP_SLOT);
+        st.ui_context.set_focused_id(ramp);
+        assert_eq!(st.ui_context.focus_holder(), Some(ramp));
+        // A point on the exhibit floor that no slot covers.
+        let (vx, vy, vw, vh) = st.exhibit_viewport();
+        let bare = (0..60)
+            .flat_map(|i| (0..60).map(move |j| (vx + vw * (i as f32 + 0.5) / 60.0, vy + vh * (j as f32 + 0.5) / 60.0)))
+            .find(|&(x, y)| (0..st.roster.len()).all(|k| !st.roster.get_dyn(&st.ui_context, k).hit_test(x, y, &st.ui_context)))
+            .expect("some bare floor at 1400x1000");
+        let mut needs_rebuild = false;
+        st.handle_mouse_input(MouseButton::Left, ElementState::Pressed, LogicalPosition::new(bare.0, bare.1), &mut needs_rebuild);
+        assert_eq!(st.ui_context.focus_holder(), None, "the press on bare floor took the focus");
+        assert!(needs_rebuild, "the focus moved but no frame was asked for");
+    }
+
     /// A page switch closes the shared context menu an exhibit's right-click opened: its
     /// rows act on that exhibit, which the switch hides.
     #[test]
@@ -3112,5 +3148,88 @@ mod tests {
         assert_eq!(keys.iter().map(|k| k.pos).collect::<Vec<_>>(), vec![0.2, 0.9]);
         assert_eq!(line_type, "linear");
         assert!(parse_bevel_ramp("keys {\n    key pos=nan val=0\n}\n").is_none());
+    }
+
+    /// Tab from the header walks the stops through the runner (`Driver::key`, as the shell
+    /// calls it) to the Ramp exhibit, which it enters on the graph — the ramp itself focused
+    /// — then walks into the ramp's dropdowns, fields the ramp holds (`focus_holder`), and
+    /// out to the next stop; Shift+Tab from there comes back into the ramp, on its graph.
+    #[test]
+    fn tab_from_the_header_reaches_the_ramp_and_walks_into_it() {
+        use cce_ui::backend::driver::{Driver, Modifiers, Turn};
+        let mut st = gallery();
+        (st.width, st.height) = (1400.0, 1000.0);
+        st.relayout();
+        st.apply_layout();
+        let ramp = st.roster.gallery().bevel_ramp;
+        let (preset, line) = (st.ui_context[ramp].preset_dropdown.base().id(), st.ui_context[ramp].line_type_dropdown.base().id());
+        let stops = st.ui_context.focus_clusters().concat();
+        assert!(stops.contains(&ramp.id()), "the Ramp is no Tab stop");
+        let first = st.roster.id(HEADER[0]);
+        st.ui_context.set_focused_id(first);
+        let (mut d, mut redraw, mut exit) = (Driver::new(), false, false);
+        let mut tab = |st: &mut State, d: &mut Driver| {
+            d.key(Turn { app: st, redraw: &mut redraw, exit: &mut exit }, Key::Named(NamedKey::Tab), Some("\t".into()), ElementState::Pressed);
+            d.key(Turn { app: st, redraw: &mut redraw, exit: &mut exit }, Key::Named(NamedKey::Tab), None, ElementState::Released);
+        };
+        let mut presses = 0;
+        while st.ui_context.focus_holder() != Some(ramp.id()) {
+            assert!(presses <= stops.len(), "Tab from the header never reached the Ramp");
+            tab(&mut st, &mut d);
+            presses += 1;
+        }
+        assert_eq!(st.ui_context.focused_widget, Some(ramp.id()), "Tab enters the ramp on its graph");
+        let mut walked = Vec::new();
+        for _ in 0..3 {
+            tab(&mut st, &mut d);
+            walked.push((st.ui_context.focused_widget, st.ui_context.focus_holder()));
+        }
+        let (next, holder) = walked[2];
+        assert_eq!(walked[..2], [(Some(preset), Some(ramp.id())), (Some(line), Some(ramp.id()))], "Tab walks the ramp's dropdowns, which the ramp holds");
+        assert!(next.is_some() && holder != Some(ramp.id()), "Tab past the Line dropdown leaves the ramp, for {next:?}");
+        d.set_modifiers(&mut st, Modifiers { ctrl: false, shift: true, alt: false, logo: false });
+        tab(&mut st, &mut d);
+        assert_eq!(st.ui_context.focused_widget, Some(ramp.id()), "Shift+Tab comes back into the ramp, on its graph");
+    }
+
+    /// A click on the Ramp exhibit's Preset dropdown leaves the keyboard on the dropdown, a
+    /// field the ramp holds: the press that follows it does not hand the ramp the focus again
+    /// (which would put the keyboard back on its graph). A press on nothing takes the
+    /// keyboard from the ramp, and so does a page switch that hides the ramp.
+    #[test]
+    fn a_click_on_a_ramps_dropdown_keeps_the_keyboard_there() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        let mut st = gallery();
+        (st.width, st.height) = (2400.0, 1400.0);
+        st.relayout();
+        st.apply_layout();
+        let ramp = st.roster.gallery().bevel_ramp;
+        let preset = st.ui_context[ramp].preset_dropdown.base().id();
+        let click_preset = |st: &mut State| {
+            let (x, y, w, h) = st.ui_context[ramp].preset_dropdown.rect();
+            let at = LogicalPosition::new(x + w * 0.5, y + h * 0.5);
+            assert!(st.in_exhibit_viewport(at.x, at.y), "the Preset dropdown at {at:?} is out of view");
+            let mut nr = false;
+            st.handle_mouse_input(MouseButton::Left, ElementState::Pressed, at, &mut nr);
+            st.handle_mouse_input(MouseButton::Left, ElementState::Released, at, &mut nr);
+            assert_eq!((st.ui_context.focused_widget, st.ui_context.focus_holder()), (Some(preset), Some(ramp.id())), "the click left the keyboard elsewhere");
+        };
+        click_preset(&mut st);
+        // Close the menu the click opened, so the press below lands on the window.
+        let mut nr = false;
+        st.handle_key_input(&KeyEvent { state: ElementState::Pressed, logical_key: Key::Named(NamedKey::Escape), text: None, repeat: false, ctrl: false, shift: false, alt: false }, &mut nr);
+        let (sw, sh) = (st.width, st.height);
+        let nothing = (0..(sh / 8.0) as usize)
+            .flat_map(|r| (0..(sw / 8.0) as usize).map(move |c| (c as f32 * 8.0 + 4.0, r as f32 * 8.0 + 4.0)))
+            .find(|&(x, y)| (0..st.roster.len()).all(|i| !st.is_widget_visible(i) || !st.roster.get_dyn(&st.ui_context, i).hit_test(x, y, &st.ui_context)))
+            .expect("no spot of the window is clear of every slot");
+        let at = LogicalPosition::new(nothing.0, nothing.1);
+        st.handle_mouse_input(MouseButton::Left, ElementState::Pressed, at, &mut nr);
+        st.handle_mouse_input(MouseButton::Left, ElementState::Released, at, &mut nr);
+        assert_eq!(st.ui_context.focus_holder(), None, "a press on nothing at {at:?} left the ramp the keyboard");
+
+        click_preset(&mut st);
+        st.set_page(Page::Relief);
+        assert_eq!(st.ui_context.focus_holder(), None, "the hidden ramp kept the keyboard");
     }
 }
