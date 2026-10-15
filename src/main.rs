@@ -1,11 +1,11 @@
 use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
-use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, Paginator, ScrollBox, SliderSpinbox, WidgetHostExt};
+use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, ScrollBox, SliderSpinbox, WidgetHostExt};
 mod arrange;
 use arrange::{arrange, Arrangement, Block, Lasso};
 mod gallery_widgets;
-use gallery_widgets::{RootPlate, Plate};
+use gallery_widgets::{Effect, Plate, ReliefTile, RootPlate};
 use cce_ui::widget::{Adapted, LayoutConstraints, Point, WidgetEvent};
 use cce_ui::widget::input::Slider2D;
 use cce_ui::engine::{LogicalSize, LogicalPosition, LayerAnchor, LayerKeyboardInteractivity, LayerKind, LayerSettings};
@@ -135,13 +135,17 @@ impl ChildKind {
 }
 
 /// What the roster's visibility filter needs, copied out of `State` so the dispatch
-/// loops can hold `&mut self.roster` while asking. The gallery shows every slot; a
-/// child window shows its menu bar and status bar only when asked to.
+/// loops can hold `&mut self.roster` while asking. The gallery shows its header and the
+/// current page's exhibits — the lassos are the widget page's; a child window shows its
+/// menu bar and status bar only when asked to.
 #[derive(Clone, Copy)]
 struct Visibility {
     is_child: bool,
     use_menubar: bool,
     use_statusbar: bool,
+    page: Page,
+    /// The first Relief-page tile's slot (`GallerySlots::tiles_start`).
+    tiles_start: usize,
 }
 
 impl Visibility {
@@ -154,11 +158,25 @@ impl Visibility {
                 _ => false,
             };
         }
+        if is_exhibit(index) || is_overlay(index) {
+            return (index >= self.tiles_start) == (self.page == Page::Relief);
+        }
         true
     }
 }
 
-/// The gallery roster: 34 named slots. The numeric indexes used by the positions
+/// The gallery's pages, as the header's Page dropdown lists them: the widgets, one of each
+/// in each of its styles, and the toolkit's relief effects, one tile each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Widgets,
+    Relief,
+}
+
+/// The Page dropdown's entries, in order; the gallery opens on the first.
+const PAGES: [(&str, Page); 2] = [("Widgets", Page::Widgets), ("Relief", Page::Relief)];
+
+/// The gallery roster: 36 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `Roster::id` / `get_dyn` / `get_dyn_mut`.
 pub struct GallerySlots {
@@ -202,14 +220,33 @@ pub struct GallerySlots {
     pub group_fitted: Handle<Adapted<Group>>,
     /// Slot 33, after the lassos: a widget newer than the rest of the roster.
     pub slider_spinbox_demo: Handle<Adapted<SliderSpinbox>>,
+    /// Slot 34: the ColorRamp, embedded as the Ramp is (slot 12); `Color Ramp...`
+    /// opens one in a window of its own.
+    pub color_ramp_demo: Handle<Adapted<ColorRamp>>,
+    /// The Page dropdown (slot 35), after Style in the header: which page's exhibits the
+    /// area below shows (`PAGES`).
+    pub page_dd: Handle<Adapted<Dropdown>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
+    /// The Relief page's tiles (`relief_tiles`), one per effect, addressed as the slots
+    /// after the variants' (`tiles_start..`).
+    pub tiles: Vec<Exhibit>,
 }
 
-/// The number of NAMED gallery slots; the variant exhibits follow them, so the roster's
-/// `len` is this plus `GallerySlots::extra.len()`.
-pub const GALLERY_COUNT: usize = 34;
+/// The number of NAMED gallery slots; the variant exhibits follow them, then the Relief
+/// page's tiles, so the roster's `len` is this plus `GallerySlots::extra.len()` plus
+/// `GallerySlots::tiles.len()`.
+pub const GALLERY_COUNT: usize = 36;
+
+/// The Page dropdown's slot, the last named one.
+const PAGE_SLOT: usize = 35;
+
+/// The header dropdowns: Layout, Style and Page, left to right.
+const HEADER: [usize; 3] = [14, 0, PAGE_SLOT];
+
+/// The header dropdowns' width.
+const HEADER_W: f32 = 190.0;
 
 /// A variant exhibit: a widget in a style other than the one its named slot shows, with
 /// the content size `layout_exhibits` resets it to.
@@ -220,19 +257,27 @@ pub struct Exhibit {
     pub h: f32,
     /// Whether Vertical and Adaptive Grid may widen it to their cell ([`ExhibitSize::stretch`]).
     pub stretch: bool,
+    /// How many of Adaptive Grid's columns it lies across ([`ExhibitSize::span`]).
+    pub span: usize,
 }
 
 impl Exhibit {
     /// Sized by the widget's own preferred (content) height, `fallback_h` when it declares none.
     fn new<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, fallback_h: f32) -> Self {
         let h = widget.preferred_height().unwrap_or(fallback_h);
-        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true }
+        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true, span: 1 }
     }
 
     /// Sized by hand: for widgets whose declared height is a single row (a multiline
     /// TextBox, a vertical ButtonStrip) when the exhibit wants several.
     fn sized<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, h: f32) -> Self {
-        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true }
+        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true, span: 1 }
+    }
+
+    /// Across `span` of Adaptive Grid's columns.
+    fn spanning(mut self, span: usize) -> Self {
+        self.span = span;
+        self
     }
 
     /// Kept at its own width in every arrangement: a control with a size of its own.
@@ -264,14 +309,34 @@ pub struct ExhibitSize {
     pub hug: bool,
     /// How many of Adaptive Grid's columns it lies across ([`Block::span`]).
     pub span: usize,
+    /// Arranged at `h` rather than at the height the widget declares, which otherwise
+    /// wins (`Block::of`): a canvas the page shows larger than its default. The Ramp
+    /// declares a 120 px graph over its control strip, and landed taller it gives the
+    /// graph the rest (`Ramp::graph_h`) — so too with its controls collapsed from its
+    /// context menu, when the graph takes the strip's room and the exhibit keeps its size.
+    pub own_h: bool,
 }
 
 /// The Checkbox's slot: the one exhibit narrowed to its content ([`ExhibitSize::hug`]).
 const CHECKBOX_SLOT: usize = 2;
 
-/// The TreeList's slot: the one exhibit across two of Adaptive Grid's columns
-/// ([`ExhibitSize::span`]). One column cut its key and type columns short.
+/// The TreeList's slot: across two of Adaptive Grid's columns ([`ExhibitSize::span`]).
+/// One column cut its key and type columns short.
 const TREELIST_SLOT: usize = 26;
+
+/// The Ramp's slot: across two of Adaptive Grid's columns, like the TreeList, and the one
+/// exhibit sized here past its toolkit default ([`ExhibitSize::own_h`]). In one column at
+/// its default height the curve was a 120 px strip its pegs crowded.
+const RAMP_SLOT: usize = 12;
+
+/// The ColorRamp's slot: across two of Adaptive Grid's columns, like the TreeList. In one
+/// its R, G and B sliders were 60 px long beside the delete button.
+const COLOR_RAMP_SLOT: usize = 34;
+
+/// Whether an exhibit lies across two of Adaptive Grid's columns ([`ExhibitSize::span`]).
+fn spans_two(slot: usize) -> bool {
+    matches!(slot, TREELIST_SLOT | RAMP_SLOT | COLOR_RAMP_SLOT)
+}
 
 /// How far from its rect's left edge a control's drawn content reaches: the end of the
 /// furthest text it paints (`painted_prims`), measured in its font, plus a pixel so the clip
@@ -299,7 +364,7 @@ const GROUPS: [(usize, &[usize]); 2] = [(31, &[16, 22]), (32, &[1, 18, 2, 3])];
 
 /// The lassos to arrange over blocks whose slots are `slots`, in order: each group's members
 /// as indexes into the blocks, with the group's (padding, tab height) from `frame`. A member
-/// with no block (one being dragged) is left out, and a group with none is dropped.
+/// with no block is left out, and a group with none is dropped.
 fn lassos(slots: &[usize], frame: impl Fn(usize) -> (f32, f32)) -> Vec<Lasso> {
     GROUPS
         .iter()
@@ -321,8 +386,16 @@ impl GallerySlots {
         }
     }
 
+    /// The first Relief-page tile's slot: the one after the last variant's.
+    pub fn tiles_start(&self) -> usize {
+        GALLERY_COUNT + self.extra.len()
+    }
+
     /// The widget in slot `idx`.
     pub fn id(&self, idx: usize) -> WidgetId {
+        if idx >= self.tiles_start() {
+            return self.tiles[idx - self.tiles_start()].id;
+        }
         if idx >= GALLERY_COUNT {
             return self.extra[idx - GALLERY_COUNT].id;
         }
@@ -361,6 +434,8 @@ impl GallerySlots {
             31 => self.group_loose.id(),
             32 => self.group_fitted.id(),
             33 => self.slider_spinbox_demo.id(),
+            34 => self.color_ramp_demo.id(),
+            PAGE_SLOT => self.page_dd.id(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -388,7 +463,7 @@ impl Roster {
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         match self {
-            Roster::Gallery(s) => GALLERY_COUNT + s.extra.len(),
+            Roster::Gallery(s) => s.tiles_start() + s.tiles.len(),
             Roster::Child(s) => s.ids.len(),
         }
     }
@@ -409,8 +484,8 @@ impl Roster {
         ui.get_widget_mut(self.id(idx)).expect("a roster slot's widget is in the context")
     }
 
-    /// A slot that is never dragged: the variant exhibits are looked at, and
-    /// the lassos (31, 32) are frames.
+    /// A slot that is never dragged: the variant exhibits and the Relief page's tiles are
+    /// looked at, and the lassos (31, 32) are frames.
     fn inert(&self, idx: usize) -> bool {
         matches!(self, Roster::Gallery(_)) && (idx >= GALLERY_COUNT || matches!(idx, 31 | 32))
     }
@@ -435,12 +510,13 @@ impl Roster {
         }
     }
 
-    /// The selected entry of a header dropdown (14 Layout, 0 Style).
+    /// The selected entry of a header dropdown (14 Layout, 0 Style, 35 Page).
     pub fn value(&self, ui: &UiContext, idx: usize) -> i32 {
         let s = self.gallery();
         match idx {
             14 => ui[s.layout_dd].value(),
             0 => ui[s.style_dd].value(),
+            PAGE_SLOT => ui[s.page_dd].value(),
             _ => panic!("value: unwired gallery slot {idx}"),
         }
     }
@@ -465,7 +541,9 @@ struct State {
     ui_context: cce_ui::context::UiContext,
 
     layout_idx: usize,
-    /// The scroll frame the exhibits below the Layout dropdown scroll inside.
+    /// The page the exhibit area shows (the Page dropdown).
+    page: Page,
+    /// The scroll frame the exhibits below the header scroll inside.
     exhibit_scroll: ScrollBox,
     /// Posts to `update`: how a hook that returns no message (tick, pointer motion, wheel)
     /// hands one on.
@@ -582,8 +660,7 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     const TAB_COLUMN_W: f32 = 40.0;
     let three = || vec!["One".to_string(), "Two".to_string(), "Three".to_string()];
     // A column of three rotated tabs, each as long as its label: the height a vertical
-    // strip of them takes (it declares none, so a fixed height cut the last tab short),
-    // and the Paginator's too, whose sidebar is the same strip.
+    // strip of them takes (it declares none, so a fixed height cut the last tab short).
     let tabs_h = {
         let strip = ButtonStrip::new(0.0, 0.0, TAB_COLUMN_W, 0.0).with_buttons(three()).with_vertical(true);
         let (_, y, _, h) = strip.item_rect(2);
@@ -608,7 +685,7 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
         ),
         Exhibit::new(ctx, TextBox::new("TextBox (chromeless)".to_string()).with_draw_bg_border(false), W, tbh),
         Exhibit::new(ctx, TextBox::new("hunter2".to_string()).with_password(true).with_label("TextBox (password)"), W, tbh),
-        // ButtonStrip: the vertical column (rotated tabs), and the Paginator sidebar built on it.
+        // ButtonStrip: the vertical column (rotated tabs).
         Exhibit::sized(
             ctx,
             Adapted::new(ButtonStrip::new(0.0, 0.0, W, tabs_h).with_buttons(three()).with_selected(Some(0)).with_vertical(true))
@@ -617,7 +694,6 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
             tabs_h,
         )
         .fixed(),
-        Exhibit::sized(ctx, Paginator::new(three()).with_label("Paginator"), W, tabs_h),
         // ColorSelector: the alpha swatch.
         Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
         // InteractiveListItem: selected, its highlight wash (the named slot's shows only
@@ -647,13 +723,17 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
 /// The Controls exhibits in layout order, each with the content size it is reset to
 /// before it is arranged: an exhibit's block is read off its own rect (`Block::of`) after
 /// the reset, and the previous frame's landing may have stretched it. `s2d_w` is the
-/// Slider2D's measured width; `extra` the variant exhibits, which follow the named slots.
-fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
-    // Every height below is the toolkit's default for that control — its
-    // configured `style.control.<name>.height`, or the intrinsic size the
-    // widget declares — so the page is a record of the defaults, not of
-    // numbers chosen here. A widget's own intrinsic height wins anyway
-    // (`Block::of`); the table only has to agree with it.
+/// Slider2D's measured width, `crh` the ColorRamp's declared height; `extra` the variant
+/// exhibits, which follow the named slots.
+fn exhibit_table(s2d_w: f32, crh: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
+    // Every height below but the Ramp's is the toolkit's default for that
+    // control — its configured `style.control.<name>.height`, or the intrinsic
+    // size the widget declares — so the page is a record of the defaults, not
+    // of numbers chosen here. A height the widget declares wins over the
+    // table's (`Block::of`), so for those the table only has to agree with it.
+    // The Ramp is the exception (`ExhibitSize::own_h`): it declares a 120 px
+    // graph, a strip sized for a host's row, and the page draws the curve at
+    // twice that, so its height here wins and the extra goes to the graph.
     let bh = cce_ui::layout::button_height();
     let tgh = cce_ui::layout::toggle_height();
     let slh = cce_ui::layout::slider_height();
@@ -666,13 +746,14 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
     let fsh = cce_ui::layout::font_selector_height();
     let rmh = cce_ui::layout::ramp_height();
     // The few exhibits with no toolkit default are canvases: an area to draw
-    // or drag in, sized here and only here.
+    // or drag in, sized here and only here — and the Ramp's graph, one canvas
+    // taller than its default.
     const CANVAS_H: f32 = 120.0;
     const W: f32 = 190.0;
     // Whether the exhibit stretches to a Vertical or grid cell (`ExhibitSize::stretch`).
     const FIT: bool = true;
     const OWN: bool = false;
-    let raw: [(usize, f32, f32, bool); 30] = [
+    let raw: [(usize, f32, f32, bool); 31] = [
         (1, W, bh, FIT),                               // Button
         (18, W, bh, FIT),                              // ButtonStrip
         (CHECKBOX_SLOT, W, tgh, OWN),                  // Checkbox (narrowed to its box and label: `hug`)
@@ -699,20 +780,58 @@ fn exhibit_table(s2d_w: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (10, W, CANVAS_H, FIT),                        // Plate
         (27, W, CANVAS_H, FIT),                        // BevelPreview
         (28, W, 2.0 * rmh, FIT),                       // RampPreview (a ramp's curve)
-        (12, W, CANVAS_H, FIT),                        // Ramp (declares its own: a 120 graph over its controls)
+        (COLOR_RAMP_SLOT, W, crh, FIT),                // ColorRamp (its track, pegs and slider rows, across two grid columns)
+        (RAMP_SLOT, W, Ramp::expanded_height() + CANVAS_H, FIT), // Ramp (a 240 graph over its controls, across two grid columns: `own_h`, `span`)
         (11, W, bh, FIT),                              // Color Ramp...
         (13, W, bh, FIT),                              // Ramp...
         (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
     ];
-    let mut sizes: Vec<ExhibitSize> = raw.iter().map(|&(slot, w, h, stretch)| ExhibitSize { slot, w, h, stretch, hug: slot == CHECKBOX_SLOT, span: if slot == TREELIST_SLOT { 2 } else { 1 } }).collect();
-    sizes.extend(extra.iter().enumerate().map(|(k, e)| ExhibitSize { slot: GALLERY_COUNT + k, w: e.w, h: e.h, stretch: e.stretch, hug: false, span: 1 }));
+    let mut sizes: Vec<ExhibitSize> = raw
+        .iter()
+        .map(|&(slot, w, h, stretch)| ExhibitSize {
+            slot,
+            w,
+            h,
+            stretch,
+            hug: slot == CHECKBOX_SLOT,
+            span: if spans_two(slot) { 2 } else { 1 },
+            own_h: slot == RAMP_SLOT,
+        })
+        .collect();
+    sizes.extend(extra_sizes(GALLERY_COUNT, extra));
     sizes
 }
 
-/// The exhibits: every slot but the lassos (31, 32) and the header dropdowns
-/// (14 Layout, 0 Style), which `layout_exhibits` lays out under the header row.
+/// The sizes of exhibits sized where they are built (`Exhibit`) — the variants, the Relief
+/// page's tiles — in order, from slot `first`.
+fn extra_sizes(first: usize, exhibits: &[Exhibit]) -> impl Iterator<Item = ExhibitSize> + '_ {
+    exhibits.iter().enumerate().map(move |(k, e)| ExhibitSize { slot: first + k, w: e.w, h: e.h, stretch: e.stretch, hug: false, span: e.span, own_h: false })
+}
+
+/// The Relief page's tiles: one per effect (`Effect::ALL`), captioned by the adapter's
+/// detached label, so the arrangement places them as it does the widgets. A tile declares
+/// no height of its own; a series lies across two columns and is as wide as two in every
+/// layout.
+fn relief_tiles(ctx: &mut UiContext) -> Vec<Exhibit> {
+    const W: f32 = 190.0;
+    let gap = cce_ui::layout::control_gap();
+    Effect::ALL
+        .into_iter()
+        .map(|effect| {
+            if effect.is_series() {
+                Exhibit::sized(ctx, ReliefTile::new(effect), 2.0 * W + gap, effect.height()).spanning(2)
+            } else {
+                Exhibit::sized(ctx, ReliefTile::new(effect), W, effect.height())
+            }
+        })
+        .collect()
+}
+
+/// The exhibits, of either page: every slot but the lassos (31, 32) and the header
+/// dropdowns (14 Layout, 0 Style, 35 Page), which `layout_exhibits` lays out under the
+/// header.
 fn is_exhibit(i: usize) -> bool {
-    matches!(i, 1..=13 | 15..=30 | 33) || i >= GALLERY_COUNT
+    matches!(i, 1..=13 | 15..=30 | 33 | 34) || i >= GALLERY_COUNT
 }
 
 /// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
@@ -727,6 +846,11 @@ impl State {
             is_child: self.is_child,
             use_menubar: self.use_menubar,
             use_statusbar: self.use_statusbar,
+            page: self.page,
+            tiles_start: match &self.roster {
+                Roster::Gallery(s) => s.tiles_start(),
+                Roster::Child(_) => usize::MAX,
+            },
         }
     }
 
@@ -744,12 +868,17 @@ impl State {
 
     /// Whether the window's focus is on `root` or a widget under it in the ui tree.
     fn focus_within(&self, root: WidgetId) -> bool {
-        let mut at = self.ui_context.focused_widget;
-        while let Some(id) = at {
-            if id == root {
+        self.ui_context.focused_widget.is_some_and(|id| self.holds(root, id))
+    }
+
+    /// Whether `id` is `root` or a widget under it in the ui tree.
+    fn holds(&self, root: WidgetId, id: WidgetId) -> bool {
+        let mut at = Some(id);
+        while let Some(cur) = at {
+            if cur == root {
                 return true;
             }
-            at = self.ui_context.tree.parent_id(id);
+            at = self.ui_context.tree.parent_id(cur);
         }
         false
     }
@@ -771,30 +900,46 @@ impl State {
         self.positions = if self.is_child {
             child_positions(self.width, self.height, self.use_menubar, self.use_statusbar)
         } else {
-            demo_positions(self.roster.len())
+            // A header row is as tall as a dropdown under its label.
+            let dd = self.roster.get_dyn(&self.ui_context, 14);
+            let row_h = dd.label_strip() + dd.preferred_height().unwrap_or(0.0);
+            demo_positions(self.roster.len(), self.width, row_h)
         };
     }
 
-    /// The Controls exhibits in layout order, each with the content size it is reset to
-    /// before it is arranged (`exhibit_table`).
+    /// The page's exhibits in layout order, each with the content size it is reset to
+    /// before it is arranged: the widgets' table (`exhibit_table`) or the Relief tiles'.
     fn exhibit_sizes(&self) -> Vec<ExhibitSize> {
+        if self.page == Page::Relief {
+            let s = self.roster.gallery();
+            return extra_sizes(s.tiles_start(), &s.tiles).collect();
+        }
         let s2d_w = self
             .roster
             .get_dyn(&self.ui_context, 19)
             .measure(LayoutConstraints::new(0.0, f32::MAX, 0.0, f32::MAX), &self.ui_context)
             .width;
-        exhibit_table(s2d_w, &self.roster.gallery().extra)
+        let crh = self.roster.get_dyn(&self.ui_context, COLOR_RAMP_SLOT).preferred_height().unwrap_or(0.0);
+        exhibit_table(s2d_w, crh, &self.roster.gallery().extra)
     }
 
-    /// The exhibits' viewport: below the Layout dropdown, down to the window's foot.
+    /// The exhibits' viewport: below the header, down to the window's foot.
     /// The exhibit area: a well sunk into the root plate, standing on it like the
     /// header dropdowns — their inset in from the window's sides and bottom (`x` is
-    /// the Layout dropdown's), one root gap below them.
+    /// the Layout dropdown's), one root gap below the lowest of them (a narrow window
+    /// wraps the header onto further rows).
     fn exhibit_viewport(&self) -> (f32, f32, f32, f32) {
         let gap = cce_ui::layout::root_plate_gap();
-        let (dx, dy, _, dh) = self.roster.get_dyn(&self.ui_context, 14).rect();
-        let (x, y) = (dx, dy + dh + gap);
-        let w = (self.width - 2.0 * x).max(300.0);
+        let dx = self.roster.get_dyn(&self.ui_context, 14).rect().0;
+        let foot = HEADER
+            .iter()
+            .map(|&i| {
+                let (_, y, _, h) = self.roster.get_dyn(&self.ui_context, i).rect();
+                y + h
+            })
+            .fold(f32::MIN, f32::max);
+        let (x, y) = (dx, foot + gap);
+        let w = (self.width - 2.0 * x).max(1.0);
         let h = ((self.height - x) - y).max(100.0);
         (x, y, w, h)
     }
@@ -819,18 +964,55 @@ impl State {
         (floor, radii.0)
     }
 
+    /// Whether an exhibit on the page shown is being dragged: the page's layout and scroll
+    /// are frozen until it is let go (`layout_exhibits`).
+    fn exhibit_dragging(&self) -> bool {
+        let vis = self.visibility();
+        !self.is_child && (0..self.roster.len()).any(|i| is_exhibit(i) && vis.is_visible(i) && self.roster.is_dragging(&self.ui_context, i))
+    }
+
     fn in_exhibit_viewport(&self, px: f32, py: f32) -> bool {
         let (x, y, w, h) = self.exhibit_viewport();
         px >= x && px <= x + w && py >= y && py <= y + h
     }
 
-    /// Lay the Controls exhibits out with the arrangement the Layout dropdown selects
+    /// Lay the page's exhibits out with the arrangement the Layout dropdown selects
     /// (`LAYOUTS`), each `Group` lasso as one block around its members (`GROUPS`), then shift
-    /// them by the scroll frame's offset; painting clips them to the viewport. Runs from
-    /// apply_layout and from display_list, which is what re-arranges after a scroll.
+    /// them by the scroll frame's offset; painting clips them to the viewport. The other
+    /// page's exhibits are parked. Runs from apply_layout and from display_list, which is
+    /// what re-arranges after a scroll.
+    ///
+    /// While an exhibit is dragged (`exhibit_dragging`: a Ramp key held, a slider's thumb)
+    /// the page is frozen: nothing is re-arranged or landed, the dragged exhibit included,
+    /// so nothing moves out from under the pointer or slides into its place — not on a
+    /// scroll, which is held for the drag too (`tick`, `handle_mouse_wheel`), nor on a
+    /// resize. The first frame after the release arranges the page afresh.
     fn layout_exhibits(&mut self) {
         let (x, y, w, h) = self.exhibit_viewport();
         self.exhibit_scroll.set_rect(x, y, w, h);
+        if self.exhibit_dragging() {
+            return;
+        }
+        // The other page's exhibits are parked off-screen with `layout`, which moves their
+        // embedded children with them — before they are hidden, as a hidden container
+        // places no children — and hidden with its lassos, which keeps them out of the
+        // paint walk: none is hit or a Tab stop.
+        let vis = self.visibility();
+        for i in (0..self.roster.len()).filter(|&i| is_exhibit(i) || is_overlay(i)) {
+            let shown = vis.is_visible(i);
+            let park = !shown && is_exhibit(i);
+            self.ui_context.lend(self.roster.id(i), |widget, ctx| {
+                let (px, _, pw, ph) = widget.rect();
+                if park && px > PARKED / 2.0 {
+                    let strip = widget.label_strip();
+                    let ch = (ph - strip).max(1.0);
+                    widget.layout(Point { x: PARKED, y: PARKED + strip }, LayoutConstraints::new(pw.max(1.0), pw.max(1.0), ch, ch), ctx);
+                }
+                if widget.visible() != shown {
+                    widget.set_visible(shown);
+                }
+            });
+        }
         // The exhibits sit on the well's floor, inside its wall; the fitted lasso's
         // plate is that floor, so its sides snap to the foot of the wall.
         let (floor, floor_r) = self.exhibit_floor();
@@ -839,19 +1021,18 @@ impl State {
         }
         // Seed each exhibit at its content size plus the label strip above it, and read
         // its block back: `set_rect` may adjust the rect, and a height the widget declares
-        // overrides the table's.
+        // overrides the table's unless the table's is its own (`ExhibitSize::own_h`).
         let mut exhibits: Vec<(usize, Block)> = Vec::new();
         for e in self.exhibit_sizes() {
-            if self.roster.is_dragging(&self.ui_context, e.slot) {
-                continue;
-            }
             let widget = self.roster.get_dyn_mut(&mut self.ui_context, e.slot);
             let strip = widget.label_strip();
             widget.set_rect(0.0, 0.0, e.w, e.h + strip);
             if let Some(cw) = e.hug.then(|| content_extent(widget)).flatten() {
                 widget.set_rect(0.0, 0.0, cw.min(e.w), e.h + strip);
             }
-            exhibits.push((e.slot, Block { span: e.span, ..Block::of(widget, e.stretch) }));
+            let b = Block::of(widget, e.stretch);
+            let b = Block { span: e.span, content_h: if e.own_h { e.h } else { b.content_h }, ..b };
+            exhibits.push((e.slot, b));
         }
         // The exhibits start two paddings in from the floor's sides and top: one for the
         // fitted lasso's frame, which hangs one padding outside its members and so lands
@@ -890,15 +1071,17 @@ impl State {
     /// Hear what the widgets reported since the last sweep (`UiContext::take_events`) and
     /// act on it: Layout (14) picks the arrangement, Style (0) switches every control
     /// between Relief and Flat (`set_control_relief` — the toolkit reads it live at paint,
-    /// so a rebuild is all it takes), `Color Ramp...` and `Ramp...` open their editors, and
-    /// a child's Close ends it — the returned message. Any report repaints; every other
-    /// exhibit reacts by itself and only needs the frame.
+    /// so a rebuild is all it takes), Page (35) the page shown (`set_page`), `Color Ramp...`
+    /// and `Ramp...` open their editors under themselves (`place_editor`), and a child's
+    /// Close ends it — the returned message. Any report repaints; every other exhibit reacts
+    /// by itself and only needs the frame.
     ///
     /// Runs after every dispatch path — pointer, wheel, key, tick and the context menu's
     /// rows — so a keyboard activation (Enter or Space on a focused button, a dropdown's
     /// Enter) or an assistive tool's lands at once rather than at the next click.
     fn drain_widget_events(&mut self, needs_rebuild: &mut bool) -> Option<String> {
-        let (mut layout, mut style, mut exit) = (false, false, false);
+        let (mut layout, mut style, mut page, mut exit) = (false, false, false, false);
+        let mut editor = None;
         for (id, ev) in self.ui_context.take_events() {
             let clicked = match ev {
                 WidgetEvent::Clicked => true,
@@ -911,16 +1094,28 @@ impl State {
                 // A dropdown reports a pick as Changed.
                 Roster::Gallery(s) if id == s.layout_dd.id() => layout = true,
                 Roster::Gallery(s) if id == s.style_dd.id() => style = true,
-                Roster::Gallery(s) if clicked && id == s.color_ramp_btn.id() => spawn_editor(ChildKind::ColorRamp),
-                Roster::Gallery(s) if clicked && id == s.ramp_btn.id() => spawn_editor(ChildKind::Ramp),
+                Roster::Gallery(s) if id == s.page_dd.id() => page = true,
+                Roster::Gallery(s) if clicked && id == s.color_ramp_btn.id() => editor = Some((ChildKind::ColorRamp, id)),
+                Roster::Gallery(s) if clicked && id == s.ramp_btn.id() => editor = Some((ChildKind::Ramp, id)),
                 Roster::Gallery(_) => {}
             }
+        }
+        if let Some((kind, button)) = editor {
+            let rect = self.ui_context.get_widget(button).map(|w| w.rect());
+            if let Some(rect) = rect {
+                place_editor(kind, rect);
+            }
+            spawn_editor(kind);
         }
         if layout {
             self.layout_idx = self.roster.value(&self.ui_context, 14) as usize;
         }
         if style {
             cce_ui::layout::set_control_relief(self.roster.value(&self.ui_context, 0) == 0);
+        }
+        if page {
+            let picked = PAGES.get(self.roster.value(&self.ui_context, PAGE_SLOT) as usize).map_or(Page::Widgets, |p| p.1);
+            self.set_page(picked);
         }
         if layout || style {
             self.relayout();
@@ -937,6 +1132,50 @@ impl State {
         }
     }
 
+    /// Show `page`: its exhibits laid out at the top of the area, the other page's parked
+    /// (`layout_exhibits`), the focus let go if the switch hid the widget holding it, and
+    /// the shared context menu closed — its rows act on the exhibit it opened over.
+    ///
+    /// A press or drag held across the switch (the page picked from the keyboard while the
+    /// pointer holds a slider) ends first, while its exhibit is still shown: the slots that
+    /// hold the router's drag target or grab, or are dragging, get a left release off every
+    /// widget (twice [`PARKED`] out), from which the router sends DragEnd and drops its
+    /// target and grab. Left held, the next pointer move dragged a hidden exhibit, and one
+    /// still dragging was kept off the arrangement on its page's return. Off every widget,
+    /// not at the cursor: a held Button commits its click on a release inside it, and the
+    /// switch would have opened the editor a held "Ramp..." never finished clicking.
+    fn set_page(&mut self, page: Page) {
+        if page == self.page {
+            return;
+        }
+        let gesture = [self.ui_context.drag_target, self.ui_context.active_grab];
+        let vis = self.visibility();
+        let held: Vec<WidgetId> = (0..self.roster.len())
+            .filter(|&i| vis.is_visible(i))
+            .filter(|&i| {
+                let root = self.roster.id(i);
+                self.roster.is_dragging(&self.ui_context, i) || gesture.into_iter().flatten().any(|id| self.holds(root, id))
+            })
+            .map(|i| self.roster.id(i))
+            .collect();
+        let (x, y) = (2.0 * PARKED, 2.0 * PARKED);
+        let release = cce_ui::widget::Event::MouseButton { button: MouseButton::Left, state: ElementState::Released, x, y, local_x: x, local_y: y };
+        for root in held {
+            self.ui_context.propagate_event(&release, root);
+        }
+        cce_ui::widget::context_menu::hide();
+        self.page = page;
+        // A host write the scroll frame adopts on its next tick, a glide included.
+        self.exhibit_scroll.scroll_y = 0.0;
+        let vis = self.visibility();
+        let hidden = (0..self.roster.len()).any(|i| !vis.is_visible(i) && self.focus_within(self.roster.id(i)));
+        if let Some(holder) = self.ui_context.focused_widget.filter(|_| hidden) {
+            self.ui_context.unfocus_id(holder);
+        }
+        self.relayout();
+        self.apply_layout();
+    }
+
     fn apply_layout(&mut self) {
         for i in 0..self.roster.len() {
             if self.roster.is_dragging(&self.ui_context, i) {
@@ -948,7 +1187,7 @@ impl State {
             }
             let visible = self.is_widget_visible(i);
             let (x, y, w, h) = self.positions[i];
-            if !self.is_child && (i == 14 || i == 0) {
+            if !self.is_child && HEADER.contains(&i) {
                 // The header dropdowns land through `layout` at their own preferred
                 // height: `y` is where the label goes, the content sits a strip below.
                 self.ui_context.lend(self.roster.id(i), |widget, ctx| {
@@ -1071,6 +1310,7 @@ impl cce_ui::engine::Application for State {
                     vec!["Relief".to_string(), "Flat".to_string()],
                     if cce_ui::layout::control_relief() { 0 } else { 1 },
                 ).with_label("Style")),
+                page_dd: ctx.insert(Dropdown::new(PAGES.iter().map(|(name, _)| name.to_string()).collect(), 0).with_label("Page")),
                 color_selector_demo: ctx.insert(ColorSelector::new([64, 128, 255]).with_label("ColorSelector")),
                 font_selector_demo: ctx.insert(FontSelector::new("Sans".to_string()).with_label("FontSelector")),
                 keybind_demo: ctx.insert(KeybindRecorder::new("ctrl+1".to_string()).with_label("KeybindRecorder")),
@@ -1120,7 +1360,11 @@ impl cce_ui::engine::Application for State {
                 group_loose: ctx.insert(Group::new(Vec::new()).with_label("Group").with_padding(6.0)),
                 group_fitted: ctx.insert(Group::new(Vec::new()).with_label("Group (fitted)").with_fit(true).with_padding(6.0)),
                 slider_spinbox_demo: ctx.insert(SliderSpinbox::new_int(5, 0, 10, 1).with_label("SliderSpinbox")),
+                // Unlabeled, as the Ramp is: it lays its track out from the top of the rect
+                // it is given, where a detached label's strip would be, and drew over one.
+                color_ramp_demo: ctx.insert(ColorRamp::new()),
                 extra: variant_exhibits(ctx),
+                tiles: relief_tiles(ctx),
             }))
         };
 
@@ -1153,6 +1397,7 @@ impl cce_ui::engine::Application for State {
             child_kind,
             ui_context,
             layout_idx: DEFAULT_LAYOUT,
+            page: PAGES[0].1,
             exhibit_scroll: {
                 let mut sb = ScrollBox::new();
                 sb.show_border = false;
@@ -1227,8 +1472,17 @@ impl cce_ui::engine::Application for State {
         let mut changed = false;
         // True while the area's bar is held up or fading, as well as while a
         // glide moves it, so the frames keep coming until the sink renders.
-        if !self.is_child && self.exhibit_scroll.tick(dt, &mut self.ui_context) {
-            changed = true;
+        // While an exhibit is dragged the offset is held where the drag found it,
+        // as the frozen page is (`layout_exhibits`): putting it back is a host
+        // write, which the frame adopts on its next tick, ending the glide.
+        if !self.is_child {
+            let (held, scroll_y) = (self.exhibit_dragging(), self.exhibit_scroll.scroll_y);
+            if self.exhibit_scroll.tick(dt, &mut self.ui_context) {
+                changed = true;
+            }
+            if held {
+                self.exhibit_scroll.scroll_y = scroll_y;
+            }
         }
         let vis = self.visibility();
         let is_visible = move |index: usize| vis.is_visible(index);
@@ -1615,7 +1869,8 @@ impl cce_ui::engine::Application for State {
         // The control under the pointer gets the wheel first (wheel events are
         // hit-gated in the toolkit, so only it can take one): a slider, spinbox
         // or scrolling list adjusts itself and the page stays put. Only an
-        // unclaimed wheel scrolls the exhibit area.
+        // unclaimed wheel scrolls the exhibit area, and none while an exhibit
+        // is dragged: the page is frozen under the drag (`layout_exhibits`).
         let in_exhibits = !self.is_child && self.in_exhibit_viewport(lx, ly);
         let mut widget_took_wheel = false;
         for i in 0..self.roster.len() {
@@ -1633,6 +1888,7 @@ impl cce_ui::engine::Application for State {
         }
         if !widget_took_wheel
             && !self.is_child
+            && !self.exhibit_dragging()
             && self.exhibit_scroll.mouse_wheel(delta, lx, ly, &mut self.ui_context)
         {
             changed = true;
@@ -1714,6 +1970,60 @@ fn child_command() -> std::process::Command {
     cmd
 }
 
+/// Where the editor opened from the button at `button` (its rect, in the gallery's logical
+/// px) is placed: the button's bottom-left corner on screen. `window` is the gallery
+/// window's top-left corner there, in layout px, as `windows --json` reports it, and `zoom`
+/// the desk's zoom, as the compositor's `camera` reply reports it (`camera_zoom`): the
+/// window list gives a window's box unzoomed — the zoom is the window's scale, applied when
+/// it is drawn — so the button's offset into the window is scaled here. The compositor
+/// lands a window a little below-right of the point it is given (`place-next`), so the
+/// editor opens just under its button.
+fn editor_anchor(window: (f64, f64), zoom: f64, button: (f32, f32, f32, f32)) -> (f64, f64) {
+    let (wx, wy) = window;
+    let (bx, by, _, bh) = button;
+    (wx + bx as f64 * zoom, wy + (by + bh) as f64 * zoom)
+}
+
+/// The desk's zoom in a compositor `camera` reply (`… zoom=<z> …`); `None` when it names
+/// none, or one that is not a finite positive number.
+fn camera_zoom(reply: &str) -> Option<f64> {
+    reply
+        .split_whitespace()
+        .find_map(|word| word.strip_prefix("zoom="))
+        .and_then(|z| z.parse::<f64>().ok())
+        .filter(|z| z.is_finite() && *z > 0.0)
+}
+
+/// Ask the compositor to open `kind`'s editor under its button instead of at the editor's
+/// remembered spot — `place-next`, as a ColorSelector places its picker. The anchor is the
+/// button's corner on screen (`editor_anchor`), from the gallery window's own box, found by
+/// this process's pid in the window list, and the desk's zoom from `camera`; failing
+/// either, the pointer, which a click leaves on the button. The window's box comes first,
+/// not the pointer, so that a button pressed from the keyboard anchors as well as a
+/// clicked one, and a click anchors at the button's corner rather than wherever on the
+/// button it landed. One-shot and best-effort: the hint is consumed when the editor maps,
+/// and ignored off cce; any failure leaves the editor to open where it would have, and the
+/// spawn goes ahead. Each round trip is bounded, since this runs on the click.
+fn place_editor(kind: ChildKind, button: (f32, f32, f32, f32)) {
+    use cce_ui::ipc::ctl::{self, Request, WindowInfo};
+    const REPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+    let pid = std::process::id();
+    let own = ctl::request(&Request::WindowsJson, Some(REPLY_TIMEOUT))
+        .ok()
+        .and_then(|reply| reply.lines().filter_map(WindowInfo::from_json_line).find(|w| w.pid == Some(pid)));
+    let zoom = || ctl::send("camera", Some(REPLY_TIMEOUT)).ok().as_deref().and_then(camera_zoom);
+    let (x, y) = match own.and_then(|w| Some((w, zoom()?))) {
+        Some((w, zoom)) => editor_anchor((w.x as f64, w.y as f64), zoom, button),
+        None => {
+            let Ok(reply) = ctl::request(&Request::PointerLocation, Some(REPLY_TIMEOUT)) else { return };
+            let Some(at) = ctl::parse_pointer_location(&reply) else { return };
+            at
+        }
+    };
+    let place = Request::PlaceNext { app_id: kind.app_id(), x: x.round(), y: y.round(), cell: false };
+    let _ = ctl::request(&place, Some(REPLY_TIMEOUT));
+}
+
 /// Opens a Ramp or ColorRamp editor window, at the kind's `default_size`. Untracked on
 /// purpose: an editor outlives the gallery.
 fn spawn_editor(kind: ChildKind) {
@@ -1736,21 +2046,34 @@ const LAYOUTS: [(&str, Arrangement); 4] = [
 /// Adaptive Grid: what the gallery opens on.
 const DEFAULT_LAYOUT: usize = 1;
 
-/// The fixed positions: the chrome and the Layout dropdown. The exhibits are laid out
-/// by `layout_exhibits` instead.
-fn demo_positions(count: usize) -> Vec<(f32, f32, f32, f32)> {
+/// The fixed positions in a `width`-wide window: the header dropdowns, in rows `row_h`
+/// tall. The exhibits are laid out by `layout_exhibits` instead.
+fn demo_positions(count: usize, width: f32, row_h: f32) -> Vec<(f32, f32, f32, f32)> {
     let mut vec = vec![(0.0, 0.0, 0.0, 0.0); count];
     // The header dropdowns; the exhibits below them are laid out by
     // `layout_exhibits` with the arrangement Layout selects. Their heights are the
     // widgets' own preferred heights (`apply_layout`); the ones here are placeholders.
-    // Both stand on the root plate, one inset in from the window's top-left corner.
+    // They stand on the root plate, one inset in from the window's top-left corner,
+    // one root gap apart, flowing in HEADER order: each goes on the current row if it
+    // ends inside the window's right inset, else starts a new row at the left inset,
+    // one root gap below. A window narrower than one dropdown and its insets puts each
+    // on a row of its own.
     let inset = cce_ui::layout::root_plate_inset();
     let gap = cce_ui::layout::root_plate_gap();
-    vec[14] = (inset, inset, 190.0, 0.0);
-    // The Style dropdown, one root gap to its right.
-    vec[0] = (inset + 190.0 + gap, inset, 190.0, 0.0);
+    let (mut x, mut y) = (inset, inset);
+    for &slot in HEADER.iter() {
+        if x > inset && x + HEADER_W > width - inset {
+            (x, y) = (inset, y + row_h + gap);
+        }
+        vec[slot] = (x, y, HEADER_W, 0.0);
+        x += HEADER_W + gap;
+    }
     vec
 }
+
+/// Where the other page's exhibits are parked: their rects' top-left corner, far enough
+/// off-screen that the whole of any exhibit lies left of and above the window.
+const PARKED: f32 = -10_000.0;
 
 /// A child window's title, painted by `display_list` when it has no MenuBar to
 /// carry it; the description below leaves this line of headroom.
@@ -1859,7 +2182,7 @@ mod tests {
     fn the_exhibit_table_lists_every_exhibit_once() {
         let mut ui = UiContext::new();
         let extra = variant_exhibits(&mut ui);
-        let mut listed: Vec<usize> = exhibit_table(120.0, &extra).iter().map(|e| e.slot).collect();
+        let mut listed: Vec<usize> = exhibit_table(120.0, 300.0, &extra).iter().map(|e| e.slot).collect();
         listed.sort_unstable();
         let exhibits: Vec<usize> = (0..GALLERY_COUNT + extra.len()).filter(|&i| is_exhibit(i)).collect();
         assert_eq!(listed, exhibits);
@@ -1869,6 +2192,11 @@ mod tests {
     fn gallery() -> State {
         let (tx, _rx) = calloop::channel::channel::<String>();
         <State as cce_ui::engine::Application>::create(tx.into())
+    }
+
+    /// Whether slot `i` is an exhibit of the page `st` shows.
+    fn on_page(st: &State, i: usize) -> bool {
+        is_exhibit(i) && st.is_widget_visible(i)
     }
 
     fn overlap(a: cce_ui::scene::layout::Rect, b: cce_ui::scene::layout::Rect) -> bool {
@@ -1902,7 +2230,7 @@ mod tests {
                 let at = format!("{sw}x{sh} {name}");
                 // Each exhibit's footprint: its rect (content and label strip) and its label.
                 let footprints: Vec<(usize, Rect)> = (0..st.roster.len())
-                    .filter(|&i| is_exhibit(i))
+                    .filter(|&i| on_page(&st, i))
                     .map(|i| {
                         let w = st.roster.get_dyn(ui, i);
                         let (x, y, ww, hh) = w.rect();
@@ -2077,7 +2405,7 @@ mod tests {
             // A Group's members share a row inside their column when they fit: not columns.
             let member = |i: usize| GROUPS.iter().any(|(_, m)| m.contains(&i));
             let mut starts: Vec<i32> = (0..st.roster.len())
-                .filter(|&i| is_exhibit(i) && !member(i))
+                .filter(|&i| on_page(&st, i) && !member(i))
                 .map(|i| st.roster.get_dyn(&st.ui_context, i).rect().0.round() as i32)
                 .collect();
             starts.sort_unstable();
@@ -2114,7 +2442,7 @@ mod tests {
                 let member = |i: usize| GROUPS.iter().any(|(_, m)| m.contains(&i));
                 // (left, right, top, bottom, what)
                 let mut found: Vec<(f32, f32, f32, f32, String)> = (0..st.roster.len())
-                    .filter(|&i| is_exhibit(i) && !member(i))
+                    .filter(|&i| on_page(&st, i) && !member(i))
                     .map(|i| {
                         let w = st.roster.get_dyn(ui, i);
                         let (x, y, width, h) = w.rect();
@@ -2165,6 +2493,184 @@ mod tests {
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
+    /// The index of Adaptive Grid in `LAYOUTS`.
+    fn adaptive_grid() -> usize {
+        LAYOUTS.iter().position(|(_, k)| matches!(k, Arrangement::AdaptiveGrid { .. })).unwrap()
+    }
+
+    /// Under Adaptive Grid the Ramp lies across two columns, as the TreeList does, at the
+    /// height the table gives it rather than the one it declares (`own_h`): its graph is
+    /// twice its default. The ColorRamp lies across two as well, at the height it declares.
+    #[test]
+    fn the_ramps_lie_across_two_grid_columns_the_ramp_at_its_table_height() {
+        let mut st = gallery();
+        st.layout_idx = adaptive_grid();
+        for (sw, sh) in [(726.0, 912.0), (1000.0, 680.0), (1400.0, 1000.0)] {
+            st.width = sw;
+            st.height = sh;
+            st.relayout();
+            st.apply_layout();
+            let sizes = st.exhibit_sizes();
+            let size = |slot: usize| *sizes.iter().find(|e| e.slot == slot).unwrap();
+            let rect = |slot: usize| st.roster.get_dyn(&st.ui_context, slot).rect();
+            // The content's height: the rect less the label strip above it.
+            let content_h = |slot: usize| {
+                let w = st.roster.get_dyn(&st.ui_context, slot);
+                w.rect().3 - w.label_strip()
+            };
+            let tree_w = rect(TREELIST_SLOT).2;
+            assert!(tree_w > 2.0 * 190.0, "{sw}x{sh}: the TreeList is {tree_w} wide");
+            for slot in [RAMP_SLOT, COLOR_RAMP_SLOT] {
+                assert_eq!(size(slot).span, 2, "slot {slot}");
+                assert!((rect(slot).2 - tree_w).abs() < 0.5, "{sw}x{sh}: slot {slot} is {} wide, the TreeList {tree_w}", rect(slot).2);
+            }
+            let ramp = size(RAMP_SLOT);
+            assert!(ramp.own_h);
+            assert_eq!(ramp.h, Ramp::expanded_height() + 120.0);
+            assert!((content_h(RAMP_SLOT) - ramp.h).abs() < 0.5, "{sw}x{sh}: the Ramp is {} tall, not {}", content_h(RAMP_SLOT), ramp.h);
+            let crh = st.ui_context[st.roster.gallery().color_ramp_demo].natural_height();
+            assert!((content_h(COLOR_RAMP_SLOT) - crh).abs() < 0.5, "{sw}x{sh}: the ColorRamp is {} tall, not {crh}", content_h(COLOR_RAMP_SLOT));
+        }
+    }
+
+    /// A point on the well's floor, inside the viewport, that no exhibit on the page takes:
+    /// where a wheel scrolls the area rather than a control.
+    fn bare_floor_point(st: &State) -> (f32, f32) {
+        let (floor, _) = st.exhibit_floor();
+        let (_, vy, _, vh) = st.exhibit_viewport();
+        let bottom = (floor.y + floor.height).min(vy + vh) - 4.0;
+        let mut y = floor.y + 4.0;
+        while y < bottom {
+            let mut x = floor.x + 4.0;
+            while x < floor.x + floor.width - 4.0 {
+                let taken = (0..st.roster.len()).any(|i| st.is_widget_visible(i) && st.roster.get_dyn(&st.ui_context, i).hit_test(x, y, &st.ui_context));
+                if !taken && st.in_exhibit_viewport(x, y) {
+                    return (x, y);
+                }
+                x += 8.0;
+            }
+            y += 8.0;
+        }
+        panic!("no bare floor at {}x{}", st.width, st.height);
+    }
+
+    /// While an exhibit is dragged — a Ramp key or a ColorRamp key held from the press on —
+    /// the page is frozen: no exhibit moves, the dragged one included, and none lands over
+    /// it — not when a wheel glide set going before the drag coasts on, nor when a wheel
+    /// the dragged exhibit does not take turns on the floor, nor when the window is resized.
+    /// Let go, the page arranges afresh for the size it now has. Left out of the
+    /// arrangement, the dragged exhibit let the ones after it slide into its place; held in
+    /// it while the rest were landed, a scroll or a resize landed them over it.
+    #[test]
+    fn a_dragged_exhibit_keeps_its_place_and_the_page_does_not_reflow() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        let rects = |st: &State| -> Vec<(usize, (f32, f32, f32, f32))> {
+            (0..st.roster.len()).filter(|&i| on_page(st, i)).map(|i| (i, st.roster.get_dyn(&st.ui_context, i).rect())).collect()
+        };
+        let mut st = gallery();
+        let mut fresh = gallery();
+        let mut scrolled = false;
+        for (sw, sh) in [(726.0, 912.0), (1400.0, 1000.0)] {
+            let (rw, rh) = (sw + 180.0, sh - 120.0);
+            for (li, (name, _)) in LAYOUTS.iter().enumerate() {
+                for slot in [RAMP_SLOT, COLOR_RAMP_SLOT] {
+                    (st.width, st.height) = (sw, sh);
+                    st.layout_idx = li;
+                    st.exhibit_scroll.scroll_y = 0.0;
+                    st.relayout();
+                    st.apply_layout();
+                    st.exhibit_scroll.tick(0.016, &mut st.ui_context);
+                    // A wheel on the bare floor, then a frame: a glide in flight when the drag
+                    // begins, where the motion settings make one.
+                    let bare = bare_floor_point(&st);
+                    let bare = LogicalPosition::new(bare.0, bare.1);
+                    let wheel = MouseScrollDelta::LineDelta(0.0, -3.0);
+                    let mut nr = false;
+                    st.handle_mouse_wheel(&wheel, bare, &mut nr);
+                    st.tick(0.016, &mut nr);
+                    st.layout_exhibits();
+                    scrolled |= st.exhibit_scroll.scroll_y > 0.0;
+                    let before = rects(&st);
+                    let set = |st: &mut State, on: bool| {
+                        let s = st.roster.gallery();
+                        let (ramp, color_ramp) = (s.bevel_ramp, s.color_ramp_demo);
+                        match slot {
+                            RAMP_SLOT => st.ui_context[ramp].is_dragging_key = on,
+                            _ => st.ui_context[color_ramp].is_dragging_key = on,
+                        }
+                    };
+                    set(&mut st, true);
+                    assert!(st.roster.is_dragging(&st.ui_context, slot));
+                    let held_y = st.exhibit_scroll.scroll_y;
+                    let at = format!("{sw}x{sh} {name}, slot {slot} dragged");
+                    // The glide coasts, a wheel turns on the floor, the window is resized.
+                    for _ in 0..10 {
+                        st.tick(0.05, &mut nr);
+                        st.layout_exhibits();
+                    }
+                    st.handle_mouse_wheel(&wheel, bare, &mut nr);
+                    st.layout_exhibits();
+                    (st.width, st.height) = (rw, rh);
+                    st.relayout();
+                    st.apply_layout();
+                    st.layout_exhibits();
+                    assert_eq!(st.exhibit_scroll.scroll_y, held_y, "{at}: the area scrolled");
+                    let during = rects(&st);
+                    let held = before.iter().find(|(i, _)| *i == slot).unwrap().1;
+                    let held = cce_ui::scene::layout::Rect { x: held.0, y: held.1, width: held.2, height: held.3 };
+                    for ((i, a), (_, b)) in before.iter().zip(&during) {
+                        assert_eq!(a, b, "{at}: slot {i} moved");
+                        let r = cce_ui::scene::layout::Rect { x: b.0, y: b.1, width: b.2, height: b.3 };
+                        assert!(*i == slot || !overlap(held, r), "{at}: slot {i} {r:?} lands over the dragged slot {slot}");
+                    }
+                    // Let go: arranged as a page that was never frozen is at this size.
+                    set(&mut st, false);
+                    st.layout_exhibits();
+                    (fresh.width, fresh.height) = (rw, rh);
+                    fresh.layout_idx = li;
+                    fresh.relayout();
+                    fresh.exhibit_scroll.scroll_y = st.exhibit_scroll.scroll_y;
+                    fresh.apply_layout();
+                    assert_eq!(rects(&st), rects(&fresh), "{at}: not re-arranged on the release");
+                }
+            }
+        }
+        assert!(scrolled, "the wheel never scrolled the area: the test scrolls nothing");
+    }
+
+    /// An editor opens under its button: the anchor is the button's bottom-left corner on
+    /// screen — the gallery window's corner plus the button's offset into it, scaled by the
+    /// desk's zoom. The window list gives the window's box unzoomed, so the zoom is the
+    /// `camera` reply's, read off it as the compositor words it.
+    #[test]
+    fn an_editor_is_anchored_at_its_buttons_foot() {
+        let button = (40.0, 300.0, 190.0, 32.0);
+        assert_eq!(editor_anchor((100.0, 50.0), 1.0, button), (140.0, 382.0));
+        // Zoomed out to half: the 1000 px window (as `windows --json` still reports it) is
+        // drawn 500 px wide, and the button's offset into it halves.
+        let zoom = camera_zoom("pan_x=-12.0 pan_y=4.5 zoom=0.500 target_x=- target_y=- anim=false mode=Normal\n").unwrap();
+        assert_eq!(editor_anchor((100.0, 50.0), zoom, button), (120.0, 216.0));
+        // The `zoom-out` step, as two skeptics read it off a shadow.
+        let zoom = camera_zoom("pan_x=0.0 pan_y=0.0 zoom=0.909 target_x=- target_y=- anim=false mode=Normal").unwrap();
+        let (x, y) = editor_anchor((100.0, 50.0), zoom, button);
+        assert!((x - 136.36).abs() < 0.01 && (y - 351.79).abs() < 0.01, "({x}, {y})");
+        // A reply with no usable zoom gives none: the pointer anchors instead.
+        for reply in ["", "error: unknown command", "zoom=nan", "zoom=0", "zoom=-1", "pan_x=0 zoom="] {
+            assert_eq!(camera_zoom(reply), None, "{reply:?}");
+        }
+    }
+
+    /// The variant exhibits are widgets in another style: the Paginator, which holds no
+    /// pages of its own here and is not a widget that stands alone, is not among them.
+    #[test]
+    fn no_exhibit_is_a_paginator() {
+        let st = gallery();
+        for i in (0..st.roster.len()).filter(|&i| on_page(&st, i)) {
+            let w = st.roster.get_dyn(&st.ui_context, i);
+            assert!(w.as_any().downcast_ref::<cce_ui::widget::Paginator>().is_none(), "slot {i} is a Paginator");
+        }
+    }
+
     /// Scrolled all the way down, in every layout and at every window size, the lowest
     /// exhibit ends as far above the well's floor as the first row starts below it — two
     /// paddings — so none is cut off by the wall at the foot of the area.
@@ -2184,7 +2690,7 @@ mod tests {
                 let (floor, _) = st.exhibit_floor();
                 let foot = floor.y + floor.height - 2.0 * pad;
                 let lowest = (0..st.roster.len())
-                    .filter(|&i| is_exhibit(i))
+                    .filter(|&i| on_page(&st, i))
                     .map(|i| {
                         let (_, y, _, h) = st.roster.get_dyn(&st.ui_context, i).rect();
                         (y + h, i)
@@ -2196,6 +2702,361 @@ mod tests {
             }
         }
         assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// An exhibit's footprint: its rect (content and label strip) and its detached label.
+    fn footprint(w: &dyn WidgetHost) -> cce_ui::scene::layout::Rect {
+        let (x, y, ww, hh) = w.rect();
+        let mut r = cce_ui::scene::layout::Rect { x, y, width: ww, height: hh };
+        if let Some(l) = w.detached_label_rect() {
+            let (x1, y1) = ((r.x + r.width).max(l.x + l.width), (r.y + r.height).max(l.y + l.height));
+            (r.x, r.y) = (r.x.min(l.x), r.y.min(l.y));
+            (r.width, r.height) = (x1 - r.x, y1 - r.y);
+        }
+        r
+    }
+
+    /// The roster slot whose widget is `id` or holds it in the ui tree.
+    fn slot_holding(st: &State, id: WidgetId) -> Option<usize> {
+        let mut at = Some(id);
+        while let Some(cur) = at {
+            if let Some(i) = (0..st.roster.len()).find(|&i| st.roster.id(i) == cur) {
+                return Some(i);
+            }
+            at = st.ui_context.tree.parent_id(cur);
+        }
+        None
+    }
+
+    /// The text a frame of the gallery paints.
+    fn painted_text(st: &mut State) -> Vec<String> {
+        let size = cce_ui::engine::LogicalSize::new(st.width, st.height);
+        let list = <State as cce_ui::engine::Application>::display_list(st, size, 1.0).expect("a frame");
+        list.items
+            .into_iter()
+            .filter_map(|it| match it.prim {
+                Prim::Text { text, .. } => Some(text),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// On the Relief page no widget exhibit is painted, hit or a Tab stop — they are hidden
+    /// and parked off-screen, embedded children and all — and every tile is shown. A press
+    /// where a widget exhibit stood reaches none of them; the frame's text has every tile's
+    /// caption and none of the widgets'.
+    #[test]
+    fn the_relief_page_hides_every_widget_exhibit_and_shows_its_tiles() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        let mut st = gallery();
+        (st.width, st.height) = (1000.0, 680.0);
+        st.relayout();
+        st.apply_layout();
+        let len = st.roster.len();
+        let tiles_start = st.roster.gallery().tiles_start();
+        let widgets: Vec<usize> = (0..len).filter(|&i| on_page(&st, i)).collect();
+        let tiles: Vec<usize> = (tiles_start..len).collect();
+        assert!(widgets.iter().all(|&i| i < tiles_start), "a tile is on the widget page");
+        assert_eq!(tiles.len(), Effect::ALL.len());
+        for &i in &tiles {
+            assert!(!on_page(&st, i) && !st.roster.get_dyn(&st.ui_context, i).visible(), "tile {i} shows on the widget page");
+        }
+        // The widget page paints its own captions, which the Relief page must not.
+        let shown = painted_text(&mut st);
+        let names = ["Checkbox", "Slider", "ProgressBar", "Trackpad", "TreeList", "Group (fitted)"];
+        for name in names {
+            assert!(shown.iter().any(|t| t == name), "the widget page paints no {name:?}");
+        }
+        let centres: Vec<(f32, f32)> = widgets
+            .iter()
+            .map(|&i| {
+                let (x, y, w, h) = st.roster.get_dyn(&st.ui_context, i).rect();
+                (x + w * 0.5, y + h * 0.5)
+            })
+            .filter(|&(x, y)| st.in_exhibit_viewport(x, y))
+            .collect();
+        assert!(centres.len() > 10);
+
+        st.set_page(Page::Relief);
+        for &i in &widgets {
+            let w = st.roster.get_dyn(&st.ui_context, i);
+            let (x, y, ww, hh) = w.rect();
+            assert!(!st.is_widget_visible(i) && !w.visible(), "slot {i} is visible");
+            assert!(x + ww <= 0.0 && y + hh <= 0.0, "slot {i} is on screen at {:?}", w.rect());
+        }
+        for &i in &tiles {
+            assert!(on_page(&st, i) && st.roster.get_dyn(&st.ui_context, i).visible(), "tile {i} is hidden");
+        }
+        // The Tab stops are the header's: no widget exhibit, nor a field inside one.
+        for id in st.ui_context.focus_clusters().concat() {
+            let slot = slot_holding(&st, id);
+            let w = st.ui_context.get_widget(id).unwrap();
+            assert!(slot.is_some_and(|i| HEADER.contains(&i)), "a Tab stop in slot {slot:?}: {:?} at {:?}", w.focus_role(), w.rect());
+        }
+        for (x, y) in centres {
+            let mut nr = false;
+            let at = LogicalPosition::new(x, y);
+            st.handle_mouse_input(MouseButton::Left, ElementState::Pressed, at, &mut nr);
+            st.handle_mouse_input(MouseButton::Left, ElementState::Released, at, &mut nr);
+            let holder = st.ui_context.focused_widget.and_then(|id| slot_holding(&st, id));
+            assert!(holder.is_none_or(|i| i >= tiles_start), "a press at ({x}, {y}) focused slot {holder:?}");
+        }
+        let shown = painted_text(&mut st);
+        for name in names {
+            assert!(!shown.iter().any(|t| t == name), "the Relief page paints {name:?}");
+        }
+        for effect in Effect::ALL {
+            assert!(shown.iter().any(|t| t == effect.caption()), "no caption {:?}", effect.caption());
+        }
+    }
+
+    /// Back on the widget page every exhibit is where it was, shown and a Tab stop again,
+    /// and the tiles are parked in their turn.
+    #[test]
+    fn switching_back_restores_the_widget_page() {
+        let mut st = gallery();
+        for (sw, sh) in [(726.0, 912.0), (1400.0, 1000.0)] {
+            (st.width, st.height) = (sw, sh);
+            st.relayout();
+            st.apply_layout();
+            let rects = |st: &State| -> Vec<(usize, (f32, f32, f32, f32))> {
+                (0..st.roster.len()).filter(|&i| on_page(st, i)).map(|i| (i, st.roster.get_dyn(&st.ui_context, i).rect())).collect()
+            };
+            let before = rects(&st);
+            st.set_page(Page::Relief);
+            st.set_page(Page::Widgets);
+            assert_eq!(rects(&st), before, "{sw}x{sh}");
+            for &(i, _) in &before {
+                assert!(st.roster.get_dyn(&st.ui_context, i).visible(), "{sw}x{sh}: slot {i} is hidden");
+            }
+            for i in st.roster.gallery().tiles_start()..st.roster.len() {
+                let w = st.roster.get_dyn(&st.ui_context, i);
+                assert!(!w.visible() && w.rect().0 + w.rect().2 <= 0.0, "{sw}x{sh}: tile {i} is out");
+            }
+            let stops = st.ui_context.focus_clusters().concat();
+            assert!(stops.contains(&st.roster.id(1)), "{sw}x{sh}: the Button is no Tab stop");
+        }
+    }
+
+    /// A page opens at its top: switching scrolls the area back to 0, and the scroll frame
+    /// keeps it there on its next tick.
+    #[test]
+    fn a_page_switch_scrolls_to_the_top() {
+        let mut st = gallery();
+        (st.width, st.height) = (726.0, 912.0);
+        st.relayout();
+        for (from, to) in [(Page::Widgets, Page::Relief), (Page::Relief, Page::Widgets)] {
+            st.set_page(from);
+            st.exhibit_scroll.scroll_y = f32::MAX;
+            st.apply_layout();
+            assert!(st.exhibit_scroll.scroll_y > 0.0, "{from:?} does not scroll at 726x912");
+            st.set_page(to);
+            assert_eq!(st.exhibit_scroll.scroll_y, 0.0, "{from:?} to {to:?}");
+            st.exhibit_scroll.tick(0.016, &mut st.ui_context);
+            assert_eq!(st.exhibit_scroll.scroll_y, 0.0, "{from:?} to {to:?}, a tick later");
+        }
+    }
+
+    /// The Relief page as the widget page is held to it: in every layout, at window sizes from
+    /// narrow to wide, no tile overlaps another — caption included — every tile lies across
+    /// the well's floor at least as large as its table size, and scrolled all the way down
+    /// the lowest ends two paddings above the floor's foot.
+    #[test]
+    fn the_relief_tiles_lie_apart_on_the_floor_in_every_layout() {
+        let mut st = gallery();
+        st.set_page(Page::Relief);
+        let pad = st.ui_context[st.roster.gallery().group_fitted].inner().padding();
+        let mut failures = Vec::new();
+        for (sw, sh) in [(600.0, 800.0), (726.0, 912.0), (800.0, 600.0), (1000.0, 680.0), (1400.0, 1000.0), (2400.0, 1400.0)] {
+            (st.width, st.height) = (sw, sh);
+            st.relayout();
+            for (li, (name, _)) in LAYOUTS.iter().enumerate() {
+                st.layout_idx = li;
+                st.exhibit_scroll.scroll_y = 0.0;
+                st.apply_layout();
+                let at = format!("{sw}x{sh} {name}");
+                let (floor, _) = st.exhibit_floor();
+                let sizes = st.exhibit_sizes();
+                let tiles: Vec<(usize, cce_ui::scene::layout::Rect)> =
+                    (0..st.roster.len()).filter(|&i| on_page(&st, i)).map(|i| (i, footprint(st.roster.get_dyn(&st.ui_context, i)))).collect();
+                assert_eq!(tiles.len(), Effect::ALL.len(), "{at}");
+                for (k, &(i, a)) in tiles.iter().enumerate() {
+                    for &(j, b) in &tiles[k + 1..] {
+                        if overlap(a, b) {
+                            failures.push(format!("{at}: tile {i} {a:?} overlaps tile {j} {b:?}"));
+                        }
+                    }
+                    if a.x < floor.x - 0.5 || a.x + a.width > floor.x + floor.width + 0.5 {
+                        failures.push(format!("{at}: tile {i} {a:?} runs off the floor {floor:?}"));
+                    }
+                    let w = st.roster.get_dyn(&st.ui_context, i);
+                    let e = sizes.iter().find(|e| e.slot == i).unwrap();
+                    let (_, _, width, h) = w.rect();
+                    if width < e.w - 0.5 || h - w.label_strip() < e.h - 0.5 {
+                        failures.push(format!("{at}: tile {i} is {width}x{}, under its {}x{}", h - w.label_strip(), e.w, e.h));
+                    }
+                }
+                st.exhibit_scroll.scroll_y = f32::MAX;
+                st.apply_layout();
+                let foot = floor.y + floor.height - 2.0 * pad;
+                let lowest = (0..st.roster.len())
+                    .filter(|&i| on_page(&st, i))
+                    .map(|i| {
+                        let (_, y, _, h) = st.roster.get_dyn(&st.ui_context, i).rect();
+                        y + h
+                    })
+                    .fold(f32::MIN, f32::max);
+                if lowest > foot + 0.5 {
+                    failures.push(format!("{at}: scrolled to the bottom, a tile ends at {lowest} below {foot}"));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// The header's dropdowns flow in rows: each on the row before it where it ends inside
+    /// the window's right inset, else at the start of the next, one root gap below. At every
+    /// width — down to ones narrower than a single dropdown and its insets — none overlaps
+    /// another, label included, each lies inside the insets (or, where one cannot, starts its
+    /// own row at the left inset), and the exhibit area starts one root gap below the lowest.
+    #[test]
+    fn the_header_wraps_where_its_dropdowns_do_not_fit_one_row() {
+        let mut st = gallery();
+        let inset = cce_ui::layout::root_plate_inset();
+        let gap = cce_ui::layout::root_plate_gap();
+        for sw in [100.0, 200.0, 300.0, 400.0, 430.0, 435.0, 600.0, 726.0, 1000.0, 1400.0] {
+            (st.width, st.height) = (sw, 800.0);
+            st.relayout();
+            st.apply_layout();
+            let header: Vec<cce_ui::scene::layout::Rect> = HEADER.iter().map(|&i| footprint(st.roster.get_dyn(&st.ui_context, i))).collect();
+            // How many share a row: as many as fit between the insets, one at least.
+            let per_row = (((sw - 2.0 * inset + gap) / (HEADER_W + gap)).floor() as usize).max(1);
+            let fits = 2.0 * inset + HEADER_W <= sw;
+            for (k, a) in header.iter().enumerate() {
+                for b in &header[k + 1..] {
+                    assert!(!overlap(*a, *b), "{sw}: {a:?} overlaps {b:?}");
+                }
+                if fits {
+                    assert!(a.x >= inset - 0.5 && a.x + a.width <= sw - inset + 0.5, "{sw}: {a:?} past the inset");
+                } else {
+                    assert!((a.x - inset).abs() < 0.5, "{sw}: {a:?} does not start its row at the inset");
+                }
+                if k == 0 {
+                    continue;
+                }
+                let prev = header[k - 1];
+                if k % per_row == 0 {
+                    assert!((a.x - inset).abs() < 0.5, "{sw}: dropdown {k} {a:?} does not start a row at the inset");
+                    assert!(a.y >= prev.y + prev.height + gap - 0.5, "{sw}: dropdown {k} {a:?} is not below {prev:?}");
+                } else {
+                    assert!((a.y - prev.y).abs() < 0.5, "{sw}: dropdown {k} {a:?} is not on the row of {prev:?}");
+                }
+            }
+            let foot = header.iter().map(|r| r.y + r.height).fold(f32::MIN, f32::max);
+            let (_, vy, _, _) = st.exhibit_viewport();
+            assert!((vy - (foot + gap)).abs() < 0.5, "{sw}: the area starts at {vy}, the header ends at {foot}");
+        }
+        assert!(2.0 * inset + 3.0 * HEADER_W + 2.0 * gap > 600.0, "600 px no longer wraps the header");
+        assert!(2.0 * inset + 2.0 * HEADER_W + gap > 400.0, "400 px no longer wraps the header twice");
+    }
+
+    /// A page switched from the keyboard while the pointer holds an exhibit — the Slider,
+    /// pressed and moved, or pressed and held still — ends the gesture where it is, before
+    /// the exhibit is hidden: the next pointer move drags nothing on the hidden page, the
+    /// router holds no target or grab, and back on the widget page the Slider is let go and
+    /// arranged where it was.
+    #[test]
+    fn a_page_switch_ends_a_held_press_or_drag() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        for moved in [true, false] {
+            let mut st = gallery();
+            (st.width, st.height) = (1000.0, 680.0);
+            st.relayout();
+            st.apply_layout();
+            let before: Vec<_> = (0..st.roster.len()).filter(|&i| on_page(&st, i)).map(|i| st.roster.get_dyn(&st.ui_context, i).rect()).collect();
+            let slider = st.roster.gallery().slider_demo;
+            let (x, y, w, h) = st.roster.get_dyn(&st.ui_context, 5).rect();
+            let strip = st.roster.get_dyn(&st.ui_context, 5).label_strip();
+            let (px, py) = (x + w * 0.25, y + strip + (h - strip) * 0.5);
+            assert!(st.in_exhibit_viewport(px, py), "the Slider is not in view at 1000x680");
+            let mut nr = false;
+            st.handle_mouse_input(MouseButton::Left, ElementState::Pressed, LogicalPosition::new(px, py), &mut nr);
+            if moved {
+                st.handle_pointer_move(LogicalPosition::new(px + 6.0, py), &mut nr);
+            }
+            let value = st.ui_context[slider].inner().value();
+            assert!(st.roster.is_dragging(&st.ui_context, 5), "moved {moved}: the press did not take the Slider");
+            st.set_page(Page::Relief);
+            assert!(!st.roster.is_dragging(&st.ui_context, 5), "moved {moved}: the Slider is still dragging on the hidden page");
+            let ui = &st.ui_context;
+            assert!(ui.drag_target.is_none() && ui.active_grab.is_none() && !ui.is_dragging, "moved {moved}: the router still holds the gesture");
+            st.handle_pointer_move(LogicalPosition::new(px + w * 2.0, py), &mut nr);
+            assert_eq!(st.ui_context[slider].inner().value(), value, "moved {moved}: a move on the Relief page set the hidden Slider");
+            st.handle_mouse_input(MouseButton::Left, ElementState::Released, LogicalPosition::new(px + w * 2.0, py), &mut nr);
+            st.set_page(Page::Widgets);
+            st.layout_exhibits();
+            assert!(!st.roster.is_dragging(&st.ui_context, 5), "moved {moved}: the Slider is dragging back on its page");
+            let after: Vec<_> = (0..st.roster.len()).filter(|&i| on_page(&st, i)).map(|i| st.roster.get_dyn(&st.ui_context, i).rect()).collect();
+            assert_eq!(after, before, "moved {moved}: the widget page is not arranged as it was");
+        }
+    }
+
+    /// A button held across a page switch is let go, not clicked: the switch's release lands
+    /// off every widget, so a held "Ramp..." opens no editor.
+    #[test]
+    fn a_page_switch_does_not_click_a_held_button() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        for slot in [11, 13] {
+            let mut st = gallery();
+            (st.width, st.height) = (1400.0, 2400.0);
+            st.relayout();
+            st.apply_layout();
+            let button = st.roster.id(slot);
+            let (x, y, w, h) = st.roster.get_dyn(&st.ui_context, slot).rect();
+            let (px, py) = (x + w * 0.5, y + h * 0.5);
+            assert!(st.in_exhibit_viewport(px, py), "slot {slot} is not in view");
+            let mut nr = false;
+            // The pointer comes to the button first, as a real click's does: the router's
+            // cursor is where a release at the cursor would have landed.
+            st.handle_pointer_move(LogicalPosition::new(px, py), &mut nr);
+            st.handle_mouse_input(MouseButton::Left, ElementState::Pressed, LogicalPosition::new(px, py), &mut nr);
+            st.ui_context.take_events();
+            st.set_page(Page::Relief);
+            let clicked = st.ui_context.take_events().into_iter().any(|(id, ev)| id == button && matches!(ev, WidgetEvent::Clicked));
+            assert!(!clicked, "slot {slot}: the page switch clicked the held button");
+        }
+    }
+
+    /// However narrow the window, the exhibit area stays inside it: its width followed the
+    /// window down only to 300, past the right edge of a window under ~343 px.
+    #[test]
+    fn the_exhibit_area_stays_inside_a_narrow_window() {
+        let mut st = gallery();
+        for sw in [100.0, 200.0, 300.0, 343.0, 400.0, 600.0] {
+            (st.width, st.height) = (sw, 800.0);
+            st.relayout();
+            st.apply_layout();
+            let (x, _, w, _) = st.exhibit_viewport();
+            assert!(x + w <= sw - x + 0.5, "{sw}: the exhibit area ends at {}, past {}", x + w, sw - x);
+        }
+    }
+
+    /// A page switch closes the shared context menu an exhibit's right-click opened: its
+    /// rows act on that exhibit, which the switch hides.
+    #[test]
+    fn a_page_switch_closes_the_context_menu() {
+        use cce_ui::engine::{Application, LogicalPosition};
+        let mut st = gallery();
+        (st.width, st.height) = (1000.0, 680.0);
+        st.relayout();
+        st.apply_layout();
+        let (x, y, w, h) = st.roster.get_dyn(&st.ui_context, 5).rect();
+        let at = LogicalPosition::new(x + w * 0.5, y + h * 0.5);
+        let mut nr = false;
+        st.handle_mouse_input(MouseButton::Right, ElementState::Pressed, at, &mut nr);
+        assert!(cce_ui::widget::context_menu::is_visible(), "a right-press on the Slider opened no menu");
+        st.set_page(Page::Relief);
+        assert!(!cce_ui::widget::context_menu::is_visible(), "the menu is open over the Relief page");
     }
 
     /// At its default size every kind of child window has its description (or editor)
