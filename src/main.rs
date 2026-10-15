@@ -1300,7 +1300,7 @@ impl cce_ui::engine::Application for State {
                 textbox_demo: ctx.insert(TextBox::new("Interactive TextBox".to_string())),
                 plate_demo: ctx.insert(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")),
                 color_ramp_btn: ctx.insert(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp...")),
-                bevel_ramp: ctx.insert(Ramp::new()),
+                bevel_ramp: ctx.insert(Ramp::new().with_label("Ramp")),
                 ramp_btn: ctx.insert(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp...")),
                 layout_dd: ctx.insert(Dropdown::new(
                     LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
@@ -1362,7 +1362,7 @@ impl cce_ui::engine::Application for State {
                 slider_spinbox_demo: ctx.insert(SliderSpinbox::new_int(5, 0, 10, 1).with_label("SliderSpinbox")),
                 // Unlabeled, as the Ramp is: it lays its track out from the top of the rect
                 // it is given, where a detached label's strip would be, and drew over one.
-                color_ramp_demo: ctx.insert(ColorRamp::new()),
+                color_ramp_demo: ctx.insert(ColorRamp::new().with_label("ColorRamp")),
                 extra: variant_exhibits(ctx),
                 tiles: relief_tiles(ctx),
             }))
