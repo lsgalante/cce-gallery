@@ -12,8 +12,11 @@ compositor does with the windows it spawns. Its unit tests (`cargo test -p
 cce-gallery`) cover the exhibit arrangements (`src/arrange.rs`), that no
 layout overlaps its exhibits or lets a Group frame take in one that is not its
 member, that a Group's padding is even on every side, and that the gaps down
-the stacking layouts' columns are all the control gap (the real page, at window
-sizes from 600 to 2400 wide), that the Ramp and the ColorRamp lie across two
+the stacking layouts' columns are all the control gap within a family and each
+family starts one gap below all before it (the real page, at window sizes from
+600 to 2400 wide), that a section break starts below everything before it in
+Adaptive Grid and both mosaics, that every variant follows the widget it is a
+look of and the loose Group holds the four StatusDots, that the Ramp and the ColorRamp lie across two
 grid columns (the Ramp at the height the page gives it), that holding an
 exhibit's drag moves nothing on the page — through a scroll and a resize — that the
 exhibit table names every exhibit once and no exhibit is a Paginator, that the
@@ -46,8 +49,23 @@ below, when it would run past the right one — and the exhibit area runs from
 one root gap below the lowest of them down to the window's foot, within the
 insets however narrow the window.
 
-After those come the variants: every further look a widget can take, one
-exhibit each, labelled `<Widget> (<style>)`. The toolkit's own variants are a
+The exhibits come in families, related controls side by side: buttons and
+toggles; sliders and number inputs (Slider, RangeSlider, SliderSpinbox,
+Spinbox, Float3, Slider2D, Trackpad); colour (ColorSelector, ColorPalette,
+ColorRamp and its `Color Ramp...` button); the ramps (`Ramp...`, Ramp,
+RampPreview, BevelPreview); text (TextBox, KeybindRecorder, FontSelector);
+status and display (the StatusDots, ProgressBar, UsageBar, InfoBox,
+InteractiveListItem, TreeList); and the surfaces (Plate, Separator, Splitter).
+Each family starts a section of its own (`FAMILY_HEADS` in `src/main.rs`): the
+first exhibit of a family goes below everything before it — Adaptive Grid
+levels its columns at the tallest, the mosaics open a row under all they have
+packed (`arrange_sections`) — so no family's exhibits fill in beside another's.
+The ramps come before text because a multiline TextBox keeps Tab (it types
+one), and Tab from the header must reach the Ramp.
+
+Within its family each widget is followed by its variants: every further look a
+widget can take, one exhibit each, labelled `<Widget> (<style>)`, placed right
+after the widget it is a look of (`Exhibit::after`). The toolkit's own variants are a
 constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
 `new_copy_icon`; `SliderSpinbox::new_float`, to two decimals), a builder
 (`with_readout` on Slider; `with_multiline`,
@@ -55,8 +73,8 @@ constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
 on ButtonStrip). ColorSelector shows its alpha swatch,
 InteractiveListItem a selected row (its style in the subtitle: the row draws
 its own text, and the name with the style does not fit one line), and the four StatusDot statuses and the
-plain Label round it off. When a widget gains a style, it gains an exhibit
-here.
+plain Label (with the text family) round it off. When a widget gains a style,
+it gains an exhibit here, after that widget.
 
 The relief-off look is not a variant. The header's `Style` dropdown, beside
 `Layout`, switches every control between `Relief` and `Flat` at once
@@ -66,8 +84,9 @@ in place and no widget appears twice for its style alone. A widget that does
 not follow the switch is a toolkit bug — every control's `with_raised` /
 `with_recessed` is an override on top of the live default, not a copy of it.
 
-Two `Group` lassos lie over the named exhibits — `Group`, loose around the
-FontSelector and the StatusDot, and `Group (fitted)` around the top row,
+Two `Group` lassos lie over exhibits — `Group`, loose around the four
+StatusDots (the named one and its three variants, heading the status family),
+and `Group (fitted)` around the top row,
 fitted to the exhibit area's edges (`GROUPS` in `src/main.rs`). A group's
 frame is the padded hull of wherever its members land, so the arrangement
 treats each group as ONE block: its members are laid out together inside it

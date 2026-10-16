@@ -3,7 +3,7 @@ use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
 use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, ColorPalette, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, ScrollBox, SliderSpinbox, WidgetHostExt};
 mod arrange;
-use arrange::{arrange, Arrangement, Block, Lasso};
+use arrange::{arrange_sections, Arrangement, Block, Lasso};
 mod gallery_widgets;
 use gallery_widgets::{Effect, Plate, ReliefTile, RootPlate};
 use cce_ui::widget::{Adapted, LayoutConstraints, Point, WidgetEvent};
@@ -269,19 +269,23 @@ pub struct Exhibit {
     pub stretch: bool,
     /// How many of Adaptive Grid's columns it lies across ([`ExhibitSize::span`]).
     pub span: usize,
+    /// The named slot it is placed right after (with any other variant of that slot, in
+    /// the order they are built), so a variant sits beside the widget it is a look of
+    /// (`exhibit_table`). `None` for the Relief page's tiles, which have no named slot.
+    pub after: Option<usize>,
 }
 
 impl Exhibit {
     /// Sized by the widget's own preferred (content) height, `fallback_h` when it declares none.
     fn new<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, fallback_h: f32) -> Self {
         let h = widget.preferred_height().unwrap_or(fallback_h);
-        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true, span: 1 }
+        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true, span: 1, after: None }
     }
 
     /// Sized by hand: for widgets whose declared height is a single row (a multiline
     /// TextBox, a vertical ButtonStrip) when the exhibit wants several.
     fn sized<W: WidgetHost + 'static>(ctx: &mut UiContext, widget: W, w: f32, h: f32) -> Self {
-        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true, span: 1 }
+        Exhibit { id: ctx.insert(widget).id(), w, h, stretch: true, span: 1, after: None }
     }
 
     /// Across `span` of Adaptive Grid's columns.
@@ -293,6 +297,12 @@ impl Exhibit {
     /// Kept at its own width in every arrangement: a control with a size of its own.
     fn fixed(mut self) -> Self {
         self.stretch = false;
+        self
+    }
+
+    /// Placed right after named slot `slot` ([`Exhibit::after`]).
+    fn after(mut self, slot: usize) -> Self {
+        self.after = Some(slot);
         self
     }
 }
@@ -371,10 +381,25 @@ fn content_extent(w: &dyn WidgetHost) -> Option<f32> {
         .map(|w| w.ceil() + 1.0)
 }
 
+/// The StatusDot's three variants' slots (`variant_exhibits`: the last three, after the
+/// named slot's dot), which the loose lasso draws around with it.
+/// `the_loose_lasso_holds_the_status_dots` holds the indexes to the list.
+const STATUS_DOT_VARIANTS: [usize; 3] = [GALLERY_COUNT + 13, GALLERY_COUNT + 14, GALLERY_COUNT + 15];
+
 /// The `Group` lassos (slots 31, 32) and the exhibit slots each draws around, in the order
-/// they are laid out inside it: a loose one around the FontSelector and the StatusDot, and
-/// the fitted one around the top row (Button, ButtonStrip, Checkbox, Toggle).
-const GROUPS: [(usize, &[usize]); 2] = [(31, &[16, 22]), (32, &[1, 18, 2, 3])];
+/// they are laid out inside it: a loose one around the four StatusDots, and the fitted one
+/// around the top row (Button, ButtonStrip, Checkbox, Toggle). Each lies within one family
+/// (`FAMILY_HEADS`), so no frame straddles two.
+const GROUPS: [(usize, &[usize]); 2] = [
+    (31, &[22, STATUS_DOT_VARIANTS[0], STATUS_DOT_VARIANTS[1], STATUS_DOT_VARIANTS[2]]),
+    (32, &[1, 18, 2, 3]),
+];
+
+/// The first exhibit of each family of the widget page (`exhibit_table`): each starts a new
+/// section of the arrangement (`arrange_sections`), below everything before it, so the
+/// families never interleave. Buttons, sliders and number inputs, colour, the ramps, text,
+/// status and display, surfaces.
+const FAMILY_HEADS: [usize; 7] = [1, 5, 15, 13, 9, 22, 10];
 
 /// The lassos to arrange over blocks whose slots are `slots`, in order: each group's members
 /// as indexes into the blocks, with the group's (padding, tab height) from `frame`. A member
@@ -683,23 +708,24 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     };
     vec![
         // Button: the other four kinds.
-        Exhibit::new(ctx, Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh),
-        Exhibit::new(ctx, Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh),
-        Exhibit::new(ctx, Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh),
-        Exhibit::new(ctx, Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh).fixed(),
+        Exhibit::new(ctx, Button::new_reset(0.0, 0.0, W, bh).with_label("Button (reset)"), W, bh).after(1),
+        Exhibit::new(ctx, Button::new_list_row(0.0, 0.0, W, bh).with_label("Button (list row)"), W, bh).after(1),
+        Exhibit::new(ctx, Button::new_menu_item(0.0, 0.0, W, bh).with_label("Button (menu item)"), W, bh).after(1),
+        Exhibit::new(ctx, Button::new_copy_icon(0.0, 0.0, bh, bh), bh, bh).fixed().after(1),
         // Slider: with a readout.
-        Exhibit::new(ctx, Slider::new().with_label("Slider (readout)").with_readout(true), W, slh),
+        Exhibit::new(ctx, Slider::new().with_label("Slider (readout)").with_readout(true), W, slh).after(5),
         // SliderSpinbox: a float to two decimals, stepped by 0.05 (the named slot is an int).
-        Exhibit::new(ctx, SliderSpinbox::new_float(0.5, 0.0, 1.0, 0.05, 2).with_label("SliderSpinbox (float)"), SLIDER_SPINBOX_W, slh),
+        Exhibit::new(ctx, SliderSpinbox::new_float(0.5, 0.0, 1.0, 0.05, 2).with_label("SliderSpinbox (float)"), SLIDER_SPINBOX_W, slh).after(33),
         // TextBox: multiline, chromeless, password.
         Exhibit::sized(
             ctx,
             TextBox::new("TextBox (multiline)\nA second line of text.".to_string()).with_multiline(true),
             W,
             3.0 * tbh,
-        ),
-        Exhibit::new(ctx, TextBox::new("TextBox (chromeless)".to_string()).with_draw_bg_border(false), W, tbh),
-        Exhibit::new(ctx, TextBox::new("hunter2".to_string()).with_password(true).with_label("TextBox (password)"), W, tbh),
+        )
+        .after(9),
+        Exhibit::new(ctx, TextBox::new("TextBox (chromeless)".to_string()).with_draw_bg_border(false), W, tbh).after(9),
+        Exhibit::new(ctx, TextBox::new("hunter2".to_string()).with_password(true).with_label("TextBox (password)"), W, tbh).after(9),
         // ButtonStrip: the vertical column (rotated tabs).
         Exhibit::sized(
             ctx,
@@ -708,9 +734,10 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
             TAB_COLUMN_W,
             tabs_h,
         )
-        .fixed(),
+        .fixed()
+        .after(18),
         // ColorSelector: the alpha swatch.
-        Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh),
+        Exhibit::new(ctx, ColorSelector::new_rgba([64, 128, 255, 128]).with_label("ColorSelector (alpha)"), W, csh).after(15),
         // InteractiveListItem: selected, its highlight wash (the named slot's shows only
         // under the pointer).
         Exhibit::sized(
@@ -724,14 +751,15 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
             },
             W,
             2.0 * ddh,
-        ),
+        )
+        .after(24),
         // Label: the plain text widget.
-        Exhibit::new(ctx, Label::new("Label"), W, ddh),
+        Exhibit::new(ctx, Label::new("Label"), W, ddh).after(9),
         // StatusDot: the other three statuses. A dot is 12px square; its label is wider,
         // and the arrangement reserves the label's width (`Block::of`).
-        Exhibit::new(ctx, StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), StatusDot::SIZE, StatusDot::SIZE).fixed(),
-        Exhibit::new(ctx, StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), StatusDot::SIZE, StatusDot::SIZE).fixed(),
-        Exhibit::new(ctx, StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), StatusDot::SIZE, StatusDot::SIZE).fixed(),
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), StatusDot::SIZE, StatusDot::SIZE).fixed().after(22),
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), StatusDot::SIZE, StatusDot::SIZE).fixed().after(22),
+        Exhibit::new(ctx, StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), StatusDot::SIZE, StatusDot::SIZE).fixed().after(22),
     ]
 }
 
@@ -768,43 +796,59 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
     // Whether the exhibit stretches to a Vertical or grid cell (`ExhibitSize::stretch`).
     const FIT: bool = true;
     const OWN: bool = false;
+    // In families, related controls side by side, each variant right after the widget it is
+    // a look of (`Exhibit::after`), each family starting a section of its own
+    // (`FAMILY_HEADS`): buttons, sliders and number inputs, colour, the ramps, text, then
+    // status and display, then the surfaces. The ramps come before the text family: a
+    // multiline TextBox keeps Tab (it types one), and Tab from the header must reach the
+    // Ramp. A lasso is placed at its first member's place, so the fitted one heads the
+    // buttons and the loose one, round the StatusDots, the status family.
     let raw: [(usize, f32, f32, bool); 32] = [
+        // Buttons and toggles.
         (1, W, bh, FIT),                               // Button
         (18, W, bh, FIT),                              // ButtonStrip
         (CHECKBOX_SLOT, W, tgh, OWN),                  // Checkbox (narrowed to its box and label: `hug`)
         (3, W, tgh, OWN),                              // Toggle (its switch is drawn for its own width)
+        (25, W, bh, FIT),                              // Breadcrumb (button plates)
+        // Sliders and number inputs.
         (5, W, slh, FIT),                              // Slider
         (7, W, rsh, FIT),                              // RangeSlider
-        (19, s2d_w, 120.0, OWN),                       // Slider2D (a 120px pad)
+        (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
         (6, W, sph, FIT),                              // Spinbox
         (20, W, Float3::preferred_height(false), FIT), // Float3 (three slider rows)
+        (19, s2d_w, 120.0, OWN),                       // Slider2D (a 120px pad)
+        (8, W, CANVAS_H, FIT),                         // Trackpad
+        // Colour.
+        (15, W, csh, FIT),                             // ColorSelector
+        (COLOR_PALETTE_SLOT, W, cph, FIT),             // ColorPalette (its strip and colour selector row, across two grid columns)
+        (COLOR_RAMP_SLOT, W, crh, FIT),                // ColorRamp (its track, pegs and slider rows, across two grid columns)
+        (11, W, bh, FIT),                              // Color Ramp...
+        // The ramps.
+        (13, W, bh, FIT),                              // Ramp...
+        (RAMP_SLOT, W, Ramp::expanded_height() + CANVAS_H, FIT), // Ramp (a 240 graph over its controls, across two grid columns: `own_h`, `span`)
+        (28, W, 2.0 * rmh, FIT),                       // RampPreview (a ramp's curve)
+        (27, W, CANVAS_H, FIT),                        // BevelPreview
+        // Text.
         (9, W, tbh, FIT),                              // TextBox
         (17, W, tbh, FIT),                             // KeybindRecorder (a textbox)
-        (15, W, csh, FIT),                             // ColorSelector
         (16, W, fsh, FIT),                             // FontSelector
+        // Status and display: the StatusDots first, in their lasso.
+        (22, StatusDot::SIZE, StatusDot::SIZE, OWN),   // StatusDot (12px square; its label is wider)
         (4, W, pbh, FIT),                              // ProgressBar
         (21, W, pbh, FIT),                             // UsageBar
-        (22, StatusDot::SIZE, StatusDot::SIZE, OWN),   // StatusDot (12px square; its label is wider)
-        (29, W, 1.0, FIT),                             // Separator (a rule)
-        (30, 6.0, CANVAS_H, OWN),                      // Splitter (a vertical grip)
         (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines)
         (24, W, 2.0 * ddh, FIT),                       // InteractiveListItem (title + subtitle)
-        (25, W, bh, FIT),                              // Breadcrumb (button plates)
         (TREELIST_SLOT, W, 2.0 * CANVAS_H, FIT),       // TreeList (two canvases tall, across two grid columns: `span`)
-        (8, W, CANVAS_H, FIT),                         // Trackpad
+        // Surfaces and dividers.
         (10, W, CANVAS_H, FIT),                        // Plate
-        (27, W, CANVAS_H, FIT),                        // BevelPreview
-        (28, W, 2.0 * rmh, FIT),                       // RampPreview (a ramp's curve)
-        (COLOR_RAMP_SLOT, W, crh, FIT),                // ColorRamp (its track, pegs and slider rows, across two grid columns)
-        (RAMP_SLOT, W, Ramp::expanded_height() + CANVAS_H, FIT), // Ramp (a 240 graph over its controls, across two grid columns: `own_h`, `span`)
-        (11, W, bh, FIT),                              // Color Ramp...
-        (13, W, bh, FIT),                              // Ramp...
-        (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
-        (COLOR_PALETTE_SLOT, W, cph, FIT),             // ColorPalette (its strip and colour selector row, across two grid columns; the newest, last)
+        (29, W, 1.0, FIT),                             // Separator (a rule)
+        (30, 6.0, CANVAS_H, OWN),                      // Splitter (a vertical grip)
     ];
-    let mut sizes: Vec<ExhibitSize> = raw
-        .iter()
-        .map(|&(slot, w, h, stretch)| ExhibitSize {
+    let mut sizes = Vec::new();
+    let variants: Vec<ExhibitSize> = extra_sizes(GALLERY_COUNT, extra).collect();
+    let mut placed = vec![false; variants.len()];
+    for &(slot, w, h, stretch) in &raw {
+        sizes.push(ExhibitSize {
             slot,
             w,
             h,
@@ -812,9 +856,16 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
             hug: slot == CHECKBOX_SLOT,
             span: if spans_two(slot) { 2 } else { 1 },
             own_h: slot == RAMP_SLOT,
-        })
-        .collect();
-    sizes.extend(extra_sizes(GALLERY_COUNT, extra));
+        });
+        for (k, e) in extra.iter().enumerate() {
+            if e.after == Some(slot) {
+                sizes.push(variants[k]);
+                placed[k] = true;
+            }
+        }
+    }
+    // A variant whose widget has no place in the table goes last rather than nowhere.
+    sizes.extend(variants.into_iter().zip(placed).filter(|&(_, p)| !p).map(|(v, _)| v));
     sizes
 }
 
@@ -1069,7 +1120,8 @@ impl State {
         let (lx, ly) = (floor.x + 2.0 * pad, floor.y + 2.0 * pad);
         let area = cce_ui::scene::layout::Rect { x: lx, y: ly, width: floor.width - 4.0 * pad, height: floor.y + floor.height - ly };
         let blocks: Vec<Block> = exhibits.iter().map(|&(_, b)| b).collect();
-        let (contents, _) = arrange(kind, &blocks, &lassos, area, cce_ui::layout::control_gap());
+        let breaks: Vec<usize> = slots.iter().enumerate().filter(|(_, s)| FAMILY_HEADS.contains(s)).map(|(i, _)| i).collect();
+        let (contents, _) = arrange_sections(kind, &blocks, &lassos, area, cce_ui::layout::control_gap(), &breaks);
         // The scroll runs to where the lowest exhibit ends — not the arrangement's height,
         // which counts a trailing gap under some layouts and none under others — plus the
         // same two paddings above the floor's foot that the first row has below its top,
@@ -2217,6 +2269,39 @@ mod tests {
         assert_eq!(listed, exhibits);
     }
 
+    /// The loose lasso's variant slots are the StatusDot's variants, so the frame holds the
+    /// four dots and nothing else.
+    #[test]
+    fn the_loose_lasso_holds_the_status_dots() {
+        let mut ui = UiContext::new();
+        let extra = variant_exhibits(&mut ui);
+        for slot in STATUS_DOT_VARIANTS {
+            let e = &extra[slot - GALLERY_COUNT];
+            assert_eq!(e.after, Some(22), "slot {slot} is no StatusDot variant");
+            let label = ui.get_widget(e.id).and_then(|w| w.label()).unwrap_or_default();
+            assert!(label.starts_with("StatusDot ("), "slot {slot} is {label:?}");
+        }
+    }
+
+    /// Every variant names the widget it is a look of, and the table places it right after
+    /// that widget, with only that widget's other variants between: related exhibits sit side
+    /// by side.
+    #[test]
+    fn every_variant_follows_its_widget() {
+        let mut ui = UiContext::new();
+        let extra = variant_exhibits(&mut ui);
+        let order: Vec<usize> = exhibit_table(120.0, 300.0, 250.0, &extra).iter().map(|e| e.slot).collect();
+        for (k, e) in extra.iter().enumerate() {
+            let base = e.after.unwrap_or_else(|| panic!("variant {k} names no widget"));
+            let (b, v) = (order.iter().position(|&s| s == base).unwrap(), order.iter().position(|&s| s == GALLERY_COUNT + k).unwrap());
+            assert!(v > b, "variant {k} is before slot {base}");
+            for &between in &order[b + 1..v] {
+                let of = between.checked_sub(GALLERY_COUNT).and_then(|j| extra[j].after);
+                assert_eq!(of, Some(base), "slot {between} parts variant {k} from slot {base}");
+            }
+        }
+    }
+
     /// The gallery as it starts, in gallery mode.
     fn gallery() -> State {
         let (tx, _rx) = calloop::channel::channel::<String>();
@@ -2450,7 +2535,9 @@ mod tests {
     /// tab to foot: measured by its members, as it was, two stacked groups stood half a
     /// gap apart. An exhibit across several columns counts in each of them, and above it a
     /// shorter column may leave more than the gap (a hole the grid never fills) — but the
-    /// tallest column of its run, the one it is placed below, leaves exactly the gap.
+    /// tallest column of its run, the one it is placed below, leaves exactly the gap. So
+    /// across a family's start (`FAMILY_HEADS`): the family begins exactly the gap below the
+    /// lowest foot of all before it, and a shorter column leaves more.
     #[test]
     fn stacked_layouts_space_their_columns_evenly() {
         let mut st = gallery();
@@ -2497,6 +2584,28 @@ mod tests {
                     units.extend(cols.into_iter().map(|c| (c, *top, *bottom, what.clone(), spans)));
                 }
                 units.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+                // Each unit's family, in the table's order; a lasso is its first member's.
+                let mut family: std::collections::HashMap<String, usize> = Default::default();
+                let mut f = 0;
+                for (k, e) in st.exhibit_sizes().iter().enumerate() {
+                    if k > 0 && FAMILY_HEADS.contains(&e.slot) {
+                        f += 1;
+                    }
+                    family.insert(format!("slot {}", e.slot), f);
+                }
+                for (group, members) in GROUPS {
+                    let of = family[&format!("slot {}", members[0])];
+                    family.insert(format!("Group {group}"), of);
+                }
+                // Each family starts the gap below the lowest foot of every family before it.
+                let families = family.values().copied().max().unwrap_or(0);
+                for f in 1..=families {
+                    let top = found.iter().filter(|u| family[&u.4] == f).map(|u| u.2).fold(f32::MAX, f32::min);
+                    let above = found.iter().filter(|u| family[&u.4] < f).map(|u| u.3).fold(f32::MIN, f32::max);
+                    if (top - above - gap).abs() > 0.5 {
+                        failures.push(format!("{sw}x{sh} {name}: family {f} starts {:.1} below the one before, not {gap}", top - above));
+                    }
+                }
                 // Above each spanning unit, the smallest gap over the columns it lies across.
                 let mut above_span: std::collections::BTreeMap<String, f32> = Default::default();
                 for pair in units.windows(2) {
@@ -2505,7 +2614,12 @@ mod tests {
                         continue;
                     }
                     let between = b.1 - a.2;
-                    if b.4 {
+                    if family[&a.3] != family[&b.3] {
+                        // Across a family's start: levelled above, checked as a whole.
+                        if between < gap - 0.5 {
+                            failures.push(format!("{sw}x{sh} {name}: {} to {} is {between:.1}, under {gap}", a.3, b.3));
+                        }
+                    } else if b.4 {
                         let least = above_span.entry(b.3.clone()).or_insert(f32::MAX);
                         *least = least.min(between);
                     } else if (between - gap).abs() > 0.5 {

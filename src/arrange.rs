@@ -9,7 +9,7 @@
 //! other line up by content. Vertical and Adaptive Grid stack blocks in columns, where nothing
 //! stands beside a block to line up with: each block reserves its own strip and no more, so
 //! the gap down a column is the same above a labeled block and an unlabeled one. Every
-//! arrangement puts `gap` between footprints in both axes. [`arrange`] returns each block's content rect (its
+//! arrangement puts `gap` between footprints in both axes. [`arrange_sections`] returns each block's content rect (its
 //! label hangs in the strip above it) and the height the arrangement takes, which the
 //! exhibit area scrolls over.
 //!
@@ -104,7 +104,18 @@ pub enum Arrangement {
 
 /// Lay `blocks` out in `area` with `gap` between them, each of `lassos` as one block: each
 /// block's content rect, in order, and the height the arrangement takes.
+/// The gallery arranges in sections ([`arrange_sections`]); this, one section, is the tests'.
+#[cfg(test)]
 pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect, gap: f32) -> (Vec<Rect>, f32) {
+    arrange_sections(kind, blocks, lassos, area, gap, &[])
+}
+
+/// [`arrange`] in sections: each block of `breaks` (indexes into `blocks`) starts a new one,
+/// below everything placed before it — Adaptive Grid levels its columns at the tallest, the
+/// mosaics open a row under all they have packed — so a section's blocks never interleave
+/// with another's. Vertical, one column, is in order already. A lasso breaks where its first
+/// member does (it is placed there); a break on a later member is ignored.
+pub fn arrange_sections(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect, gap: f32, breaks: &[usize]) -> (Vec<Rect>, f32) {
     // The units the arrangement places: every block outside a lasso, and each lasso at
     // the place of its first member.
     enum Unit {
@@ -118,16 +129,21 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
         }
     }
     let mut units = Vec::new();
+    let mut unit_breaks = Vec::new();
     let mut placed = vec![false; lassos.len()];
     for (i, o) in owner.iter().enumerate() {
-        match *o {
-            None => units.push(Unit::One(i)),
+        let unit = match *o {
+            None => Unit::One(i),
             Some(l) if !placed[l] => {
                 placed[l] = true;
-                units.push(Unit::Lasso(l));
+                Unit::Lasso(l)
             }
-            Some(_) => {}
+            Some(_) => continue,
+        };
+        if breaks.contains(&i) {
+            unit_breaks.push(units.len());
         }
+        units.push(unit);
     }
     // Each lasso's members laid out inside it — stacked under Vertical, else in one row
     // if they fit across it and stacked if not —
@@ -148,7 +164,7 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
             // would put a member taller than the one before it on a row of its own).
             let at = Rect { x: 0.0, y: 0.0, width: inner_w, height: 0.0 };
             let placed = match kind {
-                Arrangement::Vertical => arrange_blocks(Arrangement::Vertical, &whole, at, gap, 1).0,
+                Arrangement::Vertical => arrange_blocks(Arrangement::Vertical, &whole, at, gap, 1, &[]).0,
                 _ => flow(&whole, at, gap),
             };
             // Each member's content rect: its block less its own strip.
@@ -169,7 +185,7 @@ pub fn arrange(kind: Arrangement, blocks: &[Block], lassos: &[Lasso], area: Rect
             Unit::Lasso(l) => inner[l].1,
         })
         .collect();
-    let (unit_rects, height) = arrange_blocks(kind, &unit_blocks, area, gap, columns);
+    let (unit_rects, height) = arrange_blocks(kind, &unit_blocks, area, gap, columns, &unit_breaks);
     let mut rects = vec![Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }; blocks.len()];
     for (u, ur) in units.iter().zip(unit_rects) {
         match *u {
@@ -224,8 +240,9 @@ fn column_width(area: Rect, gap: f32, columns: usize) -> f32 {
     (area.width - gap * (cols - 1) as f32).max(1.0) / cols as f32
 }
 
-/// [`arrange`] without lassos: every block placed on its own, Adaptive Grid over `columns`.
-fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, columns: usize) -> (Vec<Rect>, f32) {
+/// [`arrange`] without lassos: every block placed on its own, Adaptive Grid over `columns`,
+/// each of `breaks` starting a section ([`arrange_sections`]).
+fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, columns: usize, breaks: &[usize]) -> (Vec<Rect>, f32) {
     let lead = blocks.iter().map(|b| b.strip).fold(0.0, f32::max);
     match kind {
         Arrangement::Vertical | Arrangement::AdaptiveGrid { .. } => {
@@ -235,13 +252,13 @@ fn arrange_blocks(kind: Arrangement, blocks: &[Block], area: Rect, gap: f32, col
             let whole: Vec<Block> = blocks.iter().map(|b| Block { content_h: stacked_h(b) + b.strip, strip: 0.0, ..*b }).collect();
             let (rects, h) = match kind {
                 Arrangement::Vertical => vertical(&whole, area, gap, 0.0),
-                _ => grid(&whole, area, gap, 0.0, columns),
+                _ => grid(&whole, area, gap, 0.0, columns, breaks),
             };
             let content = blocks.iter().zip(rects).map(|(b, r)| Rect { y: r.y + b.strip, height: r.height - b.strip, ..r }).collect();
             (content, h)
         }
-        Arrangement::Mosaic => mosaic(blocks, area, gap, lead),
-        Arrangement::ReverseMosaic => reverse_mosaic(blocks, area, gap, lead),
+        Arrangement::Mosaic => mosaic(blocks, area, gap, lead, breaks),
+        Arrangement::ReverseMosaic => reverse_mosaic(blocks, area, gap, lead, breaks),
     }
 }
 
@@ -304,7 +321,10 @@ fn vertical(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f3
 /// foot. The shorter columns of the run keep the space above it empty: later blocks are
 /// only ever stacked at a column's foot, so it is a hole, never filled — choosing the run
 /// whose tallest is shortest keeps it as small as it can be.
-fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (Vec<Rect>, f32) {
+///
+/// A block of `breaks` first levels every column at the tallest's foot: its section starts
+/// on a row of its own.
+fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize, breaks: &[usize]) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
     }
@@ -312,7 +332,11 @@ fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (V
     let col_w = column_width(area, gap, cols);
     let mut bottoms = vec![area.y; cols];
     let mut rects = Vec::with_capacity(blocks.len());
-    for b in blocks {
+    for (i, b) in blocks.iter().enumerate() {
+        if breaks.contains(&i) {
+            let floor = bottoms.iter().copied().fold(area.y, f32::max);
+            bottoms.fill(floor);
+        }
         let h = stacked_h(b);
         let span = b.span.clamp(1, cols);
         let run_top = |c: usize| bottoms[c..c + span].iter().copied().fold(f32::MIN, f32::max);
@@ -340,14 +364,17 @@ fn grid(blocks: &[Block], area: Rect, gap: f32, lead: f32, columns: usize) -> (V
 
 /// Packs footprints; a block's content is its own width, clamped to the area's (its packed
 /// footprint is not).
-fn mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32) {
+fn mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32, breaks: &[usize]) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
     }
     let avail = area.width.max(1.0);
     let mut packer = Packer::new(area.x, area.y, avail, gap);
     let mut rects = Vec::with_capacity(blocks.len());
-    for b in blocks {
+    for (i, b) in blocks.iter().enumerate() {
+        if breaks.contains(&i) {
+            packer.new_row();
+        }
         let h = stacked_h(b);
         let (x, y) = packer.pack(b.width, lead + h);
         rects.push(Rect { x, y: y + lead, width: b.content_w.min(avail), height: h });
@@ -362,7 +389,7 @@ fn mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32)
 /// never below 1 — a packing taller than the area keeps Mosaic's rows and runs past it to
 /// scroll, rather than being squashed into it. Scaling places by 1 or more only widens the
 /// gaps the packing left, so blocks that did not overlap packed do not overlap spread.
-fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rect>, f32) {
+fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32, breaks: &[usize]) -> (Vec<Rect>, f32) {
     if blocks.is_empty() {
         return (Vec::new(), 0.0);
     }
@@ -370,7 +397,11 @@ fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rec
     let mut packer = Packer::new(0.0, 0.0, avail, gap);
     let packed: Vec<(f32, f32, f32, f32)> = blocks
         .iter()
-        .map(|b| {
+        .enumerate()
+        .map(|(i, b)| {
+            if breaks.contains(&i) {
+                packer.new_row();
+            }
             let ph = lead + stacked_h(b);
             let (px, py) = packer.pack(b.width, ph);
             (px, py, b.width, ph)
@@ -403,6 +434,8 @@ fn reverse_mosaic(blocks: &[Block], area: Rect, gap: f32, lead: f32) -> (Vec<Rec
 struct Packer {
     /// `(x, y, w, h)`.
     free: Vec<(f32, f32, f32, f32)>,
+    /// The packing's left edge and top, where a new row starts.
+    origin: (f32, f32),
     max_w: f32,
     /// The lowest bottom packed so far (from 0, not from the start).
     max_h: f32,
@@ -412,7 +445,15 @@ struct Packer {
 impl Packer {
     /// The free space is one rect `max_width` wide and practically bottomless.
     fn new(x: f32, y: f32, max_width: f32, gap: f32) -> Self {
-        Packer { free: vec![(x, y, max_width, 100000.0)], max_w: max_width, max_h: 0.0, gap }
+        Packer { free: vec![(x, y, max_width, 100000.0)], origin: (x, y), max_w: max_width, max_h: 0.0, gap }
+    }
+
+    /// Drop every free rect and open one row below everything packed, across the width: what
+    /// follows never fills a hole left above it. Before anything is packed, nothing changes.
+    fn new_row(&mut self) {
+        if self.max_h > self.origin.1 {
+            self.free = vec![(self.origin.0, self.max_h + self.gap, self.max_w, 100000.0)];
+        }
     }
 
     /// Where a `w` x `h` block goes. A block that fits nowhere opens a row below everything
@@ -784,6 +825,29 @@ mod tests {
                     assert!(r.width > 0.0 && r.height > 0.0, "{name}: {r:?}");
                 }
             }
+        }
+    }
+
+    /// A section break starts its block below everything before it, under Adaptive Grid
+    /// (the columns levelled at the tallest) and both mosaics (a row of its own), so a
+    /// section's blocks never sit beside or above another's; with no breaks, `arrange` is
+    /// the same packing as before.
+    #[test]
+    fn a_section_starts_below_everything_before_it() {
+        // Shorter than the packing, so Reverse Mosaic keeps its rows (it never squashes).
+        let a = Rect { x: 0.0, y: 0.0, width: 330.0, height: 100.0 };
+        // Three columns of 100: a tall block, two short ones, then a section of two.
+        let blocks = [block(100.0, 200.0), block(100.0, 40.0), block(100.0, 40.0), block(100.0, 40.0), block(100.0, 40.0)];
+        for kind in [Arrangement::AdaptiveGrid { min_col_width: 100.0 }, Arrangement::Mosaic, Arrangement::ReverseMosaic] {
+            let (plain, _) = place(kind, &blocks, a, 15.0);
+            assert!(plain[3].y < plain[0].y + plain[0].height, "{kind:?}: unbroken, block 3 fills in beside the tall one");
+            let (rects, _) = arrange_sections(kind, &blocks, &[], a, 15.0, &[3]);
+            let above = rects[..3].iter().map(|r| r.y + r.height).fold(0.0, f32::max);
+            for r in &rects[3..] {
+                assert!(r.y >= above + 15.0 - 0.01, "{kind:?}: the section starts at {}, above {above} + the gap", r.y);
+            }
+            assert_eq!(rects[3].y, rects[4].y, "{kind:?}: the section's blocks share its first row");
+            assert_eq!(rects[..3], plain[..3], "{kind:?}: what comes before the break is placed as it was");
         }
     }
 }
