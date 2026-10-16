@@ -82,16 +82,20 @@ impl ChildKind {
             ChildKind::LayerTop => (800.0, 40.0),
             ChildKind::LayerBackground => (800.0, 600.0),
             ChildKind::Status => (140.0, 24.0),
-            // The Ramp editor is as tall as the window's chrome (the title line, the root
-            // gaps and insets, Close) and the Ramp's own height, its graph whole over its
-            // control strip and key pad: a fixed height left the graph whatever the strip
-            // did not take. The ColorRamp's 390 holds its declared height with room.
-            ChildKind::Ramp => {
+            // Each editor is as tall as the window's chrome (the title line, the root gaps
+            // and insets, Close) and its ramp's own height: the Ramp's graph whole over its
+            // control strip and key pad (a fixed height left the graph whatever the strip did
+            // not take), the ColorRamp's track, pegs and colour selector row (a fixed 390,
+            // sized for the slider rows it had, stood mostly empty).
+            ChildKind::Ramp | ChildKind::ColorRamp => {
                 let probe = 390.0;
                 let chrome = probe - child_positions(450.0, probe, false, false)[1].3;
-                (450.0, (chrome + Ramp::expanded_height()).ceil())
+                let ramp = match self {
+                    ChildKind::Ramp => Ramp::expanded_height(),
+                    _ => ColorRamp::new().natural_height(),
+                };
+                (450.0, (chrome + ramp).ceil())
             }
-            ChildKind::ColorRamp => (450.0, 390.0),
         }
     }
 
@@ -359,8 +363,8 @@ const TREELIST_SLOT: usize = 26;
 /// its default height the curve was a 120 px strip its pegs crowded.
 const RAMP_SLOT: usize = 12;
 
-/// The ColorRamp's slot: across two of Adaptive Grid's columns, like the TreeList. In one
-/// its R, G and B sliders were 60 px long beside the delete button.
+/// The ColorRamp's slot: across two of Adaptive Grid's columns, like the TreeList, for a
+/// gradient longer than a control row and room for its colour selector's hex beside Delete.
 const COLOR_RAMP_SLOT: usize = 34;
 
 /// The ColorPalette's slot: across two of Adaptive Grid's columns, as the ColorRamp is, so its
@@ -831,7 +835,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
         // Colour.
         (15, W, csh, FIT),                             // ColorSelector
         (COLOR_PALETTE_SLOT, W, cph, FIT),             // ColorPalette (its strip and colour selector row, across two grid columns)
-        (COLOR_RAMP_SLOT, W, crh, FIT),                // ColorRamp (its track, pegs and slider rows, across two grid columns)
+        (COLOR_RAMP_SLOT, W, crh, FIT),                // ColorRamp (its track, pegs and colour selector row, across two grid columns)
         (11, W, bh, FIT),                              // Color Ramp...
         // The ramps.
         (13, W, bh, FIT),                              // Ramp...
@@ -3262,7 +3266,8 @@ mod tests {
     }
 
     /// At its default size the Ramp editor gives the Ramp its whole height (its graph and
-    /// control strip with the key pad), and the ColorRamp editor its declared height.
+    /// control strip with the key pad), and the ColorRamp editor its declared height — and
+    /// no more than a pixel past it, so the editor is not left standing half empty.
     #[test]
     fn the_ramp_editors_hold_their_ramps_whole() {
         let (sw, sh) = ChildKind::Ramp.default_size();
@@ -3271,7 +3276,7 @@ mod tests {
         let (sw, sh) = ChildKind::ColorRamp.default_size();
         let main = child_positions(sw, sh, false, false)[1];
         let natural = ColorRamp::new().natural_height();
-        assert!(main.3 >= natural, "the ColorRamp gets {} of {natural}", main.3);
+        assert!(main.3 >= natural && main.3 < natural + 1.0, "the ColorRamp gets {} of {natural}", main.3);
     }
 
     #[test]
@@ -3280,7 +3285,7 @@ mod tests {
             let (_, sh) = kind.default_size();
             assert!(!child_stacks(sh, false, false), "{kind:?}");
         }
-        for kind in [ChildKind::Floating, ChildKind::Utility, ChildKind::Ramp] {
+        for kind in [ChildKind::Floating, ChildKind::Utility, ChildKind::Ramp, ChildKind::ColorRamp] {
             let (_, sh) = kind.default_size();
             assert!(child_stacks(sh, false, false), "{kind:?}");
         }

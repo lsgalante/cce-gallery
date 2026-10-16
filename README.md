@@ -88,8 +88,8 @@ The Ramp, ColorRamp and ColorPalette open with a key (a swatch) in hand
 (`with_key_in_hand`, through each one's `select`): each reserves the rows of
 the controls that edit a selected key whether one is selected or not, so its
 size never changes as one is, and with none those rows stood blank — space the
-page's families then lined up below. Selected, they show the key pad, the R, G
-and B sliders, the colour selector and Delete they are for. The Tab walk
+page's families then lined up below. Selected, they show the key pad, the
+colour selectors and Delete they are for. The Tab walk
 through the Ramp therefore runs graph, Preset, Line, key pad, Delete.
 
 Two `Group` lassos lie over exhibits — `Group`, loose around the four
@@ -129,7 +129,8 @@ width (190 px) as the window holds, and drops one rather than let its widest
 exhibit run into the next. The TreeList, the Ramp, the ColorRamp and the
 ColorPalette lie across two of its columns — the TreeList so its key, type and
 value columns all show, the Ramp for a curve wider than a control row, the
-ColorRamp so its R, G and B sliders have length beside its delete button, the
+ColorRamp for a gradient longer than a control row, with room for its colour
+selector's hex beside its delete button, the
 ColorPalette so its strip holds its swatches at full spacing and its colour
 selector has room for its hex: each goes below the pair whose
 taller column is shorter, and the shorter one keeps the space above it empty.
