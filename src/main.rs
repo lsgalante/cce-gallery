@@ -343,8 +343,8 @@ const RAMP_SLOT: usize = 12;
 /// its R, G and B sliders were 60 px long beside the delete button.
 const COLOR_RAMP_SLOT: usize = 34;
 
-/// The ColorPalette's slot: across two of Adaptive Grid's columns, as the ColorRamp is, for
-/// the same sliders, and so its strip holds its six swatches and the add slot at full spacing.
+/// The ColorPalette's slot: across two of Adaptive Grid's columns, as the ColorRamp is, so its
+/// strip holds its six swatches and the add slot at full spacing.
 const COLOR_PALETTE_SLOT: usize = 36;
 
 /// Whether an exhibit lies across two of Adaptive Grid's columns ([`ExhibitSize::span`]).
@@ -800,7 +800,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
         (11, W, bh, FIT),                              // Color Ramp...
         (13, W, bh, FIT),                              // Ramp...
         (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
-        (COLOR_PALETTE_SLOT, W, cph, FIT),             // ColorPalette (its strip and slider rows, across two grid columns; the newest, last)
+        (COLOR_PALETTE_SLOT, W, cph, FIT),             // ColorPalette (its strip and colour selector row, across two grid columns; the newest, last)
     ];
     let mut sizes: Vec<ExhibitSize> = raw
         .iter()

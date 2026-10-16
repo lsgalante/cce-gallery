@@ -102,8 +102,9 @@ width (190 px) as the window holds, and drops one rather than let its widest
 exhibit run into the next. The TreeList, the Ramp, the ColorRamp and the
 ColorPalette lie across two of its columns — the TreeList so its key, type and
 value columns all show, the Ramp for a curve wider than a control row, the
-ColorRamp and the ColorPalette so their R, G and B sliders have length beside
-their delete buttons (and the palette's strip holds its swatches at full spacing): each goes below the pair whose
+ColorRamp so its R, G and B sliders have length beside its delete button, the
+ColorPalette so its strip holds its swatches at full spacing and its colour
+selector has room for its hex: each goes below the pair whose
 taller column is shorter, and the shorter one keeps the space above it empty.
 The span is Adaptive Grid's alone: the mosaics pack all four from a control
 row's width, and Vertical widens every exhibit to its one column. Reverse Mosaic spreads Mosaic's packing over the area: the
