@@ -84,6 +84,14 @@ in place and no widget appears twice for its style alone. A widget that does
 not follow the switch is a toolkit bug — every control's `with_raised` /
 `with_recessed` is an override on top of the live default, not a copy of it.
 
+The Ramp, ColorRamp and ColorPalette open with a key (a swatch) in hand
+(`with_key_in_hand`, through each one's `select`): each reserves the rows of
+the controls that edit a selected key whether one is selected or not, so its
+size never changes as one is, and with none those rows stood blank — space the
+page's families then lined up below. Selected, they show the key pad, the R, G
+and B sliders, the colour selector and Delete they are for. The Tab walk
+through the Ramp therefore runs graph, Preset, Line, key pad, Delete.
+
 Two `Group` lassos lie over exhibits — `Group`, loose around the four
 StatusDots (the named one and its three variants, heading the status family),
 and `Group (fitted)` around the top row,

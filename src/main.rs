@@ -313,6 +313,16 @@ impl Exhibit {
 /// exhibit run into the next column, dropped columns for it.
 const SLIDER_SPINBOX_W: f32 = 190.0;
 
+/// An editor exhibit as the page shows it, a key (or swatch) in hand: the Ramp, ColorRamp and
+/// ColorPalette each reserve the rows of the controls that edit a selected key whether one is
+/// selected or not, so their rect never changes as one is, and with none selected those rows
+/// were blank — the space under them the page's families then stood below. Selected, the
+/// rows show the controls they are for.
+fn with_key_in_hand<W: cce_ui::widget::Layout + cce_ui::widget::Paint + cce_ui::widget::Input>(mut editor: Adapted<W>, select: impl FnOnce(&mut W)) -> Adapted<W> {
+    select(editor.inner_mut());
+    editor
+}
+
 /// An exhibit's slot and the content size it is reset to before it is arranged.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExhibitSize {
@@ -1371,7 +1381,7 @@ impl cce_ui::engine::Application for State {
                 textbox_demo: ctx.insert(TextBox::new("Interactive TextBox".to_string())),
                 plate_demo: ctx.insert(Plate::new(0.0, 0.0, 120.0, 120.0, true).with_label("Plate")),
                 color_ramp_btn: ctx.insert(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Color Ramp...")),
-                bevel_ramp: ctx.insert(Ramp::new().with_label("Ramp")),
+                bevel_ramp: ctx.insert(with_key_in_hand(Ramp::new().with_label("Ramp"), |r| r.select(1))),
                 ramp_btn: ctx.insert(Button::new(0.0, 0.0, 120.0, cce_ui::layout::button_height()).with_label("Ramp...")),
                 layout_dd: ctx.insert(Dropdown::new(
                     LAYOUTS.iter().map(|(name, _)| name.to_string()).collect(),
@@ -1433,8 +1443,8 @@ impl cce_ui::engine::Application for State {
                 slider_spinbox_demo: ctx.insert(SliderSpinbox::new_int(5, 0, 10, 1).with_label("SliderSpinbox")),
                 // Unlabeled, as the Ramp is: it lays its track out from the top of the rect
                 // it is given, where a detached label's strip would be, and drew over one.
-                color_ramp_demo: ctx.insert(ColorRamp::new().with_label("ColorRamp")),
-                color_palette_demo: ctx.insert(ColorPalette::new().with_label("ColorPalette")),
+                color_ramp_demo: ctx.insert(with_key_in_hand(ColorRamp::new().with_label("ColorRamp"), |r| r.select(1))),
+                color_palette_demo: ctx.insert(with_key_in_hand(ColorPalette::new().with_label("ColorPalette"), |p| p.select(0))),
                 extra: variant_exhibits(ctx),
                 tiles: relief_tiles(ctx),
             }))
@@ -3297,8 +3307,9 @@ mod tests {
 
     /// Tab from the header walks the stops through the runner (`Driver::key`, as the shell
     /// calls it) to the Ramp exhibit, which it enters on the graph — the ramp itself focused
-    /// — then walks into the ramp's dropdowns, fields the ramp holds (`focus_holder`), and
-    /// out to the next stop; Shift+Tab from there comes back into the ramp, on its graph.
+    /// — then walks into the ramp's fields, which it holds (`focus_holder`): its dropdowns,
+    /// and, the exhibit showing a key in hand, the key pad and Delete; then out to the next
+    /// stop. Shift+Tab from there comes back into the ramp, on its graph.
     #[test]
     fn tab_from_the_header_reaches_the_ramp_and_walks_into_it() {
         use cce_ui::backend::driver::{Driver, Modifiers, Turn};
@@ -3308,6 +3319,8 @@ mod tests {
         st.apply_layout();
         let ramp = st.roster.gallery().bevel_ramp;
         let (preset, line) = (st.ui_context[ramp].preset_dropdown.base().id(), st.ui_context[ramp].line_type_dropdown.base().id());
+        let (pad, delete) = (st.ui_context[ramp].key_pad.base().id(), st.ui_context[ramp].del_button.base().id());
+        assert!(st.ui_context[ramp].selected_key_idx.is_some(), "the exhibit shows a key in hand");
         let stops = st.ui_context.focus_clusters().concat();
         assert!(stops.contains(&ramp.id()), "the Ramp is no Tab stop");
         let first = st.roster.id(HEADER[0]);
@@ -3325,13 +3338,14 @@ mod tests {
         }
         assert_eq!(st.ui_context.focused_widget, Some(ramp.id()), "Tab enters the ramp on its graph");
         let mut walked = Vec::new();
-        for _ in 0..3 {
+        for _ in 0..5 {
             tab(&mut st, &mut d);
             walked.push((st.ui_context.focused_widget, st.ui_context.focus_holder()));
         }
-        let (next, holder) = walked[2];
-        assert_eq!(walked[..2], [(Some(preset), Some(ramp.id())), (Some(line), Some(ramp.id()))], "Tab walks the ramp's dropdowns, which the ramp holds");
-        assert!(next.is_some() && holder != Some(ramp.id()), "Tab past the Line dropdown leaves the ramp, for {next:?}");
+        let (next, holder) = walked[4];
+        let held = |id| (Some(id), Some(ramp.id()));
+        assert_eq!(walked[..4], [held(preset), held(line), held(pad), held(delete)], "Tab walks the ramp's fields, which the ramp holds");
+        assert!(next.is_some() && holder != Some(ramp.id()), "Tab past Delete leaves the ramp, for {next:?}");
         d.set_modifiers(&mut st, Modifiers { ctrl: false, shift: true, alt: false, logo: false });
         tab(&mut st, &mut d);
         assert_eq!(st.ui_context.focused_widget, Some(ramp.id()), "Shift+Tab comes back into the ramp, on its graph");
