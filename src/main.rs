@@ -82,9 +82,16 @@ impl ChildKind {
             ChildKind::LayerTop => (800.0, 40.0),
             ChildKind::LayerBackground => (800.0, 600.0),
             ChildKind::Status => (140.0, 24.0),
-            // 390 tall: the editor keeps the 260px it had at hand-set margins now that
-            // the title line, one root gap and the root insets stand around it.
-            ChildKind::Ramp | ChildKind::ColorRamp => (450.0, 390.0),
+            // The Ramp editor is as tall as the window's chrome (the title line, the root
+            // gaps and insets, Close) and the Ramp's own height, its graph whole over its
+            // control strip and key pad: a fixed height left the graph whatever the strip
+            // did not take. The ColorRamp's 390 holds its declared height with room.
+            ChildKind::Ramp => {
+                let probe = 390.0;
+                let chrome = probe - child_positions(450.0, probe, false, false)[1].3;
+                (450.0, (chrome + Ramp::expanded_height()).ceil())
+            }
+            ChildKind::ColorRamp => (450.0, 390.0),
         }
     }
 
@@ -3117,6 +3124,19 @@ mod tests {
                 assert!(main.1 >= title_foot, "{kind:?}: main {main:?} under the title");
             }
         }
+    }
+
+    /// At its default size the Ramp editor gives the Ramp its whole height (its graph and
+    /// control strip with the key pad), and the ColorRamp editor its declared height.
+    #[test]
+    fn the_ramp_editors_hold_their_ramps_whole() {
+        let (sw, sh) = ChildKind::Ramp.default_size();
+        let main = child_positions(sw, sh, false, false)[1];
+        assert!(main.3 >= Ramp::expanded_height(), "the Ramp gets {} of {}", main.3, Ramp::expanded_height());
+        let (sw, sh) = ChildKind::ColorRamp.default_size();
+        let main = child_positions(sw, sh, false, false)[1];
+        let natural = ColorRamp::new().natural_height();
+        assert!(main.3 >= natural, "the ColorRamp gets {} of {natural}", main.3);
     }
 
     #[test]
