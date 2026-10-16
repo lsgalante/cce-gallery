@@ -38,7 +38,7 @@ Spinbox, SliderSpinbox (a slider with a spinbox at its right end, here an
 int), Float3, TextBox, KeybindRecorder,
 ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
-TreeList, Plate, BevelPreview, RampPreview, Ramp, ColorRamp. No chrome frames it: the
+TreeList, Plate, BevelPreview, RampPreview, Ramp, ColorRamp, ColorPalette. No chrome frames it: the
 Layout, Style and Page dropdowns stand in a row in the root plate's top-left
 corner — in a window too narrow for the three and its inset either side they
 flow onto further rows, each starting a new row at the left inset, one root gap
@@ -99,12 +99,13 @@ with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,
 the StatusDots, the copy-icon button, the vertical ButtonStrip), which keeps
 its width there. Adaptive Grid fits as many columns of at least an exhibit's
 width (190 px) as the window holds, and drops one rather than let its widest
-exhibit run into the next. The TreeList, the Ramp and the ColorRamp lie across
-two of its columns — the TreeList so its key, type and value columns all show,
-the Ramp for a curve wider than a control row, the ColorRamp so its R, G and B
-sliders have length beside its delete button: each goes below the pair whose
+exhibit run into the next. The TreeList, the Ramp, the ColorRamp and the
+ColorPalette lie across two of its columns — the TreeList so its key, type and
+value columns all show, the Ramp for a curve wider than a control row, the
+ColorRamp and the ColorPalette so their R, G and B sliders have length beside
+their delete buttons (and the palette's strip holds its swatches at full spacing): each goes below the pair whose
 taller column is shorter, and the shorter one keeps the space above it empty.
-The span is Adaptive Grid's alone: the mosaics pack all three from a control
+The span is Adaptive Grid's alone: the mosaics pack all four from a control
 row's width, and Vertical widens every exhibit to its one column. Reverse Mosaic spreads Mosaic's packing over the area: the
 exhibits' places, and the widths of the ones that stretch, scale to fill it,
 while every exhibit keeps its own height; when they run taller than the
@@ -267,7 +268,7 @@ walk moves on. The Ramp editor opens with its graph holding the keyboard.
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 36 named slots (`GallerySlots`) followed by the variant exhibits
+  roster of 37 named slots (`GallerySlots`) followed by the variant exhibits
   (`variant_exhibits`) and the Relief page's tiles (`relief_tiles`), each a
   `Vec<Exhibit>` of widgets the context owns, all
   addressed by numeric index in the layout tables, visibility filters and

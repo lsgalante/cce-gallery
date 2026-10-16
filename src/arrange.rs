@@ -766,7 +766,7 @@ mod tests {
         fn every_layout_places_every_exhibit() {
             let mut ui = UiContext::new();
             let extra = crate::variant_exhibits(&mut ui);
-            let table = crate::exhibit_table(120.0, 300.0, &extra);
+            let table = crate::exhibit_table(120.0, 300.0, 250.0, &extra);
             let blocks: Vec<Block> = table
                 .iter()
                 .enumerate()

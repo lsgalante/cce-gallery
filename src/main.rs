@@ -1,7 +1,7 @@
 use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
-use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, ScrollBox, SliderSpinbox, WidgetHostExt};
+use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, ColorPalette, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, ScrollBox, SliderSpinbox, WidgetHostExt};
 mod arrange;
 use arrange::{arrange, Arrangement, Block, Lasso};
 mod gallery_widgets;
@@ -183,7 +183,7 @@ enum Page {
 /// The Page dropdown's entries, in order; the gallery opens on the first.
 const PAGES: [(&str, Page); 2] = [("Widgets", Page::Widgets), ("Relief", Page::Relief)];
 
-/// The gallery roster: 36 named slots. The numeric indexes used by the positions
+/// The gallery roster: 37 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `Roster::id` / `get_dyn` / `get_dyn_mut`.
 pub struct GallerySlots {
@@ -233,6 +233,9 @@ pub struct GallerySlots {
     /// The Page dropdown (slot 35), after Style in the header: which page's exhibits the
     /// area below shows (`PAGES`).
     pub page_dd: Handle<Adapted<Dropdown>>,
+    /// Slot 36, after Page: the ColorPalette, an editable row of swatches (the ColorRamp's
+    /// discrete kin), embedded as the ColorRamp is.
+    pub color_palette_demo: Handle<Adapted<ColorPalette>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -244,7 +247,7 @@ pub struct GallerySlots {
 /// The number of NAMED gallery slots; the variant exhibits follow them, then the Relief
 /// page's tiles, so the roster's `len` is this plus `GallerySlots::extra.len()` plus
 /// `GallerySlots::tiles.len()`.
-pub const GALLERY_COUNT: usize = 36;
+pub const GALLERY_COUNT: usize = 37;
 
 /// The Page dropdown's slot, the last named one.
 const PAGE_SLOT: usize = 35;
@@ -340,9 +343,13 @@ const RAMP_SLOT: usize = 12;
 /// its R, G and B sliders were 60 px long beside the delete button.
 const COLOR_RAMP_SLOT: usize = 34;
 
+/// The ColorPalette's slot: across two of Adaptive Grid's columns, as the ColorRamp is, for
+/// the same sliders, and so its strip holds its six swatches and the add slot at full spacing.
+const COLOR_PALETTE_SLOT: usize = 36;
+
 /// Whether an exhibit lies across two of Adaptive Grid's columns ([`ExhibitSize::span`]).
 fn spans_two(slot: usize) -> bool {
-    matches!(slot, TREELIST_SLOT | RAMP_SLOT | COLOR_RAMP_SLOT)
+    matches!(slot, TREELIST_SLOT | RAMP_SLOT | COLOR_RAMP_SLOT | COLOR_PALETTE_SLOT)
 }
 
 /// How far from its rect's left edge a control's drawn content reaches: the end of the
@@ -443,6 +450,7 @@ impl GallerySlots {
             33 => self.slider_spinbox_demo.id(),
             34 => self.color_ramp_demo.id(),
             PAGE_SLOT => self.page_dd.id(),
+            COLOR_PALETTE_SLOT => self.color_palette_demo.id(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -730,9 +738,9 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
 /// The Controls exhibits in layout order, each with the content size it is reset to
 /// before it is arranged: an exhibit's block is read off its own rect (`Block::of`) after
 /// the reset, and the previous frame's landing may have stretched it. `s2d_w` is the
-/// Slider2D's measured width, `crh` the ColorRamp's declared height; `extra` the variant
-/// exhibits, which follow the named slots.
-fn exhibit_table(s2d_w: f32, crh: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
+/// Slider2D's measured width, `crh` and `cph` the ColorRamp's and the ColorPalette's declared
+/// heights; `extra` the variant exhibits, which follow the named slots.
+fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
     // Every height below but the Ramp's is the toolkit's default for that
     // control — its configured `style.control.<name>.height`, or the intrinsic
     // size the widget declares — so the page is a record of the defaults, not
@@ -760,7 +768,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
     // Whether the exhibit stretches to a Vertical or grid cell (`ExhibitSize::stretch`).
     const FIT: bool = true;
     const OWN: bool = false;
-    let raw: [(usize, f32, f32, bool); 31] = [
+    let raw: [(usize, f32, f32, bool); 32] = [
         (1, W, bh, FIT),                               // Button
         (18, W, bh, FIT),                              // ButtonStrip
         (CHECKBOX_SLOT, W, tgh, OWN),                  // Checkbox (narrowed to its box and label: `hug`)
@@ -792,6 +800,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, extra: &[Exhibit]) -> Vec<ExhibitSize> {
         (11, W, bh, FIT),                              // Color Ramp...
         (13, W, bh, FIT),                              // Ramp...
         (33, SLIDER_SPINBOX_W, slh.max(sph), FIT),     // SliderSpinbox (its band, then the box)
+        (COLOR_PALETTE_SLOT, W, cph, FIT),             // ColorPalette (its strip and slider rows, across two grid columns; the newest, last)
     ];
     let mut sizes: Vec<ExhibitSize> = raw
         .iter()
@@ -838,7 +847,7 @@ fn relief_tiles(ctx: &mut UiContext) -> Vec<Exhibit> {
 /// dropdowns (14 Layout, 0 Style, 35 Page), which `layout_exhibits` lays out under the
 /// header.
 fn is_exhibit(i: usize) -> bool {
-    matches!(i, 1..=13 | 15..=30 | 33 | 34) || i >= GALLERY_COUNT
+    matches!(i, 1..=13 | 15..=30 | 33 | 34 | COLOR_PALETTE_SLOT) || i >= GALLERY_COUNT
 }
 
 /// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
@@ -929,7 +938,8 @@ impl State {
             .measure(LayoutConstraints::new(0.0, f32::MAX, 0.0, f32::MAX), &self.ui_context)
             .width;
         let crh = self.roster.get_dyn(&self.ui_context, COLOR_RAMP_SLOT).preferred_height().unwrap_or(0.0);
-        exhibit_table(s2d_w, crh, &self.roster.gallery().extra)
+        let cph = self.roster.get_dyn(&self.ui_context, COLOR_PALETTE_SLOT).preferred_height().unwrap_or(0.0);
+        exhibit_table(s2d_w, crh, cph, &self.roster.gallery().extra)
     }
 
     /// The exhibits' viewport: below the header, down to the window's foot.
@@ -1372,6 +1382,7 @@ impl cce_ui::engine::Application for State {
                 // Unlabeled, as the Ramp is: it lays its track out from the top of the rect
                 // it is given, where a detached label's strip would be, and drew over one.
                 color_ramp_demo: ctx.insert(ColorRamp::new().with_label("ColorRamp")),
+                color_palette_demo: ctx.insert(ColorPalette::new().with_label("ColorPalette")),
                 extra: variant_exhibits(ctx),
                 tiles: relief_tiles(ctx),
             }))
@@ -2200,7 +2211,7 @@ mod tests {
     fn the_exhibit_table_lists_every_exhibit_once() {
         let mut ui = UiContext::new();
         let extra = variant_exhibits(&mut ui);
-        let mut listed: Vec<usize> = exhibit_table(120.0, 300.0, &extra).iter().map(|e| e.slot).collect();
+        let mut listed: Vec<usize> = exhibit_table(120.0, 300.0, 250.0, &extra).iter().map(|e| e.slot).collect();
         listed.sort_unstable();
         let exhibits: Vec<usize> = (0..GALLERY_COUNT + extra.len()).filter(|&i| is_exhibit(i)).collect();
         assert_eq!(listed, exhibits);
