@@ -836,7 +836,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
         (22, StatusDot::SIZE, StatusDot::SIZE, OWN),   // StatusDot (12px square; its label is wider)
         (4, W, pbh, FIT),                              // ProgressBar
         (21, W, pbh, FIT),                             // UsageBar
-        (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines)
+        (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines; the height it declares wins)
         (24, W, 2.0 * ddh, FIT),                       // InteractiveListItem (title + subtitle)
         (TREELIST_SLOT, W, 2.0 * CANVAS_H, FIT),       // TreeList (two canvases tall, across two grid columns: `span`)
         // Surfaces and dividers.
