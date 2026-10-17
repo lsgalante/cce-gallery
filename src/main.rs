@@ -400,8 +400,8 @@ fn content_extent(w: &dyn WidgetHost) -> Option<f32> {
         .map(|w| w.ceil() + 1.0)
 }
 
-/// The StatusDot's three variants' slots (`variant_exhibits`: the last three, after the
-/// named slot's dot), which the loose lasso draws around with it.
+/// The StatusDot's three variants' slots (`variant_exhibits`: the three after the Label, after
+/// the named slot's dot), which the loose lasso draws around with it.
 /// `the_loose_lasso_holds_the_status_dots` holds the indexes to the list.
 const STATUS_DOT_VARIANTS: [usize; 3] = [GALLERY_COUNT + 13, GALLERY_COUNT + 14, GALLERY_COUNT + 15];
 
@@ -716,6 +716,7 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
     let tbh = cce_ui::layout::textbox_height();
     let ddh = cce_ui::layout::dropdown_height();
     let csh = cce_ui::layout::color_selector_height();
+    let pbh = cce_ui::layout::progressbar_height();
     // The sidebar width a vertical strip is drawn for.
     const TAB_COLUMN_W: f32 = 40.0;
     let three = || vec!["One".to_string(), "Two".to_string(), "Three".to_string()];
@@ -780,6 +781,9 @@ fn variant_exhibits(ctx: &mut UiContext) -> Vec<Exhibit> {
         Exhibit::new(ctx, StatusDot::new(DotStatus::Inactive).with_label("StatusDot (inactive)"), StatusDot::SIZE, StatusDot::SIZE).fixed().after(22),
         Exhibit::new(ctx, StatusDot::new(DotStatus::Warning).with_label("StatusDot (warning)"), StatusDot::SIZE, StatusDot::SIZE).fixed().after(22),
         Exhibit::new(ctx, StatusDot::new(DotStatus::Error).with_label("StatusDot (error)"), StatusDot::SIZE, StatusDot::SIZE).fixed().after(22),
+        // ProgressBar: indeterminate, its segment sweeping the track. "(busy)": "(indeterminate)"
+        // is wider than a grid column, which would drop one.
+        Exhibit::new(ctx, ProgressBar::indeterminate().with_label("ProgressBar (busy)"), W, pbh).after(4),
     ]
 }
 
@@ -1578,26 +1582,30 @@ impl cce_ui::engine::Application for State {
                 self.exhibit_scroll.scroll_y = scroll_y;
             }
         }
+        // A Ramp editor's curve before the tick, to save if the tick changes it.
+        let ramp_slot = (self.child_kind == Some(ChildKind::Ramp)).then_some(1);
+        let ramp_kdl = |st: &Self| {
+            ramp_slot.and_then(|i| {
+                st.roster.get_dyn(&st.ui_context, i).as_any().downcast_ref::<Ramp>().map(|r| bevel_ramp_kdl(&r.keys, ramp_line_type(r)))
+            })
+        };
+        let ramp_before = ramp_kdl(self);
+        // The widgets registered with the context (`wants_tick`) are ticked by it, hidden
+        // ones aside; the loop below ticks the rest. Ticking a registered one there as well
+        // ran it twice a frame: the driver ticks the context after the app unless the app
+        // did (`Driver::tick`, by its tick count), and a widget ticked on its own does not
+        // count — so everything that steps by `dt` (a Spinner's turn, a TextBox's glide)
+        // went at twice its rate here.
+        if self.ui_context.tick(dt) {
+            changed = true;
+        }
         let vis = self.visibility();
-        let is_visible = move |index: usize| vis.is_visible(index);
-        for i in 0..self.roster.len() {
-            if is_visible(i) {
-                let ramp_child = self.child_kind == Some(ChildKind::Ramp) && i == 1;
-                let ticked = self.ui_context.lend(self.roster.id(i), |w, ctx| {
-                    let ticked = w.tick(dt, ctx);
-                    // A Ramp editor's curve, to save if the tick changed it.
-                    let ramp = (ticked && ramp_child)
-                        .then(|| w.as_any().downcast_ref::<Ramp>().map(|r| bevel_ramp_kdl(&r.keys, ramp_line_type(r))))
-                        .flatten();
-                    (ticked, ramp)
-                });
-                if let Some((ticked, ramp)) = ticked {
-                    changed |= ticked;
-                    if let Some(kdl) = ramp {
-                        self.save_ramp(kdl);
-                    }
-                }
-            }
+        for i in (0..self.roster.len()).filter(|&i| vis.is_visible(i)) {
+            let ticked = self.ui_context.lend(self.roster.id(i), |w, ctx| !w.wants_tick() && w.tick(dt, ctx));
+            changed |= ticked.unwrap_or(false);
+        }
+        if let Some(kdl) = ramp_kdl(self).filter(|after| ramp_before.as_ref() != Some(after)) {
+            self.save_ramp(kdl);
         }
         if changed {
             *needs_rebuild = true;

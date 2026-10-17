@@ -67,7 +67,9 @@ Within its family each widget is followed by its variants: every further look a
 widget can take, one exhibit each, labelled `<Widget> (<style>)`, placed right
 after the widget it is a look of (`Exhibit::after`). The toolkit's own variants are a
 constructor (`Button::new_reset`, `new_list_row`, `new_menu_item`,
-`new_copy_icon`; `SliderSpinbox::new_float`, to two decimals), a builder
+`new_copy_icon`; `SliderSpinbox::new_float`, to two decimals;
+`ProgressBar::indeterminate`, labelled `(busy)` because `(indeterminate)` is
+wider than a grid column), a builder
 (`with_readout` on Slider; `with_multiline`,
 `with_draw_bg_border(false)` and `with_password` on TextBox; `with_vertical`
 on ButtonStrip). ColorSelector shows its alpha swatch,
