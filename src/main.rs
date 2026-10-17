@@ -1,7 +1,7 @@
 use cce_ui::process::spawn_detached;
 use cce_ui::context::UiContext;
 use cce_ui::widget::{Handle, WidgetId};
-use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, ColorPalette, MouseButton, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, ScrollBox, SliderSpinbox, WidgetHostExt};
+use cce_ui::widget::{Button, Checkbox, ContentBg, Dropdown, Label, ProgressBar, RangeSlider, Slider, Spinbox, StatusBar, Toggle, WidgetHost, Trackpad, TextBox, MenuBar, Group, Ramp, RampKey, ColorRamp, ColorPalette, MouseButton, Spinner, ElementState, Key, NamedKey, KeyEvent, MouseScrollDelta, ColorSelector, FontSelector, KeybindRecorder, ButtonStrip, Float3, UsageBar, StatusDot, DotStatus, InfoBox, InteractiveListItem, Breadcrumb, TreeList, BevelPreview, RampPreview, Separator, Splitter, ScrollBox, SliderSpinbox, WidgetHostExt};
 mod arrange;
 use arrange::{arrange_sections, Arrangement, Block, Lasso};
 mod gallery_widgets;
@@ -187,7 +187,7 @@ enum Page {
 /// The Page dropdown's entries, in order; the gallery opens on the first.
 const PAGES: [(&str, Page); 2] = [("Widgets", Page::Widgets), ("Relief", Page::Relief)];
 
-/// The gallery roster: 37 named slots. The numeric indexes used by the positions
+/// The gallery roster: 38 named slots. The numeric indexes used by the positions
 /// table, the visibility filter and the dispatch loops address these slots through
 /// `Roster::id` / `get_dyn` / `get_dyn_mut`.
 pub struct GallerySlots {
@@ -240,6 +240,8 @@ pub struct GallerySlots {
     /// Slot 36, after Page: the ColorPalette, an editable row of swatches (the ColorRamp's
     /// discrete kin), embedded as the ColorRamp is.
     pub color_palette_demo: Handle<Adapted<ColorPalette>>,
+    /// Slot 37: the Spinner, the indeterminate activity indicator, beside the ProgressBar.
+    pub spinner_demo: Handle<Adapted<Spinner>>,
     /// The variant exhibits (`variant_exhibits`): every further style of a widget one of
     /// the named slots already shows, addressed as slots `GALLERY_COUNT..`.
     pub extra: Vec<Exhibit>,
@@ -251,7 +253,7 @@ pub struct GallerySlots {
 /// The number of NAMED gallery slots; the variant exhibits follow them, then the Relief
 /// page's tiles, so the roster's `len` is this plus `GallerySlots::extra.len()` plus
 /// `GallerySlots::tiles.len()`.
-pub const GALLERY_COUNT: usize = 37;
+pub const GALLERY_COUNT: usize = 38;
 
 /// The Page dropdown's slot, the last named one.
 const PAGE_SLOT: usize = 35;
@@ -370,6 +372,9 @@ const COLOR_RAMP_SLOT: usize = 34;
 /// The ColorPalette's slot: across two of Adaptive Grid's columns, as the ColorRamp is, so its
 /// strip holds its six swatches and the add slot at full spacing.
 const COLOR_PALETTE_SLOT: usize = 36;
+
+/// The Spinner's slot, in the status family after the ProgressBar.
+const SPINNER_SLOT: usize = 37;
 
 /// Whether an exhibit lies across two of Adaptive Grid's columns ([`ExhibitSize::span`]).
 fn spans_two(slot: usize) -> bool {
@@ -490,6 +495,7 @@ impl GallerySlots {
             34 => self.color_ramp_demo.id(),
             PAGE_SLOT => self.page_dd.id(),
             COLOR_PALETTE_SLOT => self.color_palette_demo.id(),
+            SPINNER_SLOT => self.spinner_demo.id(),
             _ => panic!("gallery slot index out of range: {idx}"),
         }
     }
@@ -817,7 +823,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
     // multiline TextBox keeps Tab (it types one), and Tab from the header must reach the
     // Ramp. A lasso is placed at its first member's place, so the fitted one heads the
     // buttons and the loose one, round the StatusDots, the status family.
-    let raw: [(usize, f32, f32, bool); 32] = [
+    let raw: [(usize, f32, f32, bool); 33] = [
         // Buttons and toggles.
         (1, W, bh, FIT),                               // Button
         (18, W, bh, FIT),                              // ButtonStrip
@@ -849,6 +855,7 @@ fn exhibit_table(s2d_w: f32, crh: f32, cph: f32, extra: &[Exhibit]) -> Vec<Exhib
         // Status and display: the StatusDots first, in their lasso.
         (22, StatusDot::SIZE, StatusDot::SIZE, OWN),   // StatusDot (12px square; its label is wider)
         (4, W, pbh, FIT),                              // ProgressBar
+        (SPINNER_SLOT, Spinner::SIZE, Spinner::SIZE, OWN), // Spinner (20px square; its label is wider)
         (21, W, pbh, FIT),                             // UsageBar
         (23, W, 3.0 * ddh, FIT),                       // InfoBox (title + two lines; the height it declares wins)
         (24, W, 2.0 * ddh, FIT),                       // InteractiveListItem (title + subtitle)
@@ -912,7 +919,7 @@ fn relief_tiles(ctx: &mut UiContext) -> Vec<Exhibit> {
 /// dropdowns (14 Layout, 0 Style, 35 Page), which `layout_exhibits` lays out under the
 /// header.
 fn is_exhibit(i: usize) -> bool {
-    matches!(i, 1..=13 | 15..=30 | 33 | 34 | COLOR_PALETTE_SLOT) || i >= GALLERY_COUNT
+    matches!(i, 1..=13 | 15..=30 | 33 | 34 | COLOR_PALETTE_SLOT | SPINNER_SLOT) || i >= GALLERY_COUNT
 }
 
 /// The Group lassos: drawn under the exhibit clip like exhibits, laid out by
@@ -1449,6 +1456,7 @@ impl cce_ui::engine::Application for State {
                 // it is given, where a detached label's strip would be, and drew over one.
                 color_ramp_demo: ctx.insert(with_key_in_hand(ColorRamp::new().with_label("ColorRamp"), |r| r.select(1))),
                 color_palette_demo: ctx.insert(with_key_in_hand(ColorPalette::new().with_label("ColorPalette"), |p| p.select(0))),
+                spinner_demo: ctx.insert(Spinner::new().with_label("Spinner")),
                 extra: variant_exhibits(ctx),
                 tiles: relief_tiles(ctx),
             }))

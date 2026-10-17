@@ -39,7 +39,7 @@ that stands on its own. Inputs: Button, ButtonStrip, Checkbox, Toggle, Slider an
 RangeSlider (bands that swell at the value, the one slider style), Slider2D,
 Spinbox, SliderSpinbox (a slider with a spinbox at its right end, here an
 int), Float3, TextBox, KeybindRecorder,
-ColorSelector, FontSelector, Trackpad. Display: ProgressBar, UsageBar,
+ColorSelector, FontSelector, Trackpad. Display: ProgressBar, Spinner, UsageBar,
 StatusDot, Separator, Splitter, InfoBox, InteractiveListItem, Breadcrumb,
 TreeList, Plate, BevelPreview, RampPreview, Ramp, ColorRamp, ColorPalette. No chrome frames it: the
 Layout, Style and Page dropdowns stand in a row in the root plate's top-left
@@ -123,7 +123,7 @@ Mosaic, Reverse Mosaic — at the toolkit's control gap
 (`layout::control_gap()`, one control height, the one gap the row builders use
 in both axes). Vertical and Adaptive Grid widen a control to its cell, except one
 with a size of its own (the Toggle, the Slider2D's pad, the Splitter's grip,
-the StatusDots, the copy-icon button, the vertical ButtonStrip), which keeps
+the StatusDots, the Spinner, the copy-icon button, the vertical ButtonStrip), which keeps
 its width there. Adaptive Grid fits as many columns of at least an exhibit's
 width (190 px) as the window holds, and drops one rather than let its widest
 exhibit run into the next. The TreeList, the Ramp, the ColorRamp and the
@@ -297,7 +297,7 @@ walk moves on. The Ramp editor opens with its graph holding the keyboard.
 ## Layout of the source
 
 - `src/main.rs` — the `Application` impl. The gallery is a concretely typed
-  roster of 37 named slots (`GallerySlots`) followed by the variant exhibits
+  roster of 38 named slots (`GallerySlots`) followed by the variant exhibits
   (`variant_exhibits`) and the Relief page's tiles (`relief_tiles`), each a
   `Vec<Exhibit>` of widgets the context owns, all
   addressed by numeric index in the layout tables, visibility filters and
